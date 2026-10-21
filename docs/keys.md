@@ -16,8 +16,9 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 
 | Keys | Action |
 |------|--------|
-| `0`–`9` | count for the next command (`3w`, `5j`) |
-| `"x` | use register `x` for the next yank, delete, change or paste (default `"`) |
+| `0`–`9` | count for the next command (`3w`, `5j`), at most 1000000 |
+| `"x` | use register `x` (a printable ASCII character) for the next yank, delete, change or paste (default `"`) |
+| Esc | cancel a count, register or unfinished key |
 
 ### Moving and selecting
 
@@ -35,7 +36,7 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 | `t<c>` / `T<c>` | select up to the next `c`, exclusive / extend |
 | `Alt-f<c>` `Alt-t<c>` | the same, backwards |
 | `m` / `M` | select to the matching bracket / extend |
-| `gh` `gl` | line start / end |
+| `gh` `gl`, Home, End | line start / end (Shift-Home, Shift-End extend) |
 | `gi` | first non-blank of the line |
 | `gg` `gk` | buffer start |
 | `ge` `gj` | last line |
@@ -106,7 +107,7 @@ paragraph.
 | Enter | new line, keeping the current line's indentation |
 | Tab | a tab character |
 | Backspace / Delete | delete the character before / under every cursor |
-| arrows | move every cursor |
+| arrows, Home, End | move every cursor |
 | Esc | back to normal mode (the insert session is one undo step) |
 | bracketed paste | inserted literally at every cursor |
 
