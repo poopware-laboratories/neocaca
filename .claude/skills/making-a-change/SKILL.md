@@ -14,9 +14,11 @@ required. Skipping one is how pull requests go red.
   Someone may own it, or an issue may say how it must be done.
 - Branch from an up-to-date `main`: `git switch main && git pull --rebase &&
   git switch -c type/short-topic` (`fix/undo-merge`, `feat/soft-wrap`).
-- Find the module from the table in AGENTS.md ("Architecture in one
-  screen"). If the logic needs a terminal or a file to test, it belongs in a
-  pure module instead; only `term/`, `fs/` and `main.zig` do I/O.
+- Find the folder from the table in AGENTS.md ("Architecture in one
+  screen") and the file for the concern; start a new file rather than
+  mixing two concerns in one. If the logic needs a terminal or a file to
+  test, it belongs in a pure module instead; only `term/`, `fs/` and
+  `main.zig` do I/O.
 
 ## 2. Red, green, refactor
 
@@ -62,7 +64,8 @@ three test lines (inside `test` blocks, `*_test.zig`,
 
 | Mistake | Fix |
 |---------|-----|
-| A new file the test step never imports | Reference it from its module (`_ = @import("x_test.zig");` in a `test` block) and check the test count went up. |
+| A new file the test step never imports | Reference it from its folder's namespace file (`_ = @import("cli/x.zig");` in its `test` block) and check the test count went up. |
+| A new subsystem as one big file, or importing another folder's files | A folder plus a namespace file of the same name (`src/x.zig`, `src/x/`); reach other subsystems only through their namespace file. |
 | A function no test calls | Zig never analyzes it, so it may not even compile. Test it. |
 | `catch unreachable` on an allocation | Propagate `error.OutOfMemory`. |
 | Writing file text straight to the terminal | Render control bytes visibly; files are untrusted. |

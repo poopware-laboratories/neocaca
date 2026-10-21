@@ -105,7 +105,7 @@ reviewers count it from the diff.
 
 - Pull requests without production code (docs, CI, build tweaks) pass.
 - **Build scripts and benchmarks are not counted** (`build.zig`,
-  `src/bench.zig` and any later `*_bench.zig`), provided they are written
+  everything under `src/bench/`), provided they are written
   with deep testing in mind: `build.zig` keeps every test reachable from
   `zig build test`, honors `-Dtest-filter`, and builds the tests in every
   mode and option the product ships with; a benchmark checks that each fast
@@ -163,7 +163,7 @@ Zig makes every allocation explicit; keep it that way.
 - **No global allocator.** Every function that allocates takes a
   `std.mem.Allocator` parameter (or is a method on a type that stores one
   from `init`). Only `main.zig` chooses the process allocator, by
-  `alloc.process.kindFor(builtin.mode)`: `std.heap.SafeAllocator` in Debug
+  `alloc.process.Gpa(kindFor(builtin.mode))`: `std.heap.SafeAllocator` in Debug
   (leaks, double frees and use after free reported),
   [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
   ReleaseFast and ReleaseSmall.
@@ -204,10 +204,20 @@ Zig makes every allocation explicit; keep it that way.
 
 ## Architecture in one screen
 
-The repository is at its start: `src/alloc`, `src/simd`, `src/cli.zig`,
-`src/main.zig` and `src/bench.zig` exist; the rest is the layout new code
-goes into. Update this table in the same pull request whenever the code
-diverges.
+**Layout: one folder per subsystem, one concern per file.** Each subsystem
+is a folder with a namespace file of the same name beside it, as the
+standard library does (`src/cli.zig` and `src/cli/`). The namespace file
+starts with a `//!` line naming its files, re-exports the public API, and
+has a `test { _ = @import(...); }` block referencing every file in the
+folder, so `zig build test` reaches them. `src/root.zig` re-exports the
+namespaces. Inside a folder, files import siblings directly
+(`@import("command.zig")`) and other subsystems through their namespace
+file (`@import("../cli.zig")`), never another folder's files. A file holds
+one concern; when it outgrows that, split it (`parse.zig`, `usage.zig`),
+and tests that outgrow their file move to a sibling `name_test.zig`.
+`app`, `alloc`, `cli` and `simd` exist so far; the other rows below are where
+new code goes. Update this table in the same pull request whenever the
+code diverges.
 
 ```
 stdin bytes ──► input::decode ──► input::Event ──► app::EventLoop ──► edit::Command
@@ -221,27 +231,28 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
 
 | Path | Responsibility |
 |------|----------------|
-| `src/main.zig` | Allocator choice, I/O setup, then `run` (arguments to exit code, tested over plain writers). Later: terminal setup and guaranteed restore, then `app.run`. |
-| `src/root.zig` | The `neocaca` module: re-exports every subsystem, and references them all so `zig build test` reaches their tests. |
-| `src/cli.zig` | Pure command-line parsing. |
-| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*`. `process.zig`: which allocator each build mode uses. |
-| `src/simd/` | SIMD kernels and their scalar references: byte counting and search, control-byte search (`bytes.zig`, tested in `bytes_test.zig`). |
-| `src/bench.zig` | `zig build bench`: each kernel against its scalar reference. |
+| `src/main.zig` | Process setup only: the process allocator, I/O, the arguments, then `app.run`. Later also terminal setup and guaranteed restore. No logic worth testing lives here. |
+| `src/root.zig` | The `neocaca` module: re-exports every subsystem namespace, so `zig build test` reaches their tests. |
+| `src/app/` | `run.zig`: a command line to an exit code over plain writers (tested in `run_test.zig`); `exit.zig`: the exit codes. Later the event loop: `App` methods route events to the pure modules below. |
+| `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
+| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
+| `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
+| `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. |
 | `src/buffer/` | Text storage (piece table or rope), byte offsets, line index, UTF-8 and grapheme boundaries. No I/O, no terminal. |
 | `src/edit/` | Commands applied to buffers: insert, delete, cursor and selection movement, undo/redo history. |
 | `src/input/` | Pure decoder: raw terminal bytes to key, mouse, paste and resize events; keymaps from events to commands. |
 | `src/render/` | `Screen` (a grid of cells: grapheme, width, style), the diff of two screens into minimal escape output, display width. |
 | `src/ui/` | Pure layout: views, splits, gutter, status line, prompts, scrolling. |
 | `src/term/` | The only code that touches the real terminal: raw mode, size, non-blocking reads, buffered writes. Platform-gated. |
-| `src/app/` | The event loop gluing the rest together. `App` methods route events to the pure modules above. |
 | `src/fs/` | Loading and saving files: atomic writes, encodings, line endings, size limits. |
 | `tests/` | Integration tests that drive a whole editor session from scripted input bytes and assert on the final `Screen` and buffers. |
 
 ## Rules of thumb
 
 - **Keep files small and single-purpose.** Prefer a new file over growing
-  one past roughly 400 lines. Each file starts with a `//!` doc comment
-  saying what it is for. Tests that outgrow their file move to a sibling
+  one past roughly 400 lines, and a new folder (with its namespace file)
+  over a file holding two subsystems. Each file starts with a `//!` doc
+  comment saying what it is for. Tests that outgrow their file move to a sibling
   `name_test.zig`, referenced from the module so `zig build test` reaches it.
 - **Functional core, imperative shell.** Encoding, decoding, layout, editing
   and diffing are pure functions over plain data (`input.decode(bytes)`,

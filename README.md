@@ -94,13 +94,18 @@ terminal ◄── render::diff ◄── render::Screen ◄── ui::layout �
 
 A pure core (buffers, editing, input decoding, layout, screen diffing)
 that tests run without a terminal, behind a thin layer that does the I/O.
+Every subsystem is a folder of small single-purpose files behind one
+namespace file (`src/cli.zig` and `src/cli/`).
 The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 
 | Path | Status |
 |------|--------|
-| `src/alloc/` | mimalloc as a `std.mem.Allocator`; per-mode allocator choice |
-| `src/simd/` | Byte counting, byte search, control-byte search |
-| `src/cli.zig`, `src/main.zig` | Command line and process setup |
+| `src/main.zig` | Process setup only, then `app.run` |
+| `src/app/` | A command line to an exit code; the event loop goes here |
+| `src/cli/` | Commands, parsing, help text |
+| `src/alloc/` | mimalloc as a `std.mem.Allocator`; per-mode process allocator |
+| `src/simd/` | One file per kernel: byte counting, byte search, control-byte search |
+| `src/bench/` | `zig build bench`: kernels against their scalar references |
 | `src/buffer/`, `src/edit/`, `src/input/`, `src/render/`, `src/ui/`, `src/term/`, `src/fs/` | Planned |
 
 ## Contributing
