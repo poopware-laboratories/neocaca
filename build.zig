@@ -53,12 +53,20 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     // `zig fmt` over our sources only, never the fetched packages in zig-pkg/.
-    const fmt_paths = b.pathList(&.{ "build.zig", "build.zig.zon", "src" });
+    const fmt_paths = b.pathList(&.{ "build.zig", "build.zig.zon", "src", "tests" });
     b.step("fmt", "Format the sources").dependOn(&b.addFmt(.{ .paths = fmt_paths }).step);
     b.step("fmt-check", "Fail if any source is not formatted").dependOn(&b.addFmt(.{ .paths = fmt_paths, .check = true }).step);
 
+    // Integration tests in tests/ drive whole sessions through the module.
+    const integration = b.createModule(.{
+        .root_source_file = b.path("tests/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "neocaca", .module = mod }},
+    });
+
     const test_step = b.step("test", "Run all tests");
-    for ([_]*std.Build.Module{ mod, exe.root_module }) |root| {
+    for ([_]*std.Build.Module{ mod, exe.root_module, integration }) |root| {
         const tests = b.addTest(.{ .root_module = root, .filters = test_filters });
         test_step.dependOn(&b.addRunArtifact(tests).step);
     }

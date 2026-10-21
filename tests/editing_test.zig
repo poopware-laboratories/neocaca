@@ -1,0 +1,207 @@
+//! Editing workflows from the first key to the file on disk: selections,
+//! verbs, multiple cursors, search, registers, undo, and the `:` commands,
+//! each typed as a person types it.
+
+const std = @import("std");
+const Harness = @import("harness.zig").Harness;
+
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;
+
+test "editing: select a word, delete it, write and quit" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "hello brave world\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("wwd");
+    try h.expectText("hello world\n");
+    try h.typeKeys(":wq\r");
+    try expect(h.session.done());
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("hello world\n", try h.file("a.txt", &buf));
+}
+
+test "editing: select every match in the buffer and change them all" {
+    var h: Harness = undefined;
+    try h.init("a.zig", "const std = @import(\"std\");\nstd.debug.print();\n", 50, 5);
+    defer h.deinit();
+    try h.typeKeys("%sstd\r");
+    try h.expectSelections(&.{ "std", "std", "std" });
+    try h.expectRow(3, " NORMAL  a.zig                        3 sels  1:9 ");
+    try h.typeKeys("cSTD\x1b");
+    try h.expectText("const STD = @import(\"STD\");\nSTD.debug.print();\n");
+    try h.typeKeys("u");
+    try h.expectText("const std = @import(\"std\");\nstd.debug.print();\n");
+    try h.typeKeys("U");
+    try h.expectText("const STD = @import(\"STD\");\nSTD.debug.print();\n");
+}
+
+test "editing: split a list at its commas and trim each item" {
+    var h: Harness = undefined;
+    try h.init(null, null, 30, 4);
+    defer h.deinit();
+    try h.typeKeys("ia, b, c\x1b%");
+    try h.typeKeys("S, \r");
+    try h.expectSelections(&.{ "a", "b", "c\n" });
+    try h.typeKeys("~");
+    try h.expectText("A, B, C\n");
+}
+
+test "editing: keep and drop selections by pattern" {
+    var h: Harness = undefined;
+    try h.init("t", "fn a\nlet b\nfn c\nlet d\n", 30, 6);
+    defer h.deinit();
+    try h.typeKeys("%");
+    try h.send("\x1bs");
+    try h.expectSelections(&.{ "fn a\n", "let b\n", "fn c\n", "let d\n" });
+    try h.send("\x1bk");
+    try h.typeKeys("fn\r");
+    try h.expectSelections(&.{ "fn a\n", "fn c\n" });
+    try h.typeKeys("d");
+    try h.expectText("let b\nlet d\n");
+    try h.typeKeys("%");
+    try h.send("\x1bs");
+    try h.send("\x1bK");
+    try h.typeKeys("let\r");
+    try h.expectMessage("every selection matches");
+    try expectEqual(2, h.session.ed.doc.sels().len);
+}
+
+test "editing: search forwards, repeat, and add the next match" {
+    var h: Harness = undefined;
+    try h.init("t", "one two one two one\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("/one\r");
+    try h.expectSelections(&.{"one"});
+    try expectEqual(10, h.session.ed.doc.sels()[0].cursor);
+    try h.typeKeys("n");
+    try expectEqual(18, h.session.ed.doc.sels()[0].cursor);
+    try h.typeKeys("N");
+    try h.expectSelections(&.{ "one", "one" });
+    // The added match wrapped around to the first "one".
+    try h.typeKeys("cX\x1b");
+    try h.expectText("X two one two X\n");
+}
+
+test "editing: yank a line into a register and paste it twice below" {
+    var h: Harness = undefined;
+    try h.init("t", "first\nsecond\n", 30, 5);
+    defer h.deinit();
+    try h.typeKeys("x\"ay");
+    try h.typeKeys("j");
+    try h.typeKeys("\"ap\"ap");
+    try h.expectText("first\nsecond\nfirst\nfirst\n");
+    try h.typeKeys("uu");
+    try h.expectText("first\nsecond\n");
+}
+
+test "editing: insert at a column of cursors made with C" {
+    var h: Harness = undefined;
+    try h.init("t", "a\nb\nc\n", 30, 6);
+    defer h.deinit();
+    try h.typeKeys("CC");
+    try expectEqual(3, h.session.ed.doc.sels().len);
+    try h.typeKeys("i- \x1b");
+    try h.expectText("- a\n- b\n- c\n");
+    try h.typeKeys(",");
+    try expectEqual(1, h.session.ed.doc.sels().len);
+}
+
+test "editing: undo takes back a whole insert session, redo brings it again" {
+    var h: Harness = undefined;
+    try h.init("t", "x\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("iabc\x7f\x1b");
+    try h.expectText("abx\n");
+    try h.typeKeys("u");
+    try h.expectText("x\n");
+    try h.typeKeys("u");
+    try h.expectMessage("nothing to undo");
+    try h.typeKeys("U");
+    try h.expectText("abx\n");
+}
+
+test "editing: a scratch buffer is written under the name :w gives it" {
+    var h: Harness = undefined;
+    try h.init(null, null, 30, 4);
+    defer h.deinit();
+    try h.typeKeys("inotes\x1b:w\r");
+    try h.expectMessage("no file name; :w <file>");
+    try h.typeKeys(":w out.txt\r");
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("notes\n", try h.file("out.txt", &buf));
+    try h.expectRow(2, " NORMAL  out.txt          1:6 ");
+    try h.typeKeys(":q\r");
+    try expect(h.session.done());
+}
+
+test "editing: :q refuses over changes, :q! leaves them unwritten" {
+    var h: Harness = undefined;
+    try h.init("a", "x\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("iy\x1b:q\r");
+    try expect(!h.session.done());
+    try h.typeKeys(":q!\r");
+    try expect(h.session.done());
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("x\n", try h.file("a", &buf));
+}
+
+test "editing: :e opens another file, refused over changes until written" {
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 30, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
+    try h.typeKeys("d:e b\r");
+    try h.expectText("irst\n");
+    try h.typeKeys(":w\r:e b\r");
+    try h.expectText("second\n");
+    try h.expectRow(2, " NORMAL  b                1:1 ");
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("irst\n", try h.file("a", &buf));
+}
+
+test "editing: a write that fails keeps the changes and says why" {
+    var h: Harness = undefined;
+    try h.init("dir/a", null, 40, 4);
+    defer h.deinit();
+    try h.typeKeys("ix\x1b:wq\r");
+    try expect(!h.session.done());
+    try expect(h.session.ed.doc.isModified());
+    try expect(h.session.ed.message.is_error);
+    try h.expectText("x\n");
+}
+
+test "editing: counts repeat moves and verbs" {
+    var h: Harness = undefined;
+    try h.init("t", "1\n2\n3\n4\n5\n", 30, 7);
+    defer h.deinit();
+    try h.typeKeys("3j");
+    try h.expectSelections(&.{"4"});
+    try h.typeKeys("x2d");
+    try h.expectText("1\n2\n3\n5\n");
+    try h.typeKeys(":2\r");
+    try h.expectSelections(&.{"2"});
+}
+
+test "editing: a paste arrives as typed text, in one undo step" {
+    var h: Harness = undefined;
+    try h.init(null, null, 30, 4);
+    defer h.deinit();
+    try h.send("i");
+    try h.send("\x1b[200~line one\nline two\x1b[201~");
+    try h.typeKeys("\x1b");
+    try h.expectText("line one\nline two\n");
+    try h.typeKeys("u");
+    try h.expectText("\n");
+}
+
+test "editing: a pasted escape sequence is text, not keys" {
+    var h: Harness = undefined;
+    try h.init(null, null, 30, 4);
+    defer h.deinit();
+    try h.send("i\x1b[200~\x1b:q!\r\x1b[201~");
+    try expect(!h.session.done());
+    try expectEqual(.insert, h.session.ed.mode);
+    try h.expectText("\x1b:q!\n\n");
+}

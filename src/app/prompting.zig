@@ -38,7 +38,8 @@ pub fn submit(ed: *Editor) Error!void {
                 .keep => try selecting.keepMatching(&ed.doc, &re, true),
                 else => try selecting.keepMatching(&ed.doc, &re, false),
             };
-            if (!found) ed.message.set(true, "no matches", .{});
+            // Drop fails only when every selection matches.
+            if (!found) ed.message.set(true, "{s}", .{if (ed.prompt_kind == .drop) "every selection matches" else "no matches"});
         },
     }
 }
