@@ -6,6 +6,7 @@ pub const selection = @import("edit/selection.zig");
 pub const history = @import("edit/history.zig");
 pub const registers = @import("edit/registers.zig");
 pub const motion = @import("edit/motion.zig");
+pub const object = @import("edit/object.zig");
 const document = @import("edit/document.zig");
 
 pub const Selection = selection.Selection;
@@ -18,7 +19,9 @@ test {
     _ = history;
     _ = registers;
     _ = motion;
+    _ = object;
     _ = @import("edit/motion_test.zig");
+    _ = @import("edit/object_test.zig");
     _ = document;
     _ = @import("edit/selection_test.zig");
     _ = @import("edit/document_test.zig");
