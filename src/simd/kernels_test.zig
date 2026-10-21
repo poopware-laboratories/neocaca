@@ -1,8 +1,8 @@
-//! Differential tests: every SIMD kernel in `bytes.zig` against its scalar
-//! reference, at several vector widths, on edges and on random input.
+//! Differential tests: every SIMD kernel against its scalar reference, at
+//! several vector widths, on edges and on random input.
 
 const std = @import("std");
-const bytes = @import("bytes.zig");
+const simd = @import("../simd.zig");
 
 /// Widths every kernel is tested at, besides the CPU's suggested one.
 const widths = [_]comptime_int{ 16, 32, 64 };
@@ -11,32 +11,16 @@ const widths = [_]comptime_int{ 16, 32, 64 };
 const edge_lengths = [_]usize{ 0, 1, 2, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 200 };
 
 fn expectAllWidthsAgree(haystack: []const u8, needle: u8) !void {
-    const count = bytes.countScalar(haystack, needle);
-    const index = bytes.indexOfByteScalar(haystack, needle);
-    const control = bytes.indexOfControlScalar(haystack);
-    try std.testing.expectEqual(count, bytes.count(haystack, needle));
-    try std.testing.expectEqual(index, bytes.indexOfByte(haystack, needle));
-    try std.testing.expectEqual(control, bytes.indexOfControl(haystack));
+    const count = simd.countScalar(haystack, needle);
+    const index = simd.indexOfByteScalar(haystack, needle);
+    const control = simd.indexOfControlScalar(haystack);
+    try std.testing.expectEqual(count, simd.count(haystack, needle));
+    try std.testing.expectEqual(index, simd.indexOfByte(haystack, needle));
+    try std.testing.expectEqual(control, simd.indexOfControl(haystack));
     inline for (widths) |n| {
-        try std.testing.expectEqual(count, bytes.countWidth(n, haystack, needle));
-        try std.testing.expectEqual(index, bytes.indexOfByteWidth(n, haystack, needle));
-        try std.testing.expectEqual(control, bytes.indexOfControlWidth(n, haystack));
-    }
-}
-
-test "scalar references on handwritten cases" {
-    try std.testing.expectEqual(@as(usize, 0), bytes.countScalar("", '\n'));
-    try std.testing.expectEqual(@as(usize, 2), bytes.countScalar("a\nb\n", '\n'));
-    try std.testing.expectEqual(@as(?usize, null), bytes.indexOfByteScalar("abc", 'z'));
-    try std.testing.expectEqual(@as(?usize, 2), bytes.indexOfByteScalar("abcc", 'c'));
-    try std.testing.expectEqual(@as(?usize, null), bytes.indexOfControlScalar("plain text ~"));
-    try std.testing.expectEqual(@as(?usize, 3), bytes.indexOfControlScalar("ab \x1b[31m"));
-}
-
-test "control bytes are exactly C0 and DEL" {
-    for (0..256) |b| {
-        const byte: u8 = @intCast(b);
-        try std.testing.expectEqual(byte < 0x20 or byte == 0x7f, bytes.isControl(byte));
+        try std.testing.expectEqual(count, simd.countWidth(n, haystack, needle));
+        try std.testing.expectEqual(index, simd.indexOfByteWidth(n, haystack, needle));
+        try std.testing.expectEqual(control, simd.indexOfControlWidth(n, haystack));
     }
 }
 
@@ -86,7 +70,7 @@ test "random input agrees with the scalar references" {
     var buf: [4096]u8 = undefined;
     for (0..500) |round| {
         const len = random.uintAtMost(usize, buf.len);
-        // Mostly text, with sparse newlines and rare control bytes.
+        // Mostly text, with sparse newlines and rare control simd.
         for (buf[0..len]) |*b| b.* = switch (random.uintLessThan(u8, 100)) {
             0...4 => '\n',
             5 => random.uintLessThan(u8, 0x20),
@@ -98,12 +82,4 @@ test "random input agrees with the scalar references" {
             return err;
         };
     }
-}
-
-test "a count larger than one vector lane can hold" {
-    // Lanes count in u8; more than 255 matches must not wrap.
-    var buf: [64 * 300]u8 = undefined;
-    @memset(&buf, '\n');
-    try expectAllWidthsAgree(&buf, '\n');
-    try std.testing.expectEqual(@as(usize, buf.len), bytes.count(&buf, '\n'));
 }

@@ -24,12 +24,14 @@ pub fn build(b: *std.Build) void {
 
     const options = b.addOptions();
     options.addOption([]const u8, "version", @import("build.zig.zon").version);
+    const options_mod = options.createModule();
 
     const mod = b.addModule("neocaca", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .imports = &.{.{ .name = "build_options", .module = options_mod }},
     });
     addMimalloc(mod, mimalloc, optimize, secure);
 
@@ -39,10 +41,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "neocaca", .module = mod },
-                .{ .name = "build_options", .module = options.createModule() },
-            },
+            .imports = &.{.{ .name = "neocaca", .module = mod }},
         }),
     });
     b.installArtifact(exe);
@@ -71,12 +70,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = bench_optimize,
         .link_libc = true,
+        .imports = &.{.{ .name = "build_options", .module = options_mod }},
     });
     addMimalloc(bench_lib, mimalloc, bench_optimize, secure);
     const bench = b.addExecutable(.{
         .name = "neocaca-bench",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/bench.zig"),
+            .root_source_file = b.path("src/bench/main.zig"),
             .target = target,
             .optimize = bench_optimize,
             .imports = &.{.{ .name = "neocaca", .module = bench_lib }},
