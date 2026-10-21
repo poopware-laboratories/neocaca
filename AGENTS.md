@@ -72,7 +72,33 @@ Search the open [issues](https://github.com/poopware-laboratories/neocaca/issues
 first. Someone may already be working on the change, an issue may set out
 how it should be done, or a higher-priority item may come first. Comment on
 an issue to claim it, and link the issue from your pull request
-(`Closes #N`). Once a `TODO.md` exists, read it too.
+(`Closes #N`). Read [`TODO.md`](TODO.md), the roadmap: tick items off in the
+pull request that finishes them and add what you find missing.
+
+## Clean-room policy
+
+Every line of neocaca is written from first principles. This is a hard
+rule, for editor logic as much as for decoders and data structures.
+
+- **Allowed sources:** specifications and standards (Unicode, ECMA-48, xterm
+  ctlseqs, the kitty keyboard protocol, POSIX), the Zig standard library and
+  its documentation, published *user-facing* documentation of how another
+  editor behaves (manuals, key charts, tutorials), and our own experiments
+  (running a program and observing its behavior).
+- **Forbidden:** reading, copying, porting or translating the source code of
+  other editors (Kakoune, Vim, Neovim, Helix, Emacs, …) or of libraries that
+  solve the same problem (regex engines, rope or piece-table crates, Unicode
+  width tables, terminal toolkits), including "just to see how they did it",
+  and pasting code from answers or generated output that reproduces them.
+- **Data tables** (character widths, combining ranges) are derived from the
+  Unicode standard itself (the Character Database, UAX #11, UAX #29), never
+  copied from another project's generated tables.
+- **Record the derivation.** A pull request that adds a non-trivial design
+  (an algorithm, a key binding scheme, a table) says in its body where the
+  design came from: which specification sections, which documented behavior,
+  which experiments.
+- **When unsure, ask** in the issue before writing the code. Code found to be
+  derived from another implementation is removed, not fixed.
 
 ## Workflow: strict test-driven development
 
@@ -247,6 +273,31 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
 | `src/fs/` | Loading and saving files: atomic writes, encodings, line endings, size limits. |
 | `tests/` | Integration tests that drive a whole editor session from scripted input bytes and assert on the final `Screen` and buffers. |
 
+## Keybinding model (Kakoune-inspired)
+
+neocaca's modal editing follows the *conceptual* model popularised by
+Kakoune, designed and implemented independently (see "Clean-room policy"):
+
+- **Selection first, verb second.** In normal mode keys first select text
+  (an *object*), then a verb acts on the selections: `wd` selects a word,
+  then deletes it. What a verb will touch is always visible before it runs.
+- **There is always a selection.** Every cursor is a selection of at least
+  one character (anchor and cursor, inclusive). Moves replace the
+  selections; the same move with Shift extends them.
+- **Multiple selections are first-class.** Every move, object and verb
+  applies to every selection at once. Selections are split by a pattern
+  (`S`), filtered (`Alt-k`, `Alt-K`), narrowed to a regex match (`s`),
+  duplicated (`C`), rotated (`(` `)`) and reduced (`,` `;`).
+- **Modes:** normal (select and act), insert (type at every cursor), prompt
+  (`:` commands, `/` search, `s` select, `|` filters later). `Esc` always
+  returns to normal mode.
+- **Pure keymap.** `src/input/keymap.zig` maps events to commands as a pure
+  state machine (pending prefixes, counts, registers); `src/edit/` applies
+  commands to buffers and selections. Neither touches the terminal.
+
+`docs/keys.md` is the reference for every binding; change it together with
+the keymap and its tests.
+
 ## Rules of thumb
 
 - **Keep files small and single-purpose.** Prefer a new file over growing
@@ -286,7 +337,9 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
   release allocator (see "Memory and allocators"). Adding any other package
   to `build.zig.zon` needs an issue where the maintainers agree to it first;
   bumping mimalloc's version is a `build(deps)` pull request with benchmark
-  numbers.
+  numbers. Tree-sitter (planned for syntax highlighting, see `TODO.md`)
+  would be the second exception and waits for that agreement; until then
+  highlighting is out of scope.
 - **Standards compliance.** Emit escape sequences as their specifications
   define them (ECMA-48, xterm ctlseqs, kitty keyboard protocol), probe for
   optional features instead of assuming them, and fall back cleanly on
