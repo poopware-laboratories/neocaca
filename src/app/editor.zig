@@ -194,7 +194,9 @@ pub const Editor = struct {
         self.loaded(path, result) catch self.outOfMemory();
     }
 
-    fn loaded(self: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) error{OutOfMemory}!void {
+    /// As `finishLoad`, but out of memory is returned, with the editor
+    /// unchanged.
+    pub fn loaded(self: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) error{OutOfMemory}!void {
         const contents = result catch |e| {
             self.message.set(true, "cannot open \"{s}\": {s}", .{ path, @errorName(e) });
             return;

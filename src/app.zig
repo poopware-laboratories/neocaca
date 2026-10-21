@@ -6,6 +6,8 @@ pub const run = @import("app/run.zig").run;
 pub const commands = @import("app/commands.zig");
 pub const editor = @import("app/editor.zig");
 pub const Editor = editor.Editor;
+pub const session = @import("app/session.zig");
+pub const Session = session.Session;
 
 test {
     _ = exit;
@@ -17,4 +19,6 @@ test {
     _ = @import("app/prompting.zig");
     _ = @import("app/layout.zig");
     _ = @import("app/layout_test.zig");
+    _ = session;
+    _ = @import("app/session_test.zig");
 }
