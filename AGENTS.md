@@ -20,25 +20,34 @@ zig build                                   # debug build: zig-out/bin/neocaca
 zig build test --summary all                # every unit and integration test
 zig build test -Dtest-filter="piece table"  # only tests whose name matches
 zig fmt --check .                           # formatting (zig fmt is the style)
-zig build -Doptimize=ReleaseSafe            # release with safety checks
-zig build -Doptimize=ReleaseFast            # benchmarks and profiling only
+zig build -Doptimize=safe                   # ReleaseSafe: the shipping build
+zig build test -Doptimize=safe --summary all  # the tests as shipped
+zig build bench                             # SIMD kernels against scalar (ReleaseFast)
+zig build bench -Dbench-optimize=safe       # the same, as shipped
+zig build -Dtarget=aarch64-macos            # cross-compile; also x86_64-macos, x86_64-freebsd
 zig build run -- path/to/file               # run the editor
 ```
 
-- **Toolchain:** the Zig version pinned by `minimum_zig_version` in
+Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
+`ReleaseSafe`-style names are deprecated), `-Dtest-filter=…`,
+`-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`.
+
+- **Toolchain:** Zig 0.17.0, pinned by `minimum_zig_version` in
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
   between releases, so code that builds on another version proves nothing.
 - **Formatting:** `zig fmt`, no exceptions. Run it before every commit.
 - **`build.zig` contract:** `zig build test` must run every test in the project
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
-- **CI** runs `zig fmt --check .`, `zig build test` in Debug and
-  ReleaseSafe, and a build for each supported target. Until a workflow
-  exists in `.github/workflows/`, run all of them yourself before pushing.
+- **CI** (`.github/workflows/ci.yml`) runs `zig fmt --check .`, the tests
+  in Debug and ReleaseSafe on Linux and macOS (and ReleaseSafe again with
+  `-Dmimalloc-secure=off`), a ReleaseSafe build for every supported target,
+  and a benchmark smoke run. All must pass; run them before pushing.
 - **Platform-gated code** (`switch (builtin.os.tag)`, `@import("builtin")`
   checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with
-  `zig build -Dtarget=x86_64-macos` / `aarch64-macos` / `x86_64-freebsd`,
+  `zig build -Dtarget=x86_64-macos` / `aarch64-macos` / `x86_64-freebsd`
+  / `aarch64-linux`,
   and make sure tests reference the code you changed.
 
 ## Before you start
@@ -64,7 +73,8 @@ no "I'll add the tests after".
    demand.
 3. **Refactor.** Clean up, with the whole suite (`zig build test`) green
    after every step.
-4. Run the full checks (fmt, test in Debug and ReleaseSafe) before pushing.
+4. Run the full checks (`zig fmt --check .`, `zig build test` with
+   `-Doptimize=debug` and `-Doptimize=safe`) before pushing.
 
 A test that passes the first time you run it proves nothing; adjust it until
 you have seen it fail. When fixing a bug, the first commit may be the
@@ -85,10 +95,41 @@ reviewers count it from the diff.
 - When a change cannot meet the ratio cheaply, it is usually too big or too
   hard to test. Split it, or make the logic pure and testable.
 
-Performance work is measured, not guessed: benchmark before and after in
-`ReleaseFast` (alternating builds, several runs, medians) and drop changes
+Performance work is measured, not guessed: benchmark before and after
+with `zig build bench` (alternating builds, several runs, medians), in
+ReleaseFast and in ReleaseSafe (`-Dbench-optimize=safe`), and drop changes
 that do not show a reproducible gain. A fast path must produce output
 identical to the slow path it replaces, and a test must show that.
+
+## Performance and security
+
+neocaca ships as **ReleaseSafe**: bounds, overflow and unreachable checks
+stay on in the build users run. Performance comes from better algorithms
+and SIMD, never from turning safety off.
+
+- **SIMD lives in `src/simd/`**, written with `@Vector` and
+  `std.simd.suggestVectorLength`, generic over the width (`fooWidth(n, …)`)
+  so tests can run every width (16, 32, 64) on any CPU. No inline assembly
+  and no CPU-specific intrinsics.
+- **Every kernel has a scalar reference** (`fooScalar`), the simplest
+  correct loop, and a differential test against it: random input from a
+  fixed seed (printed on failure), every byte value, lengths and offsets
+  around every vector boundary. A kernel without one does not merge.
+- **Read only through slices.** Load chunks as `rest[0..n].*` and advance
+  with `rest = rest[n..]` under `while (rest.len >= n)`; the tail shorter
+  than a vector goes to the scalar reference. Never read past the end of
+  the input, not even within the same page, and never `@ptrCast` a pointer
+  to a wider type to load.
+- **Make checks free instead of removing them.** Shape loops so the
+  optimizer can prove a bounds check redundant (the pattern above runs as
+  fast in ReleaseSafe as in ReleaseFast). `@setRuntimeSafety(false)`
+  needs a benchmark showing a gain in ReleaseSafe, a comment stating the
+  invariant that makes it safe, a `std.debug.assert` of that invariant,
+  and a test at its boundary; prefer it never.
+- **Bounds on untrusted sizes** hold on fast paths too: a fast path takes
+  the same `max_*` limits as the slow path.
+- **Hardened allocator.** mimalloc runs with `-Dmimalloc-secure=on` by
+  default; `off` exists only to measure the allocator itself.
 
 ## Memory and allocators
 
@@ -96,21 +137,27 @@ Zig makes every allocation explicit; keep it that way.
 
 - **No global allocator.** Every function that allocates takes a
   `std.mem.Allocator` parameter (or is a method on a type that stores one
-  from `init`). Only `main.zig` chooses the process allocator:
-  `std.heap.DebugAllocator` in Debug (leaks and double frees reported on
-  exit), [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
+  from `init`). Only `main.zig` chooses the process allocator, by
+  `alloc.process.kindFor(builtin.mode)`: `std.heap.SafeAllocator` in Debug
+  (leaks, double frees and use after free reported),
+  [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
   ReleaseFast and ReleaseSmall.
 - **mimalloc is the release allocator.** It is Microsoft's C library (MIT),
-  pinned by version and hash in `build.zig.zon`, compiled by `build.zig`
-  from its single-file `src/static.c` with its `include/` directory (no
-  CMake), and linked with libc. `src/alloc/mimalloc.zig` wraps it as a
-  `std.mem.Allocator` (`mi_malloc_aligned`, `mi_expand` for in-place
-  resize, `mi_realloc_aligned` for remap, `mi_free`); no other file calls
-  `mi_*` functions. The wrapper has its own tests (alignment for every
-  power of two up to a page, resize and remap keep contents, huge requests
-  return `error.OutOfMemory` instead of crashing), run in
-  every build mode. Debug builds and tests keep the leak-checking std
-  allocators; never make mimalloc the test allocator.
+  v3.5.3, pinned by URL and hash in `build.zig.zon`, compiled by
+  `build.zig` from its single-file `src/static.c` with its `include/`
+  directory (no CMake, the defines its CMakeLists.txt would set), and
+  linked with libc. `src/alloc/mimalloc.zig` wraps it as a
+  `std.mem.Allocator` (`mi_malloc_aligned`, `mi_expand` to grow in place,
+  `mi_realloc_aligned` for remap, `mi_free`); no other file calls `mi_*`
+  functions, and they are declared there as `extern fn`, not through
+  `@cImport`. Shrinking always succeeds in place (`mi_free` needs no
+  length); growing in place fails under hardening, whose overflow-detection
+  padding `mi_expand` refuses to touch. Requests over `max_request` fail
+  before reaching mimalloc. The wrapper's tests (alignment for every power
+  of two up to a page, resize and remap keep contents, huge requests fail
+  with `error.OutOfMemory`, the std allocator conformance tests) run in
+  every build mode and hardening level. Debug builds and tests keep the
+  leak-checking std allocators; never make mimalloc the test allocator.
 - **Ownership is written down.** A doc comment says who frees what:
   "Caller owns the returned slice", "Borrowed; valid until the next edit".
   Types with resources have `init`/`deinit`; `deinit` frees everything and
@@ -132,8 +179,10 @@ Zig makes every allocation explicit; keep it that way.
 
 ## Architecture in one screen
 
-The repository is at its start; this is the layout new code goes into.
-Update this table in the same pull request whenever the code diverges.
+The repository is at its start: `src/alloc`, `src/simd`, `src/cli.zig`,
+`src/main.zig` and `src/bench.zig` exist; the rest is the layout new code
+goes into. Update this table in the same pull request whenever the code
+diverges.
 
 ```
 stdin bytes ──► input::decode ──► input::Event ──► app::EventLoop ──► edit::Command
@@ -147,8 +196,12 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
 
 | Path | Responsibility |
 |------|----------------|
-| `src/main.zig` | Arguments, allocator choice, terminal setup and guaranteed restore, then `app.run`. |
-| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*`. |
+| `src/main.zig` | Allocator choice, I/O setup, then `run` (arguments to exit code, tested over plain writers). Later: terminal setup and guaranteed restore, then `app.run`. |
+| `src/root.zig` | The `neocaca` module: re-exports every subsystem, and references them all so `zig build test` reaches their tests. |
+| `src/cli.zig` | Pure command-line parsing. |
+| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*`. `process.zig`: which allocator each build mode uses. |
+| `src/simd/` | SIMD kernels and their scalar references: byte counting and search, control-byte search (`bytes.zig`, tested in `bytes_test.zig`). |
+| `src/bench.zig` | `zig build bench`: each kernel against its scalar reference. |
 | `src/buffer/` | Text storage (piece table or rope), byte offsets, line index, UTF-8 and grapheme boundaries. No I/O, no terminal. |
 | `src/edit/` | Commands applied to buffers: insert, delete, cursor and selection movement, undo/redo history. |
 | `src/input/` | Pure decoder: raw terminal bytes to key, mouse, paste and resize events; keymaps from events to commands. |

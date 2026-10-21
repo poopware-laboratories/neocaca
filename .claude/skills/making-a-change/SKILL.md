@@ -30,7 +30,7 @@ managing-memory.
 ```sh
 zig fmt .
 zig build test --summary all
-zig build test -Doptimize=ReleaseSafe --summary all
+zig build test -Doptimize=safe --summary all
 zig build -Dtarget=x86_64-macos     # when platform-gated code changed
 zig build -Dtarget=x86_64-freebsd   # likewise
 ```
@@ -54,6 +54,7 @@ Then count the diff: three test lines (inside `test` blocks, `*_test.zig`,
 | Any behavior change or bug fix | test-driven-development |
 | Anything that allocates, frees or owns memory | managing-memory |
 | Anything users see: rendering, layout, colors, cursor | checking-screen-output |
+| A SIMD kernel, or anything claimed to be faster | AGENTS.md "Performance and security"; `zig build bench` in fast and safe |
 | Driving an open PR to green | steward |
 
 ## Common mistakes
@@ -66,4 +67,5 @@ Then count the diff: three test lines (inside `test` blocks, `*_test.zig`,
 | Writing file text straight to the terminal | Render control bytes visibly; files are untrusted. |
 | Adding a package to `build.zig.zon` | Never without an agreed issue (mimalloc is the one exception). Write it ourselves. |
 | Calling `mi_malloc` or other `mi_*` functions directly | Take a `std.mem.Allocator`; only `src/alloc/mimalloc.zig` touches mimalloc. |
+| `@setRuntimeSafety(false)` to speed up a loop | Reshape the loop (`while (rest.len >= n)`, `rest[0..n]`) so the checks are free. |
 | Growing a file past ~400 lines | New file, starting with a `//!` line saying what it is for. |

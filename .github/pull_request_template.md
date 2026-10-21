@@ -13,7 +13,7 @@ Closes #
 
 <!--
 Delete what does not apply:
-- Performance: before and after numbers from the same machine, ReleaseFast.
+- Performance: `zig build bench` before and after, same machine, in ReleaseFast and ReleaseSafe (`-Dbench-optimize=safe`).
 - Screen output: captures before and after (tmux capture-pane -p -e).
 -->
 

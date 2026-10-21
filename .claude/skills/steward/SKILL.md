@@ -22,7 +22,7 @@ description: Use when driving an open neocaca pull request to green - CI failure
 |--------------|-------------|
 | Format | `zig fmt --check .` (fix: `zig fmt .`) |
 | Tests (Debug) | `zig build test --summary all` |
-| Tests (ReleaseSafe) | `zig build test -Doptimize=ReleaseSafe --summary all` |
+| Tests (ReleaseSafe) | `zig build test -Doptimize=safe --summary all` |
 | Cross-target build | `zig build -Dtarget=<triple>` with the job's triple |
 | Leak reported by a test | Run that test alone with `-Dtest-filter`; see managing-memory |
 | Pull request title | Fix it on the PR: `type(scope): summary`, lower case, no final period |

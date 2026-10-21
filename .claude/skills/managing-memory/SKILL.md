@@ -37,7 +37,7 @@ pub fn copyRange(self: *const Buffer, gpa: std.mem.Allocator, range: Range) ![]u
 ## Which allocator
 
 Library code never picks one: it uses the allocator it is given. `main.zig`
-passes `std.heap.DebugAllocator` in Debug and the mimalloc wrapper
+passes `std.heap.SafeAllocator` in Debug and the mimalloc wrapper
 (`src/alloc/mimalloc.zig`) in release modes; tests always get
 `std.testing.allocator`. A bug that shows only under mimalloc is still our
 bug (usually a use after free or a wrong `free` length that the debug
