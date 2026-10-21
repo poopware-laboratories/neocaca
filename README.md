@@ -12,10 +12,12 @@ Fast where it counts, careful everywhere else.
 </div>
 
 > [!WARNING]
-> **Early days.** The foundations are in (build, allocator, SIMD text
-> scanning, command line), but there is no editing yet: `neocaca file`
-> says so and exits. Watch the [issues](https://github.com/poopware-laboratories/neocaca/issues)
-> to follow along, or pick one up.
+> **Early days.** neocaca edits one file at a time with Kakoune-style
+> modal keys, multiple selections, regex search and undo, and saves
+> atomically. There is no syntax highlighting, configuration or multiple
+> buffers yet; [`TODO.md`](TODO.md) is the roadmap. Watch the
+> [issues](https://github.com/poopware-laboratories/neocaca/issues) to
+> follow along, or pick one up.
 
 ## What it is built for
 
@@ -45,7 +47,7 @@ checks stay on without slowing them down:
 |-------|------|------|
 | Text scanning (`src/simd`) | `@Vector` kernels, the CPU's widest vectors | Reads only through bounds-checked slices, never past the end of the input; each kernel is checked against a scalar reference on random input and every vector boundary |
 | Allocator (`src/alloc`) | mimalloc in every release mode | mimalloc's hardening on by default (guard pages, randomized addresses, double-free and free-list corruption detection); leak-checking allocator in Debug and tests |
-| Rendering (planned) | Only changed cells are redrawn | Control bytes from files are made visible, never sent to the terminal |
+| Rendering (`src/render`) | Only changed cells are redrawn | Control bytes from files are made visible, never sent to the terminal |
 
 Scanning 64 MiB of text, in ReleaseSafe, with the hardened mimalloc
 (`zig build bench -Dbench-optimize=safe`, x86-64 with AVX2, one noisy
@@ -70,7 +72,15 @@ git clone https://github.com/poopware-laboratories/neocaca
 cd neocaca
 zig build -Doptimize=safe          # zig-out/bin/neocaca
 ./zig-out/bin/neocaca --help
+./zig-out/bin/neocaca src/main.zig  # edit a file
 ```
+
+Editing is modal and selection first, as in Kakoune: select, then act.
+`w` selects a word and `d` deletes it; `%` selects the whole buffer,
+`s` with a regex selects every match in it, and `c` changes them all at
+once; `i` types at every cursor and Esc returns to normal mode; `u` and
+`U` undo and redo; `:w`, `:q` and `:wq` write and quit. Every binding is
+in [`docs/keys.md`](docs/keys.md).
 
 | Command | What it does |
 |---------|--------------|
@@ -87,9 +97,9 @@ zig build -Doptimize=safe          # zig-out/bin/neocaca
 ## How it is built
 
 ```
-stdin ──► input::decode ──► app::EventLoop ──► edit::Command ──► buffer::Buffer
-                                 │                                   │
-terminal ◄── render::diff ◄── render::Screen ◄── ui::layout ◄────────┘
+terminal bytes ──► term::Tty ──► app::loop ──► input::Decoder ──► input::keymap ──► edit::Document
+                                                                                        │
+terminal ◄── render::diff ◄── render::Screen ◄── app::layout ◄── ui ◄───────────────────┘
 ```
 
 A pure core (buffers, editing, input decoding, layout, screen diffing)
@@ -98,15 +108,24 @@ Every subsystem is a folder of small single-purpose files behind one
 namespace file (`src/cli.zig` and `src/cli/`).
 The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 
-| Path | Status |
-|------|--------|
+| Path | What it holds |
+|------|---------------|
 | `src/main.zig` | Process setup only, then `app.run` |
-| `src/app/` | A command line to an exit code; the event loop goes here |
+| `src/app/` | The editor state, its event loop, and the session joining it to the terminal and files |
 | `src/cli/` | Commands, parsing, help text |
 | `src/alloc/` | mimalloc as a `std.mem.Allocator`; per-mode process allocator |
 | `src/simd/` | One file per kernel: byte counting, byte search, control-byte search |
 | `src/bench/` | `zig build bench`: kernels against their scalar references |
-| `src/buffer/`, `src/edit/`, `src/input/`, `src/render/`, `src/ui/`, `src/term/`, `src/fs/` | Planned |
+| `src/unicode/` | UTF-8 that never fails, display widths, characters with combining marks |
+| `src/buffer/` | Text with a line index, and change sets |
+| `src/regex/` | A linear-time, bounded regex engine (Pike VM) |
+| `src/edit/` | Selections, motions, text objects, verbs, registers, search, undo |
+| `src/input/` | Terminal bytes to keys, and the Kakoune-style keymap |
+| `src/render/` | The cell grid, styles, and the diff into escape bytes |
+| `src/ui/` | Gutter, text, status line, prompt, scrolling |
+| `src/term/` | Raw mode, size, input waits, resizes, restore on exit and panic |
+| `src/fs/` | Bounded loads and atomic saves |
+| `tests/` | Whole editing sessions from scripted keys, and the editor on a pseudo-terminal |
 
 ## Contributing
 

@@ -38,7 +38,7 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
   between releases, so code that builds on another version proves nothing.
 - **Formatting:** `zig fmt`, no exceptions. Run `zig build fmt` before every
-  commit; it covers `build.zig`, `build.zig.zon` and `src/`, never the
+  commit; it covers `build.zig`, `build.zig.zon`, `src/` and `tests/`, never the
   fetched packages in `zig-pkg/`.
 - **Zig 0.17 idioms.** Write current Zig, not what older examples show:
   `std.lang` (not the deprecated `std.builtin`), `std.lang.Optimize` with
@@ -241,37 +241,43 @@ namespaces. Inside a folder, files import siblings directly
 file (`@import("../cli.zig")`), never another folder's files. A file holds
 one concern; when it outgrows that, split it (`parse.zig`, `usage.zig`),
 and tests that outgrow their file move to a sibling `name_test.zig`.
-`app`, `alloc`, `cli` and `simd` exist so far; the other rows below are where
-new code goes. Update this table in the same pull request whenever the
-code diverges.
+Every row below exists; keep this table and the diagram in step with the
+code in the same pull request that changes it.
 
 ```
-stdin bytes ──► input::decode ──► input::Event ──► app::EventLoop ──► edit::Command
- (raw mode)       (pure)             (key, mouse,       │ (one thread)       │
-                                      paste, resize)    │                    ▼
-                                                        │            buffer::Buffer + edit::History
-                                                        ▼                    │
-terminal ◄── term::Output ◄── render::diff ◄── render::Screen ◄── ui::layout ◄┘
- (escape bytes)   (writes)       (pure)          (cell grid)       (pure)
+terminal bytes ──► term::Tty ──► app::loop ──► app::Session ──► input::Decoder ──► input::Key
+ (raw mode)      (wait, read,     (one thread)   (joins the        (pure; Alt, CSI,     │
+                  size, resize)                   outside world)     paste, timeouts)    ▼
+                                                      │ fs::file        app::Editor ◄── input::keymap
+                                                      │ (load, save)     │  (modes,       (pure state
+                                                      ▼                  │   prompts)      machine)
+                                                 :w, :e requests         ▼
+                                                                  edit::Document (buffer::Buffer,
+                                                                  selections, history) + regex
+                                                                         │
+terminal ◄── render::diff ◄── render::Screen ◄── app::layout ◄── ui (document, status, prompt) ◄┘
+ (escape bytes)   (pure)        (cell grid)         (pure)
 ```
 
 | Path | Responsibility |
 |------|----------------|
-| `src/main.zig` | Process setup only: the process allocator, I/O, the arguments, then `app.run`. Later also terminal setup and guaranteed restore. No logic worth testing lives here. |
+| `src/main.zig` | Process setup only: the process allocator, I/O, the arguments, the panic handler that restores the terminal, then `app.run`. No logic worth testing lives here. |
 | `src/root.zig` | The `neocaca` module: re-exports every subsystem namespace, so `zig build test` reaches their tests. |
-| `src/app/` | `run.zig`: a command line to an exit code over plain writers (tested in `run_test.zig`); `exit.zig`: the exit codes. Later the event loop: `App` methods route events to the pure modules below. |
+| `src/app/` | `run.zig`: a command line to an exit code (tested in `run_test.zig`); `exit.zig`: the exit codes; `edit.zig`: opens the terminal, runs the loop, restores the terminal however it ends; `loop.zig`: the event loop, generic over the terminal so tests script it; `session.zig`: an `Editor` joined to terminal bytes, files and frames; `editor.zig`: the editing state and key routing; `prompting.zig`: what a submitted prompt does; `commands.zig`: `:` command parsing; `layout.zig`: the screen layout. |
 | `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
 | `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
 | `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
 | `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. |
-| `src/buffer/` | Text storage (piece table or rope), byte offsets, line index, UTF-8 and grapheme boundaries. No I/O, no terminal. |
-| `src/edit/` | Commands applied to buffers: insert, delete, cursor and selection movement, undo/redo history. |
-| `src/input/` | Pure decoder: raw terminal bytes to key, mouse, paste and resize events; keymaps from events to commands. |
-| `src/render/` | `Screen` (a grid of cells: grapheme, width, style), the diff of two screens into minimal escape output, display width. |
-| `src/ui/` | Pure layout: views, splits, gutter, status line, prompts, scrolling. |
-| `src/term/` | The only code that touches the real terminal: raw mode, size, non-blocking reads, buffered writes. Platform-gated. |
-| `src/fs/` | Loading and saving files: atomic writes, encodings, line endings, size limits. |
-| `tests/` | Integration tests that drive a whole editor session from scripted input bytes and assert on the final `Screen` and buffers. |
+| `src/unicode/` | `utf8.zig`: decoding that never fails; `width.zig`: display width from UAX #11; `chars.zig`: characters with their combining marks; `class.zig`: word and space classes; `display.zig`: how a character is drawn (`^[` for controls). |
+| `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass. No I/O, no terminal. |
+| `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig`, run by the Pike VM in `vm.zig`; `regex.zig`: the public `Regex`. |
+| `src/edit/` | `document.zig`: a buffer with its selections (`selection.zig`) and history (`history.zig`); `motion.zig`, `object.zig`, `selecting.zig`, `search.zig`: selection changes; `verbs.zig`, `insert.zig`: text changes; `registers.zig`. |
+| `src/input/` | `decode.zig`: pure decoding of terminal bytes into `Key`s (`key.zig`); `decoder.zig`: keys split across reads, pastes, the Escape timeout; `keymap.zig`: keys to `Action`s (`action.zig`) as a pure state machine. |
+| `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |
+| `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
+| `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, size, waits, resizes through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
+| `src/fs/` | `file.zig`: bounded loads and atomic saves that keep permissions. |
+| `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig` and `display_test.zig` assert on the buffers, files and `Screen`; `terminal_test.zig` runs the editor on a pseudo-terminal end to end. |
 
 ## Keybinding model (Kakoune-inspired)
 

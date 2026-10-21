@@ -16,35 +16,46 @@ clean room.
 
 ## Phase 1: a usable modal editor
 
-- [ ] `unicode/`: UTF-8 decoding that never fails on invalid bytes, display
+- [x] `unicode/`: UTF-8 decoding that never fails on invalid bytes, display
       width (wide, zero width, combining), character boundaries
-- [ ] `buffer/`: text storage with a line index; byte offset ⇄ line/column
-- [ ] `regex/`: a linear-time, bounded regex engine (Pike VM) for search,
+- [x] `buffer/`: text storage with a line index; byte offset ⇄ line/column
+- [x] `regex/`: a linear-time, bounded regex engine (Pike VM) for search,
       select and split
-- [ ] `edit/`: selections (anchor + cursor, multiple, a main one), change
+- [x] `edit/`: selections (anchor + cursor, multiple, a main one), change
       sets mapped through edits, undo and redo history
-- [ ] `edit/`: motions (characters, words, WORDs, lines, find character,
+- [x] `edit/`: motions (characters, words, WORDs, lines, find character,
       matching bracket, buffer start/end) and text objects
-- [ ] `input/`: decode terminal bytes into keys (legacy, CSI, SS3, Alt as
+- [x] `input/`: decode terminal bytes into keys (legacy, CSI, SS3, Alt as
       ESC prefix, bracketed paste)
 - [ ] **Kakoune-style modal keybind system** (`input/keymap.zig`):
-  - [ ] normal mode: selection first, then verb (`d c y p P R r ~ > <`)
-  - [ ] Shift extends; counts; registers (`"x`)
-  - [ ] multiple selections: `C`, `Alt-C`, `s`, `S`, `Alt-s`, `Alt-k`,
+  - [x] normal mode: selection first, then verb (`d c y p P R r ~ > <`)
+  - [x] Shift extends; counts; registers (`"x`)
+  - [x] multiple selections: `C`, `Alt-C`, `s`, `S`, `Alt-s`, `Alt-k`,
         `Alt-K`, `,`, `Alt-,`, `(`, `)`, `;`, `Alt-;`
-  - [ ] object selection: `Alt-i` / `Alt-a` with `w W ( [ { < " ' ` p`
-  - [ ] goto (`g`) and view prefixes
-  - [ ] insert mode at every cursor (`i a I A o O`), auto-indent
-  - [ ] search `/ ? n N Alt-n *`
-  - [ ] prompt commands `:w :q :q! :wq :x :e :e! :<line>`
+  - [x] object selection: `Alt-i` / `Alt-a` with `w W ( [ { < " ' ` p`
+  - [x] goto prefix (`g`)
+  - [ ] view prefix (`v`: center, top, bottom, scroll without moving)
+  - [x] insert mode at every cursor (`i a I A o O`), auto-indent
+  - [x] search `/ ? n N Alt-n *`
+  - [x] prompt commands `:w :q :q! :wq :x :e :e! :<line>`
   - [ ] user-configurable key mappings (`:map`) with stable names
-- [ ] `render/`: a cell grid and a minimal diff into escape bytes; control
+- [x] `render/`: a cell grid and a minimal diff into escape bytes; control
       bytes and invalid UTF-8 shown visibly
-- [ ] `ui/`: gutter, status line, prompt, scrolling with scroll-off
-- [ ] `term/`: raw mode, alternate screen, size, restore on exit and panic
-- [ ] `fs/`: bounded load, atomic save that keeps permissions
-- [ ] `app/`: the event loop wired into `main`
-- [ ] `tests/`: whole sessions from scripted key bytes
+- [x] `ui/`: gutter, status line, prompt, scrolling with scroll-off
+- [x] `term/`: raw mode, alternate screen, size, restore on exit and panic
+- [x] `fs/`: bounded load, atomic save that keeps permissions
+- [x] `app/`: the event loop wired into `main`
+- [x] `tests/`: whole sessions from scripted key bytes, and the editor
+      end to end on a pseudo-terminal
+- [ ] Saves off the event loop (today `:w` blocks typing while it writes)
+- [ ] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
+      must stop itself and restore the terminal first)
+- [ ] A hang-up (closed terminal window) writes the unsaved buffer to a
+      recovery file instead of dropping it
+- [ ] `xd` on the last line leaves an empty line, because the final
+      newline is never deleted; delete the newline before it instead
+- [ ] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `J` (see
+      `docs/keys.md`)
 
 ## Phase 2: everyday comfort
 
