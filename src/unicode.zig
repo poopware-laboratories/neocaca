@@ -17,4 +17,6 @@ test {
     _ = @import("unicode/utf8_test.zig");
     _ = @import("unicode/width_test.zig");
     _ = @import("unicode/chars_test.zig");
+    _ = @import("unicode/class_test.zig");
+    _ = @import("unicode/display_test.zig");
 }

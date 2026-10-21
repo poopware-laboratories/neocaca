@@ -295,3 +295,116 @@ test "regex: the VM agrees with backtracking on random patterns" {
         }
     }
 }
+
+test "regex: findIn agrees with backtracking on random slices of random bytes" {
+    const seed: u64 = 0x736c696365;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    var pbuf: [96]u8 = undefined;
+    var tbuf: [16]u8 = undefined;
+    // Pieces that a slice bound can cut: a two-byte character, an
+    // invalid byte and a truncated three-byte sequence.
+    const pieces = [_][]const u8{ "a", "b", " ", "\n", "é", "\xff", "\xe2\x82" };
+    for (0..1000) |_| {
+        const pattern = randomPattern(random, &pbuf, 0);
+        var re = Regex.compile(gpa, pattern) catch |err| switch (err) {
+            error.NothingToRepeat, error.UnbalancedParen => continue,
+            else => return err,
+        };
+        defer re.deinit();
+        for (0..8) |_| {
+            var n: usize = 0;
+            while (n + 2 <= tbuf.len and random.uintLessThan(u8, 6) != 0) {
+                const piece = pieces[random.uintLessThan(usize, pieces.len)];
+                @memcpy(tbuf[n..][0..piece.len], piece);
+                n += piece.len;
+            }
+            const text = tbuf[0..n];
+            const to = random.uintAtMost(usize, n);
+            const from = random.uintAtMost(usize, to);
+            var ref: Reference = .{ .prog = &re.prog, .text = text, .to = to, .busy = .init(gpa) };
+            defer ref.busy.deinit();
+            // Matches start on the character boundaries of the slice.
+            var want: ?[2]usize = null;
+            var start = from;
+            while (true) {
+                if (try ref.run(0, start)) |end| {
+                    want = .{ start, end };
+                    break;
+                }
+                if (start == to) break;
+                start += unicode.utf8.decode(text[start..to]).len;
+            }
+            const got = re.findIn(text, from, to);
+            const same = if (want) |w| got != null and got.?.start == w[0] and got.?.end == w[1] else got == null;
+            if (!same) {
+                std.debug.print("seed {x}: /{s}/ on {any}[{d}..{d}]: vm {any}, reference {any}\n", .{ seed, pattern, text, from, to, got, want });
+                return error.TestExpectedEqual;
+            }
+        }
+    }
+}
+
+test "regex: escape of random text matches exactly that text" {
+    const seed: u64 = 0x657363;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    var buf: [32]u8 = undefined;
+    for (0..500) |_| {
+        // Any ASCII byte, controls and metacharacters included, plus a
+        // multi-byte character.
+        var n: usize = 0;
+        while (n + 2 <= buf.len and random.uintLessThan(u8, 10) != 0) {
+            if (random.uintLessThan(u8, 8) == 0) {
+                buf[n..][0..2].* = "é".*;
+                n += 2;
+            } else {
+                buf[n] = random.uintLessThan(u8, 0x80);
+                n += 1;
+            }
+        }
+        const lit = buf[0..n];
+        const pat = try escape(gpa, lit);
+        defer gpa.free(pat);
+        var re = Regex.compile(gpa, pat) catch |err| {
+            std.debug.print("seed {x}: escape({any}) = {any} fails with {t}\n", .{ seed, lit, pat, err });
+            return err;
+        };
+        defer re.deinit();
+        const m = re.find(lit, 0) orelse {
+            std.debug.print("seed {x}: escape({any}) = {any} does not match\n", .{ seed, lit, pat });
+            return error.TestExpectedEqual;
+        };
+        try std.testing.expectEqual(0, m.start);
+        try std.testing.expectEqual(lit.len, m.end);
+    }
+}
+
+test "regex: escape doubles metacharacters and leaves the rest" {
+    const got = try escape(gpa, "a-b{c}\t\n");
+    defer gpa.free(got);
+    try std.testing.expectEqualStrings("a-b\\{c\\}\t\\n", got);
+    const empty = try escape(gpa, "");
+    defer gpa.free(empty);
+    try std.testing.expectEqualStrings("", empty);
+}
+
+test "regex: escape fails cleanly without memory" {
+    try std.testing.checkAllAllocationFailures(gpa, struct {
+        fn run(a: std.mem.Allocator) !void {
+            a.free(try escape(a, "(a.b)*\n[x]"));
+        }
+    }.run, .{});
+}
+
+test "regex: compile of a large program fails cleanly without memory" {
+    // Every split of the alternation and the loop, and the scratch sized
+    // by the instruction count.
+    try std.testing.checkAllAllocationFailures(gpa, struct {
+        fn run(a: std.mem.Allocator) !void {
+            var re = try Regex.compile(a, "(?:a|b|c|d){2,5}\\w+?$");
+            defer re.deinit();
+            try std.testing.expect(re.find("xabcz", 0) != null);
+        }
+    }.run, .{});
+}

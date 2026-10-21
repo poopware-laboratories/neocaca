@@ -15,4 +15,5 @@ test {
     _ = lines;
     _ = @import("buffer/buffer_test.zig");
     _ = @import("buffer/change_test.zig");
+    _ = @import("buffer/lines_test.zig");
 }

@@ -20,4 +20,6 @@ test {
     _ = @import("regex/vm.zig");
     _ = @import("regex/regex_test.zig");
     _ = @import("regex/parse_test.zig");
+    _ = @import("regex/program_test.zig");
+    _ = @import("regex/vm_test.zig");
 }

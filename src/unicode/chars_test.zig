@@ -96,3 +96,70 @@ test "chars: forward and backward walks agree on random bytes" {
         };
     }
 }
+
+test "chars: an empty text has no characters" {
+    try expectEqual(0, chars.count(""));
+}
+
+test "chars: the first and last byte of a text" {
+    try expectEqual(1, chars.next("a", 0));
+    try expectEqual(0, chars.prev("a", 1));
+    try expectEqual(4, chars.next("ab\u{301}", 1));
+    try expectEqual(1, chars.prev("ab\u{301}", 4));
+}
+
+test "chars: marks join a space but not a tab, newline or DEL" {
+    try expectEqual(3, chars.next(" \u{301}", 0));
+    try expectEqual(1, chars.next("\t\u{301}", 0));
+    try expectEqual(1, chars.next("\r\u{301}", 0));
+    try expectEqual(1, chars.next("\x7f\u{301}", 0));
+    try expectEqual(1, chars.prev("\x7f\u{301}", 3));
+    try expectEqual(0, chars.prev(" \u{301}", 3));
+}
+
+test "chars: marks join a zero width format character" {
+    const text = "\u{200b}\u{301}";
+    try expectEqual(5, chars.next(text, 0));
+    try expectEqual(0, chars.prev(text, 5));
+}
+
+test "chars: a run of marks after a break is one character per mark" {
+    const text = "a\n\u{301}\u{302}";
+    try expectEqual(4, chars.next(text, 2));
+    try expectEqual(4, chars.prev(text, 6));
+    try expectEqual(2, chars.prev(text, 4));
+    try expectEqual(4, chars.count(text));
+}
+
+test "chars: a mark after a truncated sequence stands alone" {
+    const text = "\xe2\x82\u{301}";
+    try expectEqual(1, chars.next(text, 0));
+    try expectEqual(2, chars.next(text, 1));
+    try expectEqual(4, chars.next(text, 2));
+    try expectEqual(2, chars.prev(text, 4));
+}
+
+test "chars: hangul jamo vowels join their leading consonant" {
+    const text = "\u{1100}\u{1161}\u{11a8}x"; // conjoining jamo L, V, T
+    try expectEqual(9, chars.next(text, 0));
+    try expectEqual(0, chars.prev(text, 9));
+    try expectEqual(2, chars.widthAt(text, 0));
+    try expectEqual(2, chars.count(text));
+}
+
+test "chars: the width of a character is its base's" {
+    try expectEqual(2, chars.widthAt("中\u{301}", 0));
+    try expectEqual(0, chars.widthAt("\u{301}", 0));
+    try expectEqual(1, chars.widthAt("\x00", 0));
+    try expectEqual(0, chars.widthAt("\u{200b}", 0));
+    try expectEqual(@as(?u21, 0x4e2d), chars.codepointAt("中\u{301}", 0));
+}
+
+test "chars: count agrees with walking every byte value" {
+    var buf: [256]u8 = undefined;
+    for (&buf, 0..) |*b, i| b.* = @intCast(i);
+    // Every lead byte is followed by another lead or by nothing, so each
+    // byte is a character of its own.
+    try expectEqual(256, chars.count(&buf));
+    try expectConsistent(&buf);
+}
