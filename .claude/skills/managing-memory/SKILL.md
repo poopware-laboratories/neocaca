@@ -34,6 +34,17 @@ pub fn copyRange(self: *const Buffer, gpa: std.mem.Allocator, range: Range) ![]u
   `.retain_capacity`. Nothing from the arena may outlive the reset.
 - Sizes from files or the terminal are capped (`max_*`) before allocating.
 
+## Which allocator
+
+Library code never picks one: it uses the allocator it is given. `main.zig`
+passes `std.heap.DebugAllocator` in Debug and the mimalloc wrapper
+(`src/alloc/mimalloc.zig`) in release modes; tests always get
+`std.testing.allocator`. A bug that shows only under mimalloc is still our
+bug (usually a use after free or a wrong `free` length that the debug
+allocator would report): reproduce it in Debug before blaming mimalloc.
+Changing the wrapper: test alignment, resize, remap and huge requests in
+Debug and ReleaseSafe, and benchmark against the previous version.
+
 ## Testing it
 
 - Every test uses `std.testing.allocator`; a leak fails the test.

@@ -64,5 +64,6 @@ Then count the diff: three test lines (inside `test` blocks, `*_test.zig`,
 | A function no test calls | Zig never analyzes it, so it may not even compile. Test it. |
 | `catch unreachable` on an allocation | Propagate `error.OutOfMemory`. |
 | Writing file text straight to the terminal | Render control bytes visibly; files are untrusted. |
-| Adding a package to `build.zig.zon` | Never without an agreed issue. Write it ourselves. |
+| Adding a package to `build.zig.zon` | Never without an agreed issue (mimalloc is the one exception). Write it ourselves. |
+| Calling `mi_malloc` or other `mi_*` functions directly | Take a `std.mem.Allocator`; only `src/alloc/mimalloc.zig` touches mimalloc. |
 | Growing a file past ~400 lines | New file, starting with a `//!` line saying what it is for. |

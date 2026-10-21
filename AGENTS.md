@@ -96,9 +96,21 @@ Zig makes every allocation explicit; keep it that way.
 
 - **No global allocator.** Every function that allocates takes a
   `std.mem.Allocator` parameter (or is a method on a type that stores one
-  from `init`). Only `main.zig` chooses allocators: `std.heap.DebugAllocator`
-  in Debug (leaks and double frees reported on exit), a fast allocator in
-  release builds.
+  from `init`). Only `main.zig` chooses the process allocator:
+  `std.heap.DebugAllocator` in Debug (leaks and double frees reported on
+  exit), [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
+  ReleaseFast and ReleaseSmall.
+- **mimalloc is the release allocator.** It is Microsoft's C library (MIT),
+  pinned by version and hash in `build.zig.zon`, compiled by `build.zig`
+  from its single-file `src/static.c` with its `include/` directory (no
+  CMake), and linked with libc. `src/alloc/mimalloc.zig` wraps it as a
+  `std.mem.Allocator` (`mi_malloc_aligned`, `mi_expand` for in-place
+  resize, `mi_realloc_aligned` for remap, `mi_free`); no other file calls
+  `mi_*` functions. The wrapper has its own tests (alignment for every
+  power of two up to a page, resize and remap keep contents, huge requests
+  return `error.OutOfMemory` instead of crashing), run in
+  every build mode. Debug builds and tests keep the leak-checking std
+  allocators; never make mimalloc the test allocator.
 - **Ownership is written down.** A doc comment says who frees what:
   "Caller owns the returned slice", "Borrowed; valid until the next edit".
   Types with resources have `init`/`deinit`; `deinit` frees everything and
@@ -136,6 +148,7 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
 | Path | Responsibility |
 |------|----------------|
 | `src/main.zig` | Arguments, allocator choice, terminal setup and guaranteed restore, then `app.run`. |
+| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*`. |
 | `src/buffer/` | Text storage (piece table or rope), byte offsets, line index, UTF-8 and grapheme boundaries. No I/O, no terminal. |
 | `src/edit/` | Commands applied to buffers: insert, delete, cursor and selection movement, undo/redo history. |
 | `src/input/` | Pure decoder: raw terminal bytes to key, mouse, paste and resize events; keymaps from events to commands. |
@@ -180,8 +193,11 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
 - **No new dependencies; write our own.** Use the Zig standard library only.
   Implement features in-house from their specifications (clean room: never
   read or copy another implementation's source), so we keep control over
-  speed, limits and security. Adding a package to `build.zig.zon` needs an
-  issue where the maintainers agree to it first.
+  speed, limits and security. The one deliberate exception is mimalloc, the
+  release allocator (see "Memory and allocators"). Adding any other package
+  to `build.zig.zon` needs an issue where the maintainers agree to it first;
+  bumping mimalloc's version is a `build(deps)` pull request with benchmark
+  numbers.
 - **Standards compliance.** Emit escape sequences as their specifications
   define them (ECMA-48, xterm ctlseqs, kitty keyboard protocol), probe for
   optional features instead of assuming them, and fall back cleanly on

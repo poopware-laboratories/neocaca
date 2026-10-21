@@ -24,7 +24,7 @@ Delete what does not apply:
 - [ ] `zig fmt --check .` and `zig build test` (Debug and ReleaseSafe) pass.
 - [ ] Platform-gated code builds for the other targets, or there is none.
 - [ ] Every allocation is freed on every path; allocation failures are tested where handled.
-- [ ] No new dependencies in `build.zig.zon`.
+- [ ] No new dependencies in `build.zig.zon` (mimalloc is the only one), and no `mi_*` calls outside `src/alloc/mimalloc.zig`.
 - [ ] File and terminal input stays bounded, and no raw control bytes reach the terminal.
 - [ ] Saving cannot lose or truncate user files, and the terminal is restored on every exit path.
 - [ ] README, AGENTS.md and docs are updated where this changes what they say.
