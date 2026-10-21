@@ -9,6 +9,7 @@ pub const cli = @import("cli.zig");
 pub const edit = @import("edit.zig");
 pub const input = @import("input.zig");
 pub const regex = @import("regex.zig");
+pub const render = @import("render.zig");
 pub const simd = @import("simd.zig");
 pub const unicode = @import("unicode.zig");
 
