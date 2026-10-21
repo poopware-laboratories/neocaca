@@ -53,6 +53,11 @@ pub fn build(b: *std.Build) void {
     run_cmd.addPassthruArgs();
     run_step.dependOn(&run_cmd.step);
 
+    // `zig fmt` over our sources only, never the fetched packages in zig-pkg/.
+    const fmt_paths = b.pathList(&.{ "build.zig", "build.zig.zon", "src" });
+    b.step("fmt", "Format the sources").dependOn(&b.addFmt(.{ .paths = fmt_paths }).step);
+    b.step("fmt-check", "Fail if any source is not formatted").dependOn(&b.addFmt(.{ .paths = fmt_paths, .check = true }).step);
+
     const test_step = b.step("test", "Run all tests");
     for ([_]*std.Build.Module{ mod, exe.root_module }) |root| {
         const tests = b.addTest(.{ .root_module = root, .filters = test_filters });
@@ -60,7 +65,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // Benchmarks build in ReleaseFast unless asked, whatever -Doptimize says.
-    const bench_optimize = b.option(std.builtin.OptimizeMode, "bench-optimize", "Optimize mode for `zig build bench` (default: fast)") orelse .fast;
+    const bench_optimize = b.option(std.lang.Optimize, "bench-optimize", "Optimize mode for `zig build bench` (default: fast)") orelse .fast;
     const bench_lib = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -85,7 +90,7 @@ pub fn build(b: *std.Build) void {
 
 /// Compiles mimalloc's single-file build into `mod`. No CMake: the defines
 /// below are the ones its CMakeLists.txt sets for the same configuration.
-fn addMimalloc(mod: *std.Build.Module, dep: *std.Build.Dependency, optimize: std.builtin.OptimizeMode, secure: MimallocSecure) void {
+fn addMimalloc(mod: *std.Build.Module, dep: *std.Build.Dependency, optimize: std.lang.Optimize, secure: MimallocSecure) void {
     mod.addIncludePath(dep.path("include"));
     const release = optimize != .debug;
     mod.addCSourceFile(.{

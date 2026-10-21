@@ -4,6 +4,7 @@
 //! median of several runs; compare builds by alternating them.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const neocaca = @import("neocaca");
 const bytes = neocaca.simd.bytes;
 
@@ -20,7 +21,13 @@ pub fn main(init: std.process.Init) !void {
     var out_buf: [4096]u8 = undefined;
     var out: std.Io.File.Writer = .init(.stdout(), io, &out_buf);
     const w = &out.interface;
-    try w.print("{d} MiB of text, median of {d} runs, vector width {d}\n\n", .{ input_len >> 20, runs, bytes.default_width });
+    try w.print("{d} MiB of text, median of {d} runs, vector width {d}, {t} mode (safety checks {s})\n\n", .{
+        input_len >> 20,
+        runs,
+        bytes.default_width,
+        builtin.mode,
+        if (builtin.mode.runtimeSafety()) "on" else "off",
+    });
     try w.print("{s:<24} {s:>10} {s:>10} {s:>8}\n", .{ "kernel", "scalar", "simd", "speedup" });
 
     try compare(w, io, "count newlines", text, struct {

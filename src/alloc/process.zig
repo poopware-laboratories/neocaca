@@ -10,7 +10,7 @@ pub const Kind = enum {
     mimalloc,
 };
 
-pub fn kindFor(mode: std.builtin.OptimizeMode) Kind {
+pub fn kindFor(mode: std.lang.Optimize) Kind {
     return switch (mode) {
         .debug => .safe,
         else => .mimalloc,
@@ -22,7 +22,7 @@ test "debug builds use the leak-checking allocator" {
 }
 
 test "every release mode uses mimalloc" {
-    for ([_]std.builtin.OptimizeMode{ .safe, .fast, .small }) |mode| {
+    for ([_]std.lang.Optimize{ .safe, .fast, .small }) |mode| {
         try std.testing.expectEqual(Kind.mimalloc, kindFor(mode));
     }
 }

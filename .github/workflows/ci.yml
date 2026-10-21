@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       # Without `version`, setup-zig uses `minimum_zig_version` from build.zig.zon.
       - uses: mlugg/setup-zig@v2
-      - run: zig fmt --check .
+      - run: zig build fmt-check
 
   test:
     strategy:
