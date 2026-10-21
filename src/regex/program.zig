@@ -7,6 +7,7 @@ const ast = @import("ast.zig");
 
 pub const Inst = union(enum) {
     char: u21,
+    byte: u8,
     any,
     class: struct { start: u32, len: u32, negated: bool },
     /// Continue at both `x` and `y`, preferring `x`.
@@ -70,6 +71,7 @@ const Compiler = struct {
         switch (self.tree.nodes[index]) {
             .empty => {},
             .char => |c| _ = try self.emit(.{ .char = c }),
+            .byte => |b| _ = try self.emit(.{ .byte = b }),
             .any => _ = try self.emit(.any),
             .class => |k| _ = try self.emit(.{ .class = .{ .start = k.start, .len = k.len, .negated = k.negated } }),
             .line_start => _ = try self.emit(.line_start),

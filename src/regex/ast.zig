@@ -8,6 +8,8 @@ pub const Index = u32;
 pub const Node = union(enum) {
     empty,
     char: u21,
+    /// One byte that does not start a well-formed UTF-8 sequence.
+    byte: u8,
     /// Any character but a newline.
     any,
     /// `ranges[start..][0..len]` of the tree; a negated class also matches

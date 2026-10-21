@@ -4,6 +4,7 @@
 const std = @import("std");
 const Regex = @import("regex.zig").Regex;
 const escape = @import("regex.zig").escape;
+const Match = @import("regex.zig").Match;
 const program = @import("program.zig");
 const unicode = @import("../unicode.zig");
 
@@ -169,6 +170,27 @@ test "regex: escape makes any literal match itself" {
     }
 }
 
+test "regex: escape of invalid bytes matches exactly those bytes" {
+    const lit = "a\xffb\xe2\x82(";
+    const pat = try escape(gpa, lit);
+    defer gpa.free(pat);
+    var re = try Regex.compile(gpa, pat);
+    defer re.deinit();
+    try std.testing.expectEqual(Match{ .start = 5, .end = 5 + lit.len }, re.find("a\xfeb\xff a\xffb\xe2\x82(z", 0).?);
+    try std.testing.expect(re.find("a\xfeb\xe2\x82(", 0) == null);
+    try std.testing.expect(re.find("a\xffb\xe2\x83(", 0) == null);
+}
+
+test "regex: a byte escape matches an invalid byte, not part of a character" {
+    try expectFind("\\xff", "a\xffb", .{ 1, 2 });
+    try expectFind("\\xFF", "a\xffb", .{ 1, 2 });
+    try expectFind("\\x41\\x7a", "xAz", .{ 1, 3 });
+    try expectFind("\\xc3", "caf\xc3\xa9 \xc3", .{ 6, 7 });
+    try expectFind("\\xc3", "caf\xc3\xa9", null);
+    try expectFind("a\\xff+", "a\xff\xff\xffb", .{ 0, 4 });
+    try expectFind("\\xff", "", null);
+}
+
 test "regex: matching time is linear on a pathological pattern" {
     // (a?){n}a{n} on a^n takes exponential time with backtracking.
     var re = try Regex.compile(gpa, "(a?){30}a{30}");
@@ -216,6 +238,7 @@ const Reference = struct {
                 return if (ok) self.run(pc + 1, pos) else null;
             },
             .char => |c| return if (d.cp == c) self.run(pc + 1, pos + d.len) else null,
+            .byte => |b| return if (d.cp == null and d.len > 0 and self.text[pos] == b) self.run(pc + 1, pos + 1) else null,
             .any => return if (d.len > 0 and d.cp != '\n') self.run(pc + 1, pos + d.len) else null,
             .class => |k| {
                 const in = if (d.cp) |cp| blk: {
@@ -352,11 +375,12 @@ test "regex: escape of random text matches exactly that text" {
     var buf: [32]u8 = undefined;
     for (0..500) |_| {
         // Any ASCII byte, controls and metacharacters included, plus a
-        // multi-byte character.
+        // multi-byte character, an invalid byte and a truncated sequence.
         var n: usize = 0;
         while (n + 2 <= buf.len and random.uintLessThan(u8, 10) != 0) {
             if (random.uintLessThan(u8, 8) == 0) {
-                buf[n..][0..2].* = "é".*;
+                const pieces = [_]*const [2]u8{ "é", "\xff\xfe", "\xe2\x82" };
+                buf[n..][0..2].* = pieces[random.uintLessThan(usize, pieces.len)].*;
                 n += 2;
             } else {
                 buf[n] = random.uintLessThan(u8, 0x80);
@@ -384,6 +408,9 @@ test "regex: escape doubles metacharacters and leaves the rest" {
     const got = try escape(gpa, "a-b{c}\t\n");
     defer gpa.free(got);
     try std.testing.expectEqualStrings("a-b\\{c\\}\t\\n", got);
+    const bytes = try escape(gpa, "\x80é\xe2\x82\xac\xe2\x82.");
+    defer gpa.free(bytes);
+    try std.testing.expectEqualStrings("\\x80é€\\xe2\\x82\\.", bytes);
     const empty = try escape(gpa, "");
     defer gpa.free(empty);
     try std.testing.expectEqualStrings("", empty);
@@ -392,7 +419,7 @@ test "regex: escape doubles metacharacters and leaves the rest" {
 test "regex: escape fails cleanly without memory" {
     try std.testing.checkAllAllocationFailures(gpa, struct {
         fn run(a: std.mem.Allocator) !void {
-            a.free(try escape(a, "(a.b)*\n[x]"));
+            a.free(try escape(a, "(a.b)*\n[x]\xff"));
         }
     }.run, .{});
 }

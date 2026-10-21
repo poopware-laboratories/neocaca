@@ -191,3 +191,17 @@ test "parse: punctuation escapes stand for themselves" {
     for (p.children.items[c.start..][0..c.len], &got) |i, *g| g.* = p.nodes.items[i].char;
     try std.testing.expectEqualSlices(u21, &.{ '-', ' ', '/', '#' }, &got);
 }
+
+test "parse: a byte escape takes exactly two hex digits" {
+    try expectParseError(error.BadEscape, "\\x");
+    try expectParseError(error.BadEscape, "\\xf");
+    try expectParseError(error.BadEscape, "\\xg0");
+    try expectParseError(error.BadEscape, "\\x0g");
+    try expectParseError(error.BadEscape, "[\\xff]"); // not inside a class
+    var p = try parse.parse(gpa, "\\xff\\x41");
+    defer p.deinit(gpa);
+    const c = p.nodes.items[p.root].concat;
+    const kids = p.children.items[c.start..][0..c.len];
+    try std.testing.expectEqual(ast.Node{ .byte = 0xff }, p.nodes.items[kids[0]]);
+    try std.testing.expectEqual(ast.Node{ .char = 'A' }, p.nodes.items[kids[1]]);
+}

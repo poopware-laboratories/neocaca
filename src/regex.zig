@@ -3,7 +3,8 @@
 //! (`regex/vm.zig`) that matches in linear time over any bytes. Syntax:
 //! literals, `.`, `[...]` classes with ranges and `^`, `\d \w \s` and their
 //! negations, `* + ?` and `{n} {n,} {n,m}` (lazy with a trailing `?`), `|`,
-//! `(...)` and `(?:...)`, `^ $` (line start and end), `\b \B`, and `\n \t \r`.
+//! `(...)` and `(?:...)`, `^ $` (line start and end), `\b \B`, `\n \t \r`,
+//! and `\xHH` (a byte).
 
 const regex = @import("regex/regex.zig");
 

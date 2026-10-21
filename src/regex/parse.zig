@@ -6,6 +6,10 @@
 //!     atom   = '(' alt ')' | '(?:' alt ')' | '[' class ']' | '.' | '^' | '$'
 //!            | '\' escape | literal
 //!
+//! `\xHH` is the byte HH: a character below 0x80, and above it a byte that
+//! does not start a well-formed sequence in the text, so any bytes can be
+//! searched for although the pattern itself must be UTF-8.
+//!
 //! Nesting and counts are bounded, so no pattern can exhaust the stack or
 //! blow up the program.
 
@@ -238,6 +242,13 @@ const Parser = struct {
                 try self.out.ranges.appendSlice(self.gpa, shorthand(std.ascii.toLower(c)));
                 const len: u32 = @intCast(self.out.ranges.items.len - start);
                 return self.add(.{ .class = .{ .start = start, .len = len, .negated = std.ascii.isUpper(c) } });
+            },
+            'x' => {
+                self.at += 1;
+                if (self.at + 2 > self.src.len) return error.BadEscape;
+                const b = std.fmt.parseInt(u8, self.src[self.at..][0..2], 16) catch return error.BadEscape;
+                self.at += 2;
+                return self.add(if (b < 0x80) .{ .char = b } else .{ .byte = b });
             },
             else => return self.add(.{ .char = try self.escapedChar() }),
         }

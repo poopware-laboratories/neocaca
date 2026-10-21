@@ -149,6 +149,7 @@ pub fn find(prog: *const Program, scratch: *Scratch, text: []const u8, from: usi
                     break; // lower-priority threads lose to this match
                 },
                 .char => |c| d.cp == c,
+                .byte => |b| d.cp == null and d.len > 0 and text[pos] == b,
                 .any => d.len > 0 and d.cp != '\n',
                 .class => |k| if (d.cp) |cp| inClass(prog, k.start, k.len, cp) != k.negated else d.len > 0 and k.negated,
                 else => unreachable,

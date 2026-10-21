@@ -4,6 +4,7 @@ const std = @import("std");
 const parse_mod = @import("parse.zig");
 const program = @import("program.zig");
 const vm = @import("vm.zig");
+const utf8 = @import("../unicode.zig").utf8;
 
 pub const Match = vm.Match;
 pub const Error = parse_mod.Error || program.Error;
@@ -45,20 +46,31 @@ pub const Regex = struct {
     }
 };
 
-/// Writes `literal` with every metacharacter escaped, so it compiles to a
-/// pattern matching exactly `literal`. Caller owns the result.
+/// Writes `literal` with every metacharacter escaped and every invalid
+/// byte as `\xHH`, so it compiles to a pattern matching exactly `literal`
+/// (where the text's characters start at its bytes). Caller owns the result.
 pub fn escape(gpa: std.mem.Allocator, literal: []const u8) error{OutOfMemory}![]u8 {
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(gpa);
-    for (literal) |c| {
-        switch (c) {
-            '\\', '.', '[', ']', '(', ')', '{', '}', '*', '+', '?', '|', '^', '$' => try out.append(gpa, '\\'),
-            else => {},
+    var i: usize = 0;
+    while (i < literal.len) {
+        const d = utf8.decode(literal[i..]);
+        if (d.cp == null) {
+            try out.print(gpa, "\\x{x:0>2}", .{literal[i]});
+            i += 1;
+            continue;
         }
-        switch (c) {
-            '\n' => try out.appendSlice(gpa, "\\n"),
-            else => try out.append(gpa, c),
+        for (literal[i..][0..d.len]) |c| {
+            switch (c) {
+                '\\', '.', '[', ']', '(', ')', '{', '}', '*', '+', '?', '|', '^', '$' => try out.append(gpa, '\\'),
+                else => {},
+            }
+            switch (c) {
+                '\n' => try out.appendSlice(gpa, "\\n"),
+                else => try out.append(gpa, c),
+            }
         }
+        i += d.len;
     }
     return out.toOwnedSlice(gpa);
 }
