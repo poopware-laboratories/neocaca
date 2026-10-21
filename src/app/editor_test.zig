@@ -92,6 +92,17 @@ test "editor: an insert session undoes as one step" {
     try expectText(&ed, "x\nhello\nworld\n");
 }
 
+test "editor: d on the last line removes it, c replaces it" {
+    var ed: Editor = try .init(gpa, null, "a\nb\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "jxd");
+    try expectText(&ed, "a\n");
+    try typeKeys(&ed, "u");
+    try expectText(&ed, "a\nb\n");
+    try typeKeys(&ed, "jxcz\x1b");
+    try expectText(&ed, "a\nz\n");
+}
+
 test "editor: change deletes, then inserts, as one undo step" {
     var ed: Editor = try .init(gpa, null, "one two\n");
     defer ed.deinit();

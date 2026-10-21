@@ -52,7 +52,7 @@ clean room.
       must stop itself and restore the terminal first)
 - [ ] A hang-up (closed terminal window) writes the unsaved buffer to a
       recovery file instead of dropping it
-- [ ] `xd` on the last line leaves an empty line, because the final
+- [x] `xd` on the last line leaves an empty line, because the final
       newline is never deleted; delete the newline before it instead
 - [ ] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `J` (see
       `docs/keys.md`)

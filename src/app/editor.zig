@@ -272,7 +272,8 @@ pub const Editor = struct {
             .delete => |d| {
                 if (d.change) doc.beginSession();
                 errdefer if (d.change) doc.endSession();
-                try verbs.delete(doc, if (d.yank) &self.regs else null, d.reg);
+                const regs = if (d.yank) &self.regs else null;
+                try if (d.change) verbs.deleteToChange(doc, regs, d.reg) else verbs.delete(doc, regs, d.reg);
                 if (d.change) {
                     try edit.insert.enter(doc, .before);
                     self.mode = .insert;

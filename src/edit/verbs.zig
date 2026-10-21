@@ -40,8 +40,19 @@ pub fn yank(doc: *const Document, regs: *Registers, reg: u8) error{OutOfMemory}!
 }
 
 /// `d` (and `Alt-d` without `regs`): yanks, then deletes the selections,
-/// leaving a cursor where each one started.
+/// leaving a cursor where each one started. Whole last lines go with the
+/// newline before them, as the final newline stays.
 pub fn delete(doc: *Document, regs: ?*Registers, reg: u8) Error!void {
+    return remove(doc, regs, reg, true);
+}
+
+/// The deleting half of `c`: as `delete`, but whole last lines leave an
+/// empty line to type into.
+pub fn deleteToChange(doc: *Document, regs: ?*Registers, reg: u8) Error!void {
+    return remove(doc, regs, reg, false);
+}
+
+fn remove(doc: *Document, regs: ?*Registers, reg: u8, last_lines: bool) Error!void {
     if (regs) |r| try yank(doc, r, reg);
     const text = doc.text();
     var changes: std.ArrayList(Change) = .empty;
@@ -51,13 +62,18 @@ pub fn delete(doc: *Document, regs: ?*Registers, reg: u8) Error!void {
     try changes.ensureTotalCapacity(doc.gpa, doc.sels().len);
     try new.ensureTotalCapacity(doc.gpa, doc.sels().len);
     var removed: usize = 0;
+    var last_end: usize = 0;
     for (doc.sels()) |s| {
         const r = s.range(text);
+        var start = r.start;
+        // Unless an earlier selection already took that newline.
+        if (last_lines and r.end == text.len and start > last_end and text[start - 1] == '\n') start -= 1;
         const end = @min(r.end, text.len - 1);
-        new.appendAssumeCapacity(.at(r.start - removed));
-        if (end == r.start) continue;
-        changes.appendAssumeCapacity(.{ .start = r.start, .end = end, .text = "" });
-        removed += end - r.start;
+        new.appendAssumeCapacity(.at(start - removed));
+        if (end <= start) continue;
+        changes.appendAssumeCapacity(.{ .start = start, .end = end, .text = "" });
+        removed += end - start;
+        last_end = end;
     }
     try doc.edit(changes.items, new.items, doc.selections.main);
 }

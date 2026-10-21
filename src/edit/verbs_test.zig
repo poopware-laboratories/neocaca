@@ -51,6 +51,39 @@ test "verbs: delete never removes the final newline" {
     try expectDelete("ab«\n»", "ab«\n»", &.{"\n"});
 }
 
+test "verbs: deleting whole last lines takes the newline before them instead" {
+    try expectDelete("a\n«b\n»", "a«\n»", &.{"b\n"});
+    try expectDelete("a\n«b\nc\n»", "a«\n»", &.{"b\nc\n"});
+    try expectDelete("a\n«\n»", "a«\n»", &.{"\n"}); // an empty last line
+    try expectDelete("ab\n«c\n»", "ab«\n»", &.{"c\n"});
+    // Not from a line start: the line keeps its newline.
+    try expectDelete("a\nb«c\n»", "a\nb«\n»", &.{"c\n"});
+}
+
+test "verbs: the newline before the last line is not taken twice" {
+    // The first selection already removes it.
+    try expectDelete("«a\n»‹b\n›", "«\n»", &.{ "a\n", "b\n" });
+    try expectDelete("a«b\n»‹c\n›", "a«\n»", &.{ "b\n", "c\n" });
+    // Another selection before it, elsewhere, does not stop it.
+    try expectDelete("«a»b\n‹c\n›", "«b»‹\n›", &.{ "a", "c\n" });
+}
+
+test "verbs: deleting to change keeps the last line to type into" {
+    var d = try fx.doc("a\n«b\n»");
+    defer d.deinit();
+    try verbs.deleteToChange(&d, null, '"');
+    try fx.expectDoc(&d, "a\n«\n»");
+}
+
+test "verbs: deleting the last line undoes to the text before" {
+    var d = try fx.doc("a\n«b\n»");
+    defer d.deinit();
+    try verbs.delete(&d, null, '"');
+    try fx.expectDoc(&d, "a«\n»");
+    try expect(try d.undo());
+    try fx.expectDoc(&d, "a\n«b\n»");
+}
+
 test "verbs: delete without registers leaves them alone, and undoes" {
     var d = try fx.doc("a«bc»d\n");
     defer d.deinit();
