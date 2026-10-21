@@ -11,6 +11,7 @@ pub const input = @import("input.zig");
 pub const regex = @import("regex.zig");
 pub const render = @import("render.zig");
 pub const simd = @import("simd.zig");
+pub const ui = @import("ui.zig");
 pub const unicode = @import("unicode.zig");
 
 test {
