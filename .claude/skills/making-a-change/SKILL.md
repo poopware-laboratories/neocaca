@@ -28,7 +28,7 @@ managing-memory.
 ## 3. Checks, in this order
 
 ```sh
-zig fmt .
+zig build fmt
 zig build test --summary all
 zig build test -Doptimize=safe --summary all
 zig build -Dtarget=x86_64-macos     # when platform-gated code changed

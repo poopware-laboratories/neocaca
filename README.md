@@ -78,6 +78,8 @@ zig build -Doptimize=safe          # zig-out/bin/neocaca
 | `zig build -Doptimize=safe` | The shipping build |
 | `zig build test --summary all` | Every test |
 | `zig build test -Dtest-filter="name"` | Only matching tests |
+| `zig build test -fincremental --watch` | Rerun the tests on every save, incrementally (x86_64-linux) |
+| `zig build fmt` | Format the sources (`fmt-check` to only check) |
 | `zig build bench` | SIMD against scalar throughput |
 | `zig build -Dtarget=aarch64-macos` | Cross-compile (Linux, macOS, FreeBSD) |
 | `-Dmimalloc-secure=off\|on\|full` | mimalloc hardening level (default `on`) |
@@ -108,7 +110,7 @@ coding agents alike. In short:
 
 1. **Red:** write a test, run it, and watch it fail for the right reason.
 2. **Green:** write the least code that passes.
-3. **Refactor** with the suite green, then `zig fmt .` and run the tests
+3. **Refactor** with the suite green, then `zig build fmt` and run the tests
    in Debug and ReleaseSafe.
 4. Open a pull request with a [Conventional Commit](https://www.conventionalcommits.org/)
    title and at least three lines of tests per line of code.

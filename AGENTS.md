@@ -19,7 +19,9 @@ without a real terminal.
 zig build                                   # debug build: zig-out/bin/neocaca
 zig build test --summary all                # every unit and integration test
 zig build test -Dtest-filter="piece table"  # only tests whose name matches
-zig fmt --check .                           # formatting (zig fmt is the style)
+zig build fmt                               # format our sources (zig fmt is the style)
+zig build fmt-check                         # fail on unformatted sources, as CI does
+zig build test -fincremental --watch        # rebuild and rerun the tests on every save (x86_64-linux)
 zig build -Doptimize=safe                   # ReleaseSafe: the shipping build
 zig build test -Doptimize=safe --summary all  # the tests as shipped
 zig build bench                             # SIMD kernels against scalar (ReleaseFast)
@@ -35,16 +37,30 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 - **Toolchain:** Zig 0.17.0, pinned by `minimum_zig_version` in
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
   between releases, so code that builds on another version proves nothing.
-- **Formatting:** `zig fmt`, no exceptions. Run it before every commit.
+- **Formatting:** `zig fmt`, no exceptions. Run `zig build fmt` before every
+  commit; it covers `build.zig`, `build.zig.zon` and `src/`, never the
+  fetched packages in `zig-pkg/`.
+- **Zig 0.17 idioms.** Write current Zig, not what older examples show:
+  `std.lang` (not the deprecated `std.builtin`), `std.lang.Optimize` with
+  `.debug`/`.safe`/`.fast`/`.small`, and `mode.runtimeSafety()` to ask
+  whether checks are on; `builtin.target.os` / `.cpu` / `.abi` (the bare
+  `builtin.os` and friends are deprecated); `@backingInt` /
+  `@fromBackingInt` for enums; `@splat` for repeated arrays (`**` is gone);
+  `@divCeil`; `list.last()` on `ArrayList`; `arena.print(...)` instead of
+  `std.fmt.allocPrint`; `std.heap.SafeAllocator` (DebugAllocator is
+  deprecated); `std.heap.BufferFirstAllocator` for small stack-first
+  scratch; `run.addPassthruArgs()` in `build.zig`; `extern fn` instead of
+  `@cImport` (removed). Watch `std.mem.containsAtLeastScalar`, whose
+  arguments swapped order without a compile error.
 - **`build.zig` contract:** `zig build test` must run every test in the project
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
-- **CI** (`.github/workflows/ci.yml`) runs `zig fmt --check .`, the tests
+- **CI** (`.github/workflows/ci.yml`) runs `zig build fmt-check`, the tests
   in Debug and ReleaseSafe on Linux and macOS (and ReleaseSafe again with
   `-Dmimalloc-secure=off`), a ReleaseSafe build for every supported target,
   and a benchmark smoke run. All must pass; run them before pushing.
-- **Platform-gated code** (`switch (builtin.os.tag)`, `@import("builtin")`
-  checks) is only analyzed for the target you build. Zig compiles lazily:
+- **Platform-gated code** (`switch (builtin.target.os.tag)` and other
+  `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with
   `zig build -Dtarget=x86_64-macos` / `aarch64-macos` / `x86_64-freebsd`
   / `aarch64-linux`,
@@ -73,7 +89,7 @@ no "I'll add the tests after".
    demand.
 3. **Refactor.** Clean up, with the whole suite (`zig build test`) green
    after every step.
-4. Run the full checks (`zig fmt --check .`, `zig build test` with
+4. Run the full checks (`zig build fmt-check`, `zig build test` with
    `-Doptimize=debug` and `-Doptimize=safe`) before pushing.
 
 A test that passes the first time you run it proves nothing; adjust it until
