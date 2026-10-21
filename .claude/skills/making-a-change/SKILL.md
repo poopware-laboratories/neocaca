@@ -35,7 +35,8 @@ zig build -Dtarget=x86_64-macos     # when platform-gated code changed
 zig build -Dtarget=x86_64-freebsd   # likewise
 ```
 
-Then count the diff: three test lines (inside `test` blocks, `*_test.zig`,
+Then count the diff (`build.zig` and benchmarks excluded, see AGENTS.md):
+three test lines (inside `test` blocks, `*_test.zig`,
 `tests/`) per production line, no padding.
 
 ## 4. Commit and pull request

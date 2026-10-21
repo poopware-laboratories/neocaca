@@ -104,6 +104,15 @@ comments count for neither side. Until a script enforces it in CI,
 reviewers count it from the diff.
 
 - Pull requests without production code (docs, CI, build tweaks) pass.
+- **Build scripts and benchmarks are not counted** (`build.zig`,
+  `src/bench.zig` and any later `*_bench.zig`), provided they are written
+  with deep testing in mind: `build.zig` keeps every test reachable from
+  `zig build test`, honors `-Dtest-filter`, and builds the tests in every
+  mode and option the product ships with; a benchmark checks that each fast
+  path returns the same result as its reference on the measured input and
+  fails if not, and reports the build mode it ran in. Logic either of them
+  needs beyond that (parsing, layout, data generation the tests reuse)
+  lives in `src/` and is counted and tested like any other code.
 - Meet the ratio with tests that pin real behavior: edge cases, bounds,
   allocation failures, malformed input, regressions, differential cases.
   Never pad (duplicate assertions, filler, loops that only add lines);
