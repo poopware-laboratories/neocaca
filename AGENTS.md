@@ -19,26 +19,51 @@ without a real terminal.
 zig build                                   # debug build: zig-out/bin/neocaca
 zig build test --summary all                # every unit and integration test
 zig build test -Dtest-filter="piece table"  # only tests whose name matches
-zig fmt --check .                           # formatting (zig fmt is the style)
-zig build -Doptimize=ReleaseSafe            # release with safety checks
-zig build -Doptimize=ReleaseFast            # benchmarks and profiling only
+zig build fmt                               # format our sources (zig fmt is the style)
+zig build fmt-check                         # fail on unformatted sources, as CI does
+zig build test -fincremental --watch        # rebuild and rerun the tests on every save (x86_64-linux)
+zig build -Doptimize=safe                   # ReleaseSafe: the shipping build
+zig build test -Doptimize=safe --summary all  # the tests as shipped
+zig build bench                             # SIMD kernels against scalar (ReleaseFast)
+zig build bench -Dbench-optimize=safe       # the same, as shipped
+zig build -Dtarget=aarch64-macos            # cross-compile; also x86_64-macos, x86_64-freebsd
 zig build run -- path/to/file               # run the editor
 ```
 
-- **Toolchain:** the Zig version pinned by `minimum_zig_version` in
+Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
+`ReleaseSafe`-style names are deprecated), `-Dtest-filter=…`,
+`-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`.
+
+- **Toolchain:** Zig 0.17.0, pinned by `minimum_zig_version` in
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
   between releases, so code that builds on another version proves nothing.
-- **Formatting:** `zig fmt`, no exceptions. Run it before every commit.
+- **Formatting:** `zig fmt`, no exceptions. Run `zig build fmt` before every
+  commit; it covers `build.zig`, `build.zig.zon`, `src/` and `tests/`, never the
+  fetched packages in `zig-pkg/`.
+- **Zig 0.17 idioms.** Write current Zig, not what older examples show:
+  `std.lang` (not the deprecated `std.builtin`), `std.lang.Optimize` with
+  `.debug`/`.safe`/`.fast`/`.small`, and `mode.runtimeSafety()` to ask
+  whether checks are on; `builtin.target.os` / `.cpu` / `.abi` (the bare
+  `builtin.os` and friends are deprecated); `@backingInt` /
+  `@fromBackingInt` for enums; `@splat` for repeated arrays (`**` is gone);
+  `@divCeil`; `list.last()` on `ArrayList`; `arena.print(...)` instead of
+  `std.fmt.allocPrint`; `std.heap.SafeAllocator` (DebugAllocator is
+  deprecated); `std.heap.BufferFirstAllocator` for small stack-first
+  scratch; `run.addPassthruArgs()` in `build.zig`; `extern fn` instead of
+  `@cImport` (removed). Watch `std.mem.containsAtLeastScalar`, whose
+  arguments swapped order without a compile error.
 - **`build.zig` contract:** `zig build test` must run every test in the project
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
-- **CI** runs `zig fmt --check .`, `zig build test` in Debug and
-  ReleaseSafe, and a build for each supported target. Until a workflow
-  exists in `.github/workflows/`, run all of them yourself before pushing.
-- **Platform-gated code** (`switch (builtin.os.tag)`, `@import("builtin")`
-  checks) is only analyzed for the target you build. Zig compiles lazily:
+- **CI** (`.github/workflows/ci.yml`) runs `zig build fmt-check`, the tests
+  in Debug and ReleaseSafe on Linux and macOS (and ReleaseSafe again with
+  `-Dmimalloc-secure=off`), a ReleaseSafe build for every supported target,
+  and a benchmark smoke run. All must pass; run them before pushing.
+- **Platform-gated code** (`switch (builtin.target.os.tag)` and other
+  `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with
-  `zig build -Dtarget=x86_64-macos` / `aarch64-macos` / `x86_64-freebsd`,
+  `zig build -Dtarget=x86_64-macos` / `aarch64-macos` / `x86_64-freebsd`
+  / `aarch64-linux`,
   and make sure tests reference the code you changed.
 
 ## Before you start
@@ -47,7 +72,33 @@ Search the open [issues](https://github.com/poopware-laboratories/neocaca/issues
 first. Someone may already be working on the change, an issue may set out
 how it should be done, or a higher-priority item may come first. Comment on
 an issue to claim it, and link the issue from your pull request
-(`Closes #N`). Once a `TODO.md` exists, read it too.
+(`Closes #N`). Read [`TODO.md`](TODO.md), the roadmap: tick items off in the
+pull request that finishes them and add what you find missing.
+
+## Clean-room policy
+
+Every line of neocaca is written from first principles. This is a hard
+rule, for editor logic as much as for decoders and data structures.
+
+- **Allowed sources:** specifications and standards (Unicode, ECMA-48, xterm
+  ctlseqs, the kitty keyboard protocol, POSIX), the Zig standard library and
+  its documentation, published *user-facing* documentation of how another
+  editor behaves (manuals, key charts, tutorials), and our own experiments
+  (running a program and observing its behavior).
+- **Forbidden:** reading, copying, porting or translating the source code of
+  other editors (Kakoune, Vim, Neovim, Helix, Emacs, …) or of libraries that
+  solve the same problem (regex engines, rope or piece-table crates, Unicode
+  width tables, terminal toolkits), including "just to see how they did it",
+  and pasting code from answers or generated output that reproduces them.
+- **Data tables** (character widths, combining ranges) are derived from the
+  Unicode standard itself (the Character Database, UAX #11, UAX #29), never
+  copied from another project's generated tables.
+- **Record the derivation.** A pull request that adds a non-trivial design
+  (an algorithm, a key binding scheme, a table) says in its body where the
+  design came from: which specification sections, which documented behavior,
+  which experiments.
+- **When unsure, ask** in the issue before writing the code. Code found to be
+  derived from another implementation is removed, not fixed.
 
 ## Workflow: strict test-driven development
 
@@ -64,7 +115,8 @@ no "I'll add the tests after".
    demand.
 3. **Refactor.** Clean up, with the whole suite (`zig build test`) green
    after every step.
-4. Run the full checks (fmt, test in Debug and ReleaseSafe) before pushing.
+4. Run the full checks (`zig build fmt-check`, `zig build test` with
+   `-Doptimize=debug` and `-Doptimize=safe`) before pushing.
 
 A test that passes the first time you run it proves nothing; adjust it until
 you have seen it fail. When fixing a bug, the first commit may be the
@@ -78,6 +130,15 @@ comments count for neither side. Until a script enforces it in CI,
 reviewers count it from the diff.
 
 - Pull requests without production code (docs, CI, build tweaks) pass.
+- **Build scripts and benchmarks are not counted** (`build.zig`,
+  everything under `src/bench/`), provided they are written
+  with deep testing in mind: `build.zig` keeps every test reachable from
+  `zig build test`, honors `-Dtest-filter`, and builds the tests in every
+  mode and option the product ships with; a benchmark checks that each fast
+  path returns the same result as its reference on the measured input and
+  fails if not, and reports the build mode it ran in. Logic either of them
+  needs beyond that (parsing, layout, data generation the tests reuse)
+  lives in `src/` and is counted and tested like any other code.
 - Meet the ratio with tests that pin real behavior: edge cases, bounds,
   allocation failures, malformed input, regressions, differential cases.
   Never pad (duplicate assertions, filler, loops that only add lines);
@@ -85,10 +146,41 @@ reviewers count it from the diff.
 - When a change cannot meet the ratio cheaply, it is usually too big or too
   hard to test. Split it, or make the logic pure and testable.
 
-Performance work is measured, not guessed: benchmark before and after in
-`ReleaseFast` (alternating builds, several runs, medians) and drop changes
+Performance work is measured, not guessed: benchmark before and after
+with `zig build bench` (alternating builds, several runs, medians), in
+ReleaseFast and in ReleaseSafe (`-Dbench-optimize=safe`), and drop changes
 that do not show a reproducible gain. A fast path must produce output
 identical to the slow path it replaces, and a test must show that.
+
+## Performance and security
+
+neocaca ships as **ReleaseSafe**: bounds, overflow and unreachable checks
+stay on in the build users run. Performance comes from better algorithms
+and SIMD, never from turning safety off.
+
+- **SIMD lives in `src/simd/`**, written with `@Vector` and
+  `std.simd.suggestVectorLength`, generic over the width (`fooWidth(n, …)`)
+  so tests can run every width (16, 32, 64) on any CPU. No inline assembly
+  and no CPU-specific intrinsics.
+- **Every kernel has a scalar reference** (`fooScalar`), the simplest
+  correct loop, and a differential test against it: random input from a
+  fixed seed (printed on failure), every byte value, lengths and offsets
+  around every vector boundary. A kernel without one does not merge.
+- **Read only through slices.** Load chunks as `rest[0..n].*` and advance
+  with `rest = rest[n..]` under `while (rest.len >= n)`; the tail shorter
+  than a vector goes to the scalar reference. Never read past the end of
+  the input, not even within the same page, and never `@ptrCast` a pointer
+  to a wider type to load.
+- **Make checks free instead of removing them.** Shape loops so the
+  optimizer can prove a bounds check redundant (the pattern above runs as
+  fast in ReleaseSafe as in ReleaseFast). `@setRuntimeSafety(false)`
+  needs a benchmark showing a gain in ReleaseSafe, a comment stating the
+  invariant that makes it safe, a `std.debug.assert` of that invariant,
+  and a test at its boundary; prefer it never.
+- **Bounds on untrusted sizes** hold on fast paths too: a fast path takes
+  the same `max_*` limits as the slow path.
+- **Hardened allocator.** mimalloc runs with `-Dmimalloc-secure=on` by
+  default; `off` exists only to measure the allocator itself.
 
 ## Memory and allocators
 
@@ -96,21 +188,27 @@ Zig makes every allocation explicit; keep it that way.
 
 - **No global allocator.** Every function that allocates takes a
   `std.mem.Allocator` parameter (or is a method on a type that stores one
-  from `init`). Only `main.zig` chooses the process allocator:
-  `std.heap.DebugAllocator` in Debug (leaks and double frees reported on
-  exit), [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
+  from `init`). Only `main.zig` chooses the process allocator, by
+  `alloc.process.Gpa(kindFor(builtin.mode))`: `std.heap.SafeAllocator` in Debug
+  (leaks, double frees and use after free reported),
+  [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
   ReleaseFast and ReleaseSmall.
 - **mimalloc is the release allocator.** It is Microsoft's C library (MIT),
-  pinned by version and hash in `build.zig.zon`, compiled by `build.zig`
-  from its single-file `src/static.c` with its `include/` directory (no
-  CMake), and linked with libc. `src/alloc/mimalloc.zig` wraps it as a
-  `std.mem.Allocator` (`mi_malloc_aligned`, `mi_expand` for in-place
-  resize, `mi_realloc_aligned` for remap, `mi_free`); no other file calls
-  `mi_*` functions. The wrapper has its own tests (alignment for every
-  power of two up to a page, resize and remap keep contents, huge requests
-  return `error.OutOfMemory` instead of crashing), run in
-  every build mode. Debug builds and tests keep the leak-checking std
-  allocators; never make mimalloc the test allocator.
+  v3.5.3, pinned by URL and hash in `build.zig.zon`, compiled by
+  `build.zig` from its single-file `src/static.c` with its `include/`
+  directory (no CMake, the defines its CMakeLists.txt would set), and
+  linked with libc. `src/alloc/mimalloc.zig` wraps it as a
+  `std.mem.Allocator` (`mi_malloc_aligned`, `mi_expand` to grow in place,
+  `mi_realloc_aligned` for remap, `mi_free`); no other file calls `mi_*`
+  functions, and they are declared there as `extern fn`, not through
+  `@cImport`. Shrinking always succeeds in place (`mi_free` needs no
+  length); growing in place fails under hardening, whose overflow-detection
+  padding `mi_expand` refuses to touch. Requests over `max_request` fail
+  before reaching mimalloc. The wrapper's tests (alignment for every power
+  of two up to a page, resize and remap keep contents, huge requests fail
+  with `error.OutOfMemory`, the std allocator conformance tests) run in
+  every build mode and hardening level. Debug builds and tests keep the
+  leak-checking std allocators; never make mimalloc the test allocator.
 - **Ownership is written down.** A doc comment says who frees what:
   "Caller owns the returned slice", "Borrowed; valid until the next edit".
   Types with resources have `init`/`deinit`; `deinit` frees everything and
@@ -132,38 +230,86 @@ Zig makes every allocation explicit; keep it that way.
 
 ## Architecture in one screen
 
-The repository is at its start; this is the layout new code goes into.
-Update this table in the same pull request whenever the code diverges.
+**Layout: one folder per subsystem, one concern per file.** Each subsystem
+is a folder with a namespace file of the same name beside it, as the
+standard library does (`src/cli.zig` and `src/cli/`). The namespace file
+starts with a `//!` line naming its files, re-exports the public API, and
+has a `test { _ = @import(...); }` block referencing every file in the
+folder, so `zig build test` reaches them. `src/root.zig` re-exports the
+namespaces. Inside a folder, files import siblings directly
+(`@import("command.zig")`) and other subsystems through their namespace
+file (`@import("../cli.zig")`), never another folder's files. A file holds
+one concern; when it outgrows that, split it (`parse.zig`, `usage.zig`),
+and tests that outgrow their file move to a sibling `name_test.zig`.
+Every row below exists; keep this table and the diagram in step with the
+code in the same pull request that changes it.
 
 ```
-stdin bytes ──► input::decode ──► input::Event ──► app::EventLoop ──► edit::Command
- (raw mode)       (pure)             (key, mouse,       │ (one thread)       │
-                                      paste, resize)    │                    ▼
-                                                        │            buffer::Buffer + edit::History
-                                                        ▼                    │
-terminal ◄── term::Output ◄── render::diff ◄── render::Screen ◄── ui::layout ◄┘
- (escape bytes)   (writes)       (pure)          (cell grid)       (pure)
+terminal bytes ──► term::Tty ──► app::loop ──► app::Session ──► input::Decoder ──► input::Key
+ (raw mode)      (wait, read,     (one thread)   (joins the        (pure; Alt, CSI,     │
+                  size, resize)                   outside world)     paste, timeouts)    ▼
+                                                      │ fs::file        app::Editor ◄── input::keymap
+                                                      │ (load, save)     │  (modes,       (pure state
+                                                      ▼                  │   prompts)      machine)
+                                                 :w, :e requests         ▼
+                                                                  edit::Document (buffer::Buffer,
+                                                                  selections, history) + regex
+                                                                         │
+terminal ◄── render::diff ◄── render::Screen ◄── app::layout ◄── ui (document, status, prompt) ◄┘
+ (escape bytes)   (pure)        (cell grid)         (pure)
 ```
 
 | Path | Responsibility |
 |------|----------------|
-| `src/main.zig` | Arguments, allocator choice, terminal setup and guaranteed restore, then `app.run`. |
-| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*`. |
-| `src/buffer/` | Text storage (piece table or rope), byte offsets, line index, UTF-8 and grapheme boundaries. No I/O, no terminal. |
-| `src/edit/` | Commands applied to buffers: insert, delete, cursor and selection movement, undo/redo history. |
-| `src/input/` | Pure decoder: raw terminal bytes to key, mouse, paste and resize events; keymaps from events to commands. |
-| `src/render/` | `Screen` (a grid of cells: grapheme, width, style), the diff of two screens into minimal escape output, display width. |
-| `src/ui/` | Pure layout: views, splits, gutter, status line, prompts, scrolling. |
-| `src/term/` | The only code that touches the real terminal: raw mode, size, non-blocking reads, buffered writes. Platform-gated. |
-| `src/app/` | The event loop gluing the rest together. `App` methods route events to the pure modules above. |
-| `src/fs/` | Loading and saving files: atomic writes, encodings, line endings, size limits. |
-| `tests/` | Integration tests that drive a whole editor session from scripted input bytes and assert on the final `Screen` and buffers. |
+| `src/main.zig` | Process setup only: the process allocator, I/O, the arguments, the panic handler that restores the terminal, then `app.run`. No logic worth testing lives here. |
+| `src/root.zig` | The `neocaca` module: re-exports every subsystem namespace, so `zig build test` reaches their tests. |
+| `src/app/` | `run.zig`: a command line to an exit code (tested in `run_test.zig`); `exit.zig`: the exit codes; `edit.zig`: opens the terminal, runs the loop, restores the terminal however it ends; `loop.zig`: the event loop, generic over the terminal so tests script it; `session.zig`: an `Editor` joined to terminal bytes, files and frames; `editor.zig`: the editing state and key routing; `prompting.zig`: what a submitted prompt does; `commands.zig`: `:` command parsing; `layout.zig`: the screen layout. |
+| `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
+| `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
+| `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
+| `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. |
+| `src/unicode/` | `utf8.zig`: decoding that never fails; `width.zig`: display width from UAX #11; `chars.zig`: characters with their combining marks; `class.zig`: word and space classes; `display.zig`: how a character is drawn (`^[` for controls). |
+| `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass. No I/O, no terminal. |
+| `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig`, run by the Pike VM in `vm.zig`; `regex.zig`: the public `Regex`. |
+| `src/edit/` | `document.zig`: a buffer with its selections (`selection.zig`) and history (`history.zig`); `motion.zig`, `object.zig`, `selecting.zig`, `search.zig`: selection changes; `verbs.zig`, `insert.zig`: text changes; `registers.zig`. |
+| `src/input/` | `decode.zig`: pure decoding of terminal bytes into `Key`s (`key.zig`); `decoder.zig`: keys split across reads, pastes, the Escape timeout; `keymap.zig`: keys to `Action`s (`action.zig`) as a pure state machine. |
+| `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |
+| `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
+| `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, size, waits, resizes through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
+| `src/fs/` | `file.zig`: bounded loads and atomic saves that keep permissions. |
+| `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig` and `display_test.zig` assert on the buffers, files and `Screen`; `terminal_test.zig` runs the editor on a pseudo-terminal end to end. |
+
+## Keybinding model (Kakoune-inspired)
+
+neocaca's modal editing follows the *conceptual* model popularised by
+Kakoune, designed and implemented independently (see "Clean-room policy"):
+
+- **Selection first, verb second.** In normal mode keys first select text
+  (an *object*), then a verb acts on the selections: `wd` selects a word,
+  then deletes it. What a verb will touch is always visible before it runs.
+- **There is always a selection.** Every cursor is a selection of at least
+  one character (anchor and cursor, inclusive). Moves replace the
+  selections; the same move with Shift extends them.
+- **Multiple selections are first-class.** Every move, object and verb
+  applies to every selection at once. Selections are split by a pattern
+  (`S`), filtered (`Alt-k`, `Alt-K`), narrowed to a regex match (`s`),
+  duplicated (`C`), rotated (`(` `)`) and reduced (`,` `;`).
+- **Modes:** normal (select and act), insert (type at every cursor), prompt
+  (`:` commands, `/` search, `s` select, `|` filters later). `Esc` always
+  returns to normal mode.
+- **Pure keymap.** `src/input/keymap.zig` maps events to commands as a pure
+  state machine (pending prefixes, counts, registers); `src/edit/` applies
+  commands to buffers and selections. Neither touches the terminal.
+
+`docs/keys.md` is the reference for every binding; change it together with
+the keymap and its tests.
 
 ## Rules of thumb
 
 - **Keep files small and single-purpose.** Prefer a new file over growing
-  one past roughly 400 lines. Each file starts with a `//!` doc comment
-  saying what it is for. Tests that outgrow their file move to a sibling
+  one past roughly 400 lines, and a new folder (with its namespace file)
+  over a file holding two subsystems. Each file starts with a `//!` doc
+  comment saying what it is for. Tests that outgrow their file move to a sibling
   `name_test.zig`, referenced from the module so `zig build test` reaches it.
 - **Functional core, imperative shell.** Encoding, decoding, layout, editing
   and diffing are pure functions over plain data (`input.decode(bytes)`,
@@ -197,7 +343,9 @@ terminal ◄── term::Output ◄── render::diff ◄── render::Screen 
   release allocator (see "Memory and allocators"). Adding any other package
   to `build.zig.zon` needs an issue where the maintainers agree to it first;
   bumping mimalloc's version is a `build(deps)` pull request with benchmark
-  numbers.
+  numbers. Tree-sitter (planned for syntax highlighting, see `TODO.md`)
+  would be the second exception and waits for that agreement; until then
+  highlighting is out of scope.
 - **Standards compliance.** Emit escape sequences as their specifications
   define them (ECMA-48, xterm ctlseqs, kitty keyboard protocol), probe for
   optional features instead of assuming them, and fall back cleanly on

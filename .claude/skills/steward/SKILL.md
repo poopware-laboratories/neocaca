@@ -20,9 +20,9 @@ description: Use when driving an open neocaca pull request to green - CI failure
 
 | Failing step | Run locally |
 |--------------|-------------|
-| Format | `zig fmt --check .` (fix: `zig fmt .`) |
+| Format | `zig build fmt-check` (fix: `zig build fmt`) |
 | Tests (Debug) | `zig build test --summary all` |
-| Tests (ReleaseSafe) | `zig build test -Doptimize=ReleaseSafe --summary all` |
+| Tests (ReleaseSafe) | `zig build test -Doptimize=safe --summary all` |
 | Cross-target build | `zig build -Dtarget=<triple>` with the job's triple |
 | Leak reported by a test | Run that test alone with `-Dtest-filter`; see managing-memory |
 | Pull request title | Fix it on the PR: `type(scope): summary`, lower case, no final period |
@@ -40,5 +40,5 @@ logic into a pure function. Never skip or loosen a test to get green.
 
 ## Before every push
 
-`zig fmt --check .`, the tests in Debug and ReleaseSafe, cross-target builds
+`zig build fmt-check`, the tests in Debug and ReleaseSafe, cross-target builds
 when platform-gated code changed, and a recount of the test ratio.

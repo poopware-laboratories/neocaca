@@ -13,15 +13,15 @@ Closes #
 
 <!--
 Delete what does not apply:
-- Performance: before and after numbers from the same machine, ReleaseFast.
+- Performance: `zig build bench` before and after, same machine, in ReleaseFast and ReleaseSafe (`-Dbench-optimize=safe`).
 - Screen output: captures before and after (tmux capture-pane -p -e).
 -->
 
 ## Checklist
 
 - [ ] I wrote each test first and saw it fail for the expected reason before making it pass.
-- [ ] At least 3 test lines per production line, with no padding.
-- [ ] `zig fmt --check .` and `zig build test` (Debug and ReleaseSafe) pass.
+- [ ] At least 3 test lines per production line, with no padding (`build.zig` and benchmarks not counted).
+- [ ] `zig build fmt-check` and `zig build test` (Debug and ReleaseSafe) pass.
 - [ ] Platform-gated code builds for the other targets, or there is none.
 - [ ] Every allocation is freed on every path; allocation failures are tested where handled.
 - [ ] No new dependencies in `build.zig.zon` (mimalloc is the only one), and no `mi_*` calls outside `src/alloc/mimalloc.zig`.

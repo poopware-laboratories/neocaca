@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Without `version`, setup-zig uses `minimum_zig_version` from build.zig.zon.
+      - uses: mlugg/setup-zig@v2
+      - run: zig build fmt-check
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        optimize: [debug, safe]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+      - run: zig build test -Doptimize=${{ matrix.optimize }} --summary all
+      # The shipping configuration also runs with mimalloc's hardening off,
+      # so a test cannot pass only because of the padding it adds.
+      - if: matrix.optimize == 'safe'
+        run: zig build test -Doptimize=safe -Dmimalloc-secure=off --summary all
+
+  cross:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos, x86_64-freebsd]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+      - run: zig build -Dtarget=${{ matrix.target }} -Doptimize=safe
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+      # A smoke run: the kernels must agree with their scalar references.
+      # Shared runners are too noisy for the numbers to mean anything.
+      - run: zig build bench

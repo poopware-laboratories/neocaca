@@ -1,0 +1,21 @@
+.{
+    .name = .neocaca,
+    .version = "0.0.0",
+    // Changing this has security and trust implications.
+    .fingerprint = 0x115d06e32f0e28fa,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        // The release allocator: the one deliberate dependency (AGENTS.md).
+        .mimalloc = .{
+            .url = "https://github.com/microsoft/mimalloc/archive/refs/tags/v3.5.3.tar.gz",
+            .hash = "N-V-__8AAJ2kWgAyMSn9Yf-t-pUPi1ZkFkG6UUOmXod6BvPG",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+        "README.md",
+    },
+}

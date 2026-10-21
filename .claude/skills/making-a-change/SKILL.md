@@ -14,9 +14,11 @@ required. Skipping one is how pull requests go red.
   Someone may own it, or an issue may say how it must be done.
 - Branch from an up-to-date `main`: `git switch main && git pull --rebase &&
   git switch -c type/short-topic` (`fix/undo-merge`, `feat/soft-wrap`).
-- Find the module from the table in AGENTS.md ("Architecture in one
-  screen"). If the logic needs a terminal or a file to test, it belongs in a
-  pure module instead; only `term/`, `fs/` and `main.zig` do I/O.
+- Find the folder from the table in AGENTS.md ("Architecture in one
+  screen") and the file for the concern; start a new file rather than
+  mixing two concerns in one. If the logic needs a terminal or a file to
+  test, it belongs in a pure module instead; only `term/`, `fs/` and
+  `main.zig` do I/O.
 
 ## 2. Red, green, refactor
 
@@ -28,14 +30,15 @@ managing-memory.
 ## 3. Checks, in this order
 
 ```sh
-zig fmt .
+zig build fmt
 zig build test --summary all
-zig build test -Doptimize=ReleaseSafe --summary all
+zig build test -Doptimize=safe --summary all
 zig build -Dtarget=x86_64-macos     # when platform-gated code changed
 zig build -Dtarget=x86_64-freebsd   # likewise
 ```
 
-Then count the diff: three test lines (inside `test` blocks, `*_test.zig`,
+Then count the diff (`build.zig` and benchmarks excluded, see AGENTS.md):
+three test lines (inside `test` blocks, `*_test.zig`,
 `tests/`) per production line, no padding.
 
 ## 4. Commit and pull request
@@ -54,16 +57,19 @@ Then count the diff: three test lines (inside `test` blocks, `*_test.zig`,
 | Any behavior change or bug fix | test-driven-development |
 | Anything that allocates, frees or owns memory | managing-memory |
 | Anything users see: rendering, layout, colors, cursor | checking-screen-output |
+| A SIMD kernel, or anything claimed to be faster | AGENTS.md "Performance and security"; `zig build bench` in fast and safe |
 | Driving an open PR to green | steward |
 
 ## Common mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| A new file the test step never imports | Reference it from its module (`_ = @import("x_test.zig");` in a `test` block) and check the test count went up. |
+| A new file the test step never imports | Reference it from its folder's namespace file (`_ = @import("cli/x.zig");` in its `test` block) and check the test count went up. |
+| A new subsystem as one big file, or importing another folder's files | A folder plus a namespace file of the same name (`src/x.zig`, `src/x/`); reach other subsystems only through their namespace file. |
 | A function no test calls | Zig never analyzes it, so it may not even compile. Test it. |
 | `catch unreachable` on an allocation | Propagate `error.OutOfMemory`. |
 | Writing file text straight to the terminal | Render control bytes visibly; files are untrusted. |
 | Adding a package to `build.zig.zon` | Never without an agreed issue (mimalloc is the one exception). Write it ourselves. |
 | Calling `mi_malloc` or other `mi_*` functions directly | Take a `std.mem.Allocator`; only `src/alloc/mimalloc.zig` touches mimalloc. |
+| `@setRuntimeSafety(false)` to speed up a loop | Reshape the loop (`while (rest.len >= n)`, `rest[0..n]`) so the checks are free. |
 | Growing a file past ~400 lines | New file, starting with a `//!` line saying what it is for. |
