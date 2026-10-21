@@ -1,0 +1,26 @@
+{
+	"$schema": "https://json.schemastore.org/claude-code-settings.json",
+	"permissions": {
+		"allow": [
+			"Bash(zig build)",
+			"Bash(zig build test *)",
+			"Bash(zig build -D*)",
+			"Bash(zig build run *)",
+			"Bash(zig test *)",
+			"Bash(zig fmt *)",
+			"Bash(zig version)",
+			"Bash(zig env)",
+			"Bash(tmux *)",
+			"Bash(git status *)",
+			"Bash(git diff *)",
+			"Bash(git log *)",
+			"Bash(git show *)"
+		],
+		"deny": [
+			"Bash(zig fetch *)",
+			"Bash(git push --force *)",
+			"Bash(git push -f *)",
+			"Bash(git push origin main *)"
+		]
+	}
+}
