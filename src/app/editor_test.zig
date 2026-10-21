@@ -578,6 +578,67 @@ test "editor: scrolling moves the cursor by pages" {
     try expectEqual(99, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
 }
 
+fn hundredLines(text: *[200]u8) []const u8 {
+    for (0..100) |i| {
+        text[2 * i] = 'a';
+        text[2 * i + 1] = '\n';
+    }
+    return text;
+}
+
+fn cursorLine(ed: *const Editor) usize {
+    return ed.doc.buffer.lineOf(ed.doc.primary().cursor);
+}
+
+test "editor: the view prefix places the cursor line without moving it" {
+    var text: [200]u8 = undefined;
+    var ed: Editor = try .init(gpa, null, hundredLines(&text));
+    defer ed.deinit();
+    ed.resize(80, 12); // ten rows of text, scrolloff 3
+    try typeKeys(&ed, "50g");
+    try typeKeys(&ed, "vt");
+    try expectEqual(46, ed.view.top);
+    try typeKeys(&ed, "vb");
+    try expectEqual(43, ed.view.top);
+    try typeKeys(&ed, "vc");
+    try expectEqual(45, ed.view.top);
+    try typeKeys(&ed, "vv");
+    try expectEqual(45, ed.view.top);
+    try expectEqual(49, cursorLine(&ed));
+}
+
+test "editor: vj and vk scroll the view, moving the cursor only out of the margin" {
+    var text: [200]u8 = undefined;
+    var ed: Editor = try .init(gpa, null, hundredLines(&text));
+    defer ed.deinit();
+    ed.resize(80, 12);
+    try typeKeys(&ed, "5j");
+    try typeKeys(&ed, "vj");
+    try expectEqual(1, ed.view.top);
+    try expectEqual(5, cursorLine(&ed));
+    try typeKeys(&ed, "3vj");
+    try expectEqual(4, ed.view.top);
+    // The cursor is pushed down to stay out of the top margin.
+    try expectEqual(7, cursorLine(&ed));
+    try typeKeys(&ed, "vk");
+    try expectEqual(3, ed.view.top);
+    try expectEqual(7, cursorLine(&ed));
+    try typeKeys(&ed, "9vk");
+    try expectEqual(0, ed.view.top);
+    // Pulled up to stay out of the bottom margin.
+    try expectEqual(6, cursorLine(&ed));
+    try typeKeys(&ed, "vk");
+    try expectEqual(0, ed.view.top);
+    try typeKeys(&ed, "200vj");
+    try expectEqual(99, ed.view.top);
+    try expectEqual(99, cursorLine(&ed));
+    // The status line shows the pending prefix.
+    try typeKeys(&ed, "v");
+    try expect(ed.keymap.isPending());
+    try typeKeys(&ed, "\x1b");
+    try expect(!ed.keymap.isPending());
+}
+
 test "editor: out of memory is reported and leaves the text as it was" {
     var failing: std.testing.FailingAllocator = .init(gpa, .{});
     var ed: Editor = try .init(failing.allocator(), null, "abc\n");

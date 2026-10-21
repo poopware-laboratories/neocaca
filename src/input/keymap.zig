@@ -21,6 +21,7 @@ const Prefix = union(enum) {
     none,
     /// `g`, or `G` to extend.
     goto: bool,
+    view,
     find: struct { till: bool, backward: bool, extend: bool },
     replace,
     register,
@@ -55,6 +56,7 @@ pub const Keymap = struct {
         switch (self.prefix) {
             .none => {},
             .goto => |extend| try w.writeAll(if (extend) "G" else "g"),
+            .view => try w.writeAll("v"),
             .find => |f| {
                 const base: u8 = if (f.till) 't' else 'f';
                 const c = if (f.extend) std.ascii.toUpper(base) else base;
@@ -140,6 +142,18 @@ pub const Keymap = struct {
                 };
                 return .{ .move = .{ .motion = m, .extend = extend } };
             },
+            .view => {
+                const c = plainChar(k) orelse return null;
+                const to: @FieldType(action.View, "to") = switch (c) {
+                    'c', 'v' => .center,
+                    't' => .top,
+                    'b' => .bottom,
+                    'j' => .down,
+                    'k' => .up,
+                    else => return null,
+                };
+                return .{ .view = .{ .to = to, .count = self.times() } };
+            },
             .find => |f| {
                 const c = typedChar(k) orelse return null;
                 return self.move(.{ .find = .{ .needle = c, .till = f.till, .backward = f.backward } }, f.extend);
@@ -191,6 +205,10 @@ pub const Keymap = struct {
             },
             'f', 'F', 't', 'T' => {
                 self.prefix = .{ .find = .{ .till = c == 't' or c == 'T', .backward = false, .extend = c == 'F' or c == 'T' } };
+                return null;
+            },
+            'v' => {
+                self.prefix = .view;
                 return null;
             },
             'r' => {

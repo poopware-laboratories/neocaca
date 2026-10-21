@@ -27,6 +27,13 @@ pub const Prompt = enum {
 
 pub const Scroll = enum { half_down, half_up, page_down, page_up };
 
+/// The `v` prefix: where to put the main cursor's line, or which way to
+/// scroll the view by `count` lines.
+pub const View = struct {
+    to: enum { center, top, bottom, down, up },
+    count: usize = 1,
+};
+
 pub const Action = union(enum) {
     /// `selecting.move`
     move: struct { motion: Motion, count: usize = 1, extend: bool = false },
@@ -64,6 +71,7 @@ pub const Action = union(enum) {
     redo,
     insert: edit.insert.Where,
     scroll: Scroll,
+    view: View,
 
     // Insert mode.
     /// A character typed at every cursor.

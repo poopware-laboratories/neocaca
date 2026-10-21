@@ -72,3 +72,44 @@ test "view: scrolling moves the view and clamps to the buffer" {
     v.scroll(std.math.minInt(isize), 100);
     try expectEqual(0, v.top);
 }
+
+fn place(line: usize, at: view.Place, lines: usize) View {
+    var v: View = .{ .top = 7, .left = 2 };
+    v.place(.{ .line = line, .lines = lines, .height = 10, .scrolloff = 3 }, at);
+    return v;
+}
+
+test "view: placing the cursor line at the top keeps the margin above it" {
+    try expectEqual(View{ .top = 47, .left = 2 }, place(50, .top, 100));
+    try expectEqual(View{ .top = 0, .left = 2 }, place(2, .top, 100));
+}
+
+test "view: placing the cursor line at the bottom keeps the margin below it" {
+    try expectEqual(View{ .top = 44, .left = 2 }, place(50, .bottom, 100));
+    // Near the start there is nothing above to show.
+    try expectEqual(View{ .top = 0, .left = 2 }, place(4, .bottom, 100));
+}
+
+test "view: centering puts the cursor line in the middle row" {
+    try expectEqual(View{ .top = 46, .left = 2 }, place(50, .center, 100));
+    try expectEqual(View{ .top = 0, .left = 2 }, place(3, .center, 100));
+}
+
+test "view: a placed view agrees with follow" {
+    for ([_]view.Place{ .top, .bottom, .center }) |at| {
+        for ([_]usize{ 0, 1, 5, 50, 98, 99 }) |line| {
+            const v = place(line, at, 100);
+            var again = v;
+            again.follow(.{ .line = line, .col = 2, .lines = 100, .height = 10, .width = 20, .scrolloff = 3 });
+            try expectEqual(v.top, again.top);
+        }
+    }
+}
+
+test "view: placing in a tiny window still shows the cursor" {
+    var v: View = .{};
+    v.place(.{ .line = 5, .lines = 10, .height = 1, .scrolloff = 3 }, .bottom);
+    try expectEqual(5, v.top);
+    v.place(.{ .line = 5, .lines = 10, .height = 0, .scrolloff = 3 }, .center);
+    try expectEqual(5, v.top);
+}

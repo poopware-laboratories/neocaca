@@ -199,6 +199,24 @@ test "keymap: a count before g goes to that line" {
     try expectNormal("7G", move(.{ .line = 7 }, 1, true));
 }
 
+test "keymap: the view prefix places and scrolls the view" {
+    try expectNormal("vc", .{ .view = .{ .to = .center } });
+    try expectNormal("vv", .{ .view = .{ .to = .center } });
+    try expectNormal("vt", .{ .view = .{ .to = .top } });
+    try expectNormal("vb", .{ .view = .{ .to = .bottom } });
+    try expectNormal("vj", .{ .view = .{ .to = .down } });
+    try expectNormal("vk", .{ .view = .{ .to = .up } });
+    try expectNormal("5vj", .{ .view = .{ .to = .down, .count = 5 } });
+    try expectNormal("3vk", .{ .view = .{ .to = .up, .count = 3 } });
+    try expectNormal("vx", null);
+    try expectNormal("v<a-j>", null);
+    var map: Keymap = .{};
+    var buf: [keymap.max_pending_text]u8 = undefined;
+    _ = map.normal(.char('2'));
+    _ = map.normal(.char('v'));
+    try std.testing.expectEqualStrings("2v", map.pendingText(&buf));
+}
+
 test "keymap: scrolling by pages" {
     try expectNormal("<c-d>", .{ .scroll = .half_down });
     try expectNormal("<c-u>", .{ .scroll = .half_up });

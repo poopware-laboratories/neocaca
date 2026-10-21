@@ -17,6 +17,19 @@ pub const Follow = struct {
     scrolloff: usize,
 };
 
+/// Where `View.place` puts the cursor's line.
+pub const Place = enum { top, center, bottom };
+
+/// The cursor's line and the window, for `View.place`.
+pub const Placing = struct {
+    line: usize,
+    /// Lines in the buffer.
+    lines: usize,
+    /// Rows of text.
+    height: usize,
+    scrolloff: usize,
+};
+
 pub const View = struct {
     /// The first line shown.
     top: usize = 0,
@@ -28,6 +41,18 @@ pub const View = struct {
     pub fn follow(self: *View, f: Follow) void {
         self.top = axis(self.top, f.line, f.height, f.scrolloff, f.lines -| 1);
         self.left = axis(self.left, f.col, f.width, f.scrolloff, std.math.maxInt(usize));
+    }
+
+    /// Scrolls so the cursor's line is at the top, the middle or the
+    /// bottom of the window, inside the `scrolloff` margin.
+    pub fn place(self: *View, p: Placing, at: Place) void {
+        const m = if (p.height == 0) 0 else @min(p.scrolloff, (p.height - 1) / 2);
+        const top = switch (at) {
+            .top => p.line -| m,
+            .center => p.line -| (p.height -| 1) / 2,
+            .bottom => (p.line + m + 1) -| p.height,
+        };
+        self.top = @min(top, p.lines -| 1);
     }
 
     /// Moves the first line shown by `delta`, staying on the buffer's lines.
