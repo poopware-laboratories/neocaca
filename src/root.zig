@@ -7,6 +7,7 @@ pub const app = @import("app.zig");
 pub const buffer = @import("buffer.zig");
 pub const cli = @import("cli.zig");
 pub const edit = @import("edit.zig");
+pub const fs = @import("fs.zig");
 pub const input = @import("input.zig");
 pub const regex = @import("regex.zig");
 pub const render = @import("render.zig");
