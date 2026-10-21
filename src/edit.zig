@@ -8,6 +8,7 @@ pub const registers = @import("edit/registers.zig");
 pub const motion = @import("edit/motion.zig");
 pub const object = @import("edit/object.zig");
 pub const selecting = @import("edit/selecting.zig");
+pub const verbs = @import("edit/verbs.zig");
 const document = @import("edit/document.zig");
 
 pub const Selection = selection.Selection;
@@ -23,6 +24,8 @@ test {
     _ = object;
     _ = selecting;
     _ = @import("edit/selecting_test.zig");
+    _ = verbs;
+    _ = @import("edit/verbs_test.zig");
     _ = @import("edit/motion_test.zig");
     _ = @import("edit/object_test.zig");
     _ = @import("edit/fixture_test.zig");
