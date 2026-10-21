@@ -156,26 +156,16 @@ pub const Prompt = struct {
         const room = screen.width - x;
         var cursor_col: usize = 0;
         var i: usize = 0;
-        while (i < self.cursor) : (i = chars.next(t, i)) cursor_col += width(t, i);
+        while (i < self.cursor) : (i = chars.next(t, i)) cursor_col += render.screen.charColumns(t, i);
         var from: usize = 0;
         while (cursor_col + 1 > room and from < self.cursor) {
-            cursor_col -= width(t, from);
+            cursor_col -= render.screen.charColumns(t, from);
             from = chars.next(t, from);
         }
         _ = screen.text(x, y, t[from..], theme.text);
         screen.cursor = .{ .x = x + cursor_col, .y = y };
     }
 };
-
-/// Columns the character at `i` takes on the prompt line, as the screen
-/// draws it (a tab is one space).
-fn width(t: []const u8, i: usize) usize {
-    return switch (unicode.display.form(t, i)) {
-        .text => |w| w,
-        .caret => 2,
-        .replacement, .tab => 1,
-    };
-}
 
 fn isSpacing(b: u8) bool {
     return b == '\r' or b == '\n' or b == '\t';

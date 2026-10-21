@@ -220,3 +220,14 @@ test "screen: a caret pair cut at the edge keeps its caret" {
     try expectEqual(2, s.text(0, 0, "a\x01", .{}));
     try expectRow(&s, 0, "a^");
 }
+
+test "screen: the columns text takes, in every form a character is drawn in" {
+    // Plain, tab (one space), wide, caret (two), invalid byte (one).
+    try std.testing.expectEqual(7, screen_mod.textColumns("a\tあ\x1b\xff"));
+    try std.testing.expectEqual(0, screen_mod.textColumns(""));
+    try std.testing.expectEqual(2, screen_mod.charColumns("x\x7f", 1));
+    var s: Screen = try .init(std.testing.allocator, 20, 1);
+    defer s.deinit();
+    const str = "a\tあ\x1b\xff";
+    try std.testing.expectEqual(screen_mod.textColumns(str), s.text(0, 0, str, .{}));
+}

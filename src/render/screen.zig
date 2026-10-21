@@ -173,3 +173,21 @@ pub const Screen = struct {
         if (r[lead].width == 2 and lead + 1 < r.len) r[lead + 1].style = style;
     }
 };
+
+/// Columns the character at `i` of `str` takes when `Screen.text` draws
+/// it (a tab is one space).
+pub fn charColumns(str: []const u8, i: usize) usize {
+    return switch (display.form(str, i)) {
+        .text => |w| w,
+        .caret => 2,
+        .replacement, .tab => 1,
+    };
+}
+
+/// Columns `Screen.text` takes to draw all of `str`.
+pub fn textColumns(str: []const u8) usize {
+    var n: usize = 0;
+    var i: usize = 0;
+    while (i < str.len) : (i = chars.next(str, i)) n += charColumns(str, i);
+    return n;
+}

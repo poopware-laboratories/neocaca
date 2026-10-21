@@ -42,10 +42,42 @@ test "status: modified buffers, several selections and pending keys" {
     try expectStatus(40, info, " INSERT  main.zig [+]  2\"a  4 sels  3:7 ");
 }
 
-test "status: a long name is cut before the right side" {
+test "status: a long name keeps its end, after an ellipsis" {
     var info = base;
     info.name = "a/very/long/path/to/some/file.zig";
-    try expectStatus(24, info, " NORMAL  a/very/lon 3:7 ");
+    try expectStatus(24, info, " NORMAL  …/file.zig 3:7 ");
+}
+
+test "status: a name that just fits is drawn whole" {
+    var info = base;
+    info.name = "abcdefghij";
+    try expectStatus(24, info, " NORMAL  abcdefghij 3:7 ");
+    info.name = "abcdefghijk";
+    try expectStatus(24, info, " NORMAL  …cdefghijk 3:7 ");
+}
+
+test "status: the modified mark stays when the name is cut" {
+    var info = base;
+    info.name = "a/very/long/path/to/some/file.zig";
+    info.modified = true;
+    try expectStatus(28, info, " NORMAL  …/file.zig [+] 3:7 ");
+}
+
+test "status: with no room for any of the name, the mark alone" {
+    var info = base;
+    info.name = "file.zig";
+    info.modified = true;
+    try expectStatus(17, info, " NORMAL  [+] 3:7 ");
+    info.modified = false;
+    try expectStatus(17, info, " NORMAL  …ig 3:7 ");
+}
+
+test "status: a cut name never splits a wide or caret character" {
+    var info = base;
+    info.name = "ああああ.zig";
+    try expectStatus(22, info, " NORMAL  …あ.zig  3:7 ");
+    info.name = "\x01\x02\x03\x04.zig";
+    try expectStatus(22, info, " NORMAL  …^D.zig  3:7 ");
 }
 
 test "status: a name with control characters is drawn safely" {
