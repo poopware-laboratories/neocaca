@@ -3,6 +3,7 @@
 //! wait through a pipe its handler writes to. POSIX only.
 
 const std = @import("std");
+const attr = @import("attr.zig");
 const raw = @import("raw.zig");
 const modes = @import("modes.zig");
 
@@ -11,7 +12,7 @@ const fd_t = posix.fd_t;
 
 pub const Size = struct { width: usize, height: usize };
 
-pub const OpenError = posix.TermiosSetError || error{SystemResources};
+pub const OpenError = attr.SetError || error{SystemResources};
 pub const WaitError = posix.PollError;
 pub const ReadError = posix.ReadError;
 
@@ -33,12 +34,12 @@ pub const Tty = struct {
     /// `out`, and starts watching for resizes. `restore` undoes all of it.
     /// One `Tty` is open at a time.
     pub fn open(in: fd_t, out: fd_t) OpenError!Tty {
-        const original = try posix.tcgetattr(in);
+        const original = try attr.get(in);
         var wake: [2]fd_t = undefined;
         if (std.c.pipe(&wake) != 0) return error.SystemResources;
         errdefer closePipe(wake);
         setNonBlocking(wake[1]);
-        try posix.tcsetattr(in, .FLUSH, raw.makeRaw(original));
+        try attr.set(in, raw.makeRaw(original));
         const self: Tty = .{ .in = in, .out = out, .original = original, .wake = wake };
         writeAll(out, modes.enter);
         wake_fd.store(wake[1], .release);
@@ -57,7 +58,7 @@ pub const Tty = struct {
         writeAll(self.out, modes.leave);
         // Nothing more can be done if this fails: the terminal is ours no
         // longer, and the caller is leaving.
-        posix.tcsetattr(self.in, .FLUSH, self.original) catch {};
+        attr.set(self.in, self.original) catch {};
         closePipe(self.wake);
     }
 

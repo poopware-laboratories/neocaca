@@ -4,77 +4,22 @@
 const std = @import("std");
 const tty = @import("tty.zig");
 const modes = @import("modes.zig");
+const attr = @import("attr.zig");
+const Pty = @import("pty_test.zig").Pty;
 
 const posix = std.posix;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
-extern "c" fn posix_openpt(flags: c_int) c_int;
-extern "c" fn grantpt(fd: c_int) c_int;
-extern "c" fn unlockpt(fd: c_int) c_int;
-extern "c" fn ptsname(fd: c_int) ?[*:0]const u8;
-
-/// TIOCSWINSZ. Where std lacks it (macOS), the BSD ioctl encoding of
-/// `_IOW('t', 103, struct winsize)`: copy-in bit, 8-byte argument.
-const set_winsize: u32 = if (@hasDecl(posix.T, "IOCSWINSZ"))
-    @truncate(posix.T.IOCSWINSZ)
-else
-    0x8000_0000 | @as(u32, @sizeOf(posix.winsize)) << 16 | @as(u32, 't') << 8 | 103;
-
-const Pty = struct {
-    /// The emulator's side.
-    master: posix.fd_t,
-    /// The terminal the editor opens.
-    slave: posix.fd_t,
-
-    fn open() !Pty {
-        const flags: posix.O = .{ .ACCMODE = .RDWR, .NOCTTY = true };
-        const master = posix_openpt(@bitCast(@as(u32, @bitCast(flags))));
-        if (master < 0) return error.SkipZigTest;
-        errdefer _ = std.c.close(master);
-        if (grantpt(master) != 0 or unlockpt(master) != 0) return error.SkipZigTest;
-        const name = ptsname(master) orelse return error.SkipZigTest;
-        const slave = try posix.openatZ(posix.AT.FDCWD, name, flags, 0);
-        return .{ .master = master, .slave = slave };
-    }
-
-    fn close(self: Pty) void {
-        _ = std.c.close(self.slave);
-        _ = std.c.close(self.master);
-    }
-
-    /// What the editor wrote, waiting briefly for it.
-    fn output(self: Pty, buf: []u8) ![]const u8 {
-        var n: usize = 0;
-        while (n < buf.len) {
-            var fds = [_]posix.pollfd{.{ .fd = self.master, .events = posix.POLL.IN, .revents = 0 }};
-            if (try posix.poll(&fds, 200) == 0) break;
-            const got = posix.read(self.master, buf[n..]) catch break;
-            if (got == 0) break;
-            n += got;
-        }
-        return buf[0..n];
-    }
-
-    fn send(self: Pty, bytes: []const u8) void {
-        _ = std.c.write(self.master, bytes.ptr, bytes.len);
-    }
-
-    fn setSize(self: Pty, cols: u16, rows: u16) void {
-        const ws: posix.winsize = .{ .row = rows, .col = cols, .xpixel = 0, .ypixel = 0 };
-        _ = std.c.ioctl(self.master, @as(c_int, @bitCast(set_winsize)), &ws);
-    }
-};
-
 test "tty: opening puts the terminal into raw mode and enters the modes" {
     const pty: Pty = try .open();
     defer pty.close();
-    const before = try posix.tcgetattr(pty.slave);
+    const before = try attr.get(pty.slave);
     try expect(before.lflag.ICANON);
     var t: tty.Tty = try .open(pty.slave, pty.slave);
     defer t.restore();
-    const now = try posix.tcgetattr(pty.slave);
+    const now = try attr.get(pty.slave);
     try expect(!now.lflag.ICANON);
     try expect(!now.lflag.ECHO);
     try expect(!now.iflag.ICRNL);
@@ -85,12 +30,12 @@ test "tty: opening puts the terminal into raw mode and enters the modes" {
 test "tty: restoring puts the settings back and leaves the modes, once" {
     const pty: Pty = try .open();
     defer pty.close();
-    const before = try posix.tcgetattr(pty.slave);
+    const before = try attr.get(pty.slave);
     var t: tty.Tty = try .open(pty.slave, pty.slave);
     var buf: [256]u8 = undefined;
     _ = try pty.output(&buf);
     t.restore();
-    const after = try posix.tcgetattr(pty.slave);
+    const after = try attr.get(pty.slave);
     try expectEqual(before.lflag, after.lflag);
     try expectEqual(before.iflag, after.iflag);
     try expectEqual(before.oflag, after.oflag);
@@ -106,7 +51,7 @@ test "tty: the panic path restores the open terminal" {
     var buf: [256]u8 = undefined;
     _ = try pty.output(&buf);
     tty.restoreActive();
-    try expect((try posix.tcgetattr(pty.slave)).lflag.ICANON);
+    try expect((try attr.get(pty.slave)).lflag.ICANON);
     try expectEqualStrings(modes.leave, try pty.output(&buf));
     // The owner's restore afterwards does nothing.
     t.restore();
