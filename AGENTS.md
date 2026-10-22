@@ -4,9 +4,9 @@ Instructions for AI coding agents (any model or tool) and for humans working
 on neocaca. This file is the single source of truth; `CLAUDE.md` and any
 other agent-specific files only point here. The Claude Code skills in
 `.claude/skills/` turn these rules into per-task checklists (a change, a
-test written first, memory and allocators, screen output, a pull request to
-drive); when they disagree with this file, this file wins and the skill is
-fixed.
+test written first, memory and allocators, screen output, a dogfood pass,
+a pull request to drive); when they disagree with this file, this file
+wins and the skill is fixed.
 
 neocaca is a modern terminal (TUI) code editor written in Zig. It talks to
 the terminal directly (raw mode, escape sequences out, key bytes in) and
@@ -276,6 +276,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
 | `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups and finished saves and loads through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
 | `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions and links, and new files that never replace one; `link.zig`: the file a path names once its links are followed. |
+| `scripts/` | `dogfood-corpus.sh`: the files a dogfood pass edits, the same bytes every time (see "Dogfooding"). |
 | `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig`, `commands_test.zig` (the `:` commands) and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
 
 ## Keybinding model (Kakoune-inspired)
@@ -428,3 +429,24 @@ Unit tests see `Screen` cells, not the terminal. For anything users see,
 also run the editor and look, in a terminal or headless in tmux, at a
 narrow size, after a resize, with wide and combining characters, in a
 light and a dark theme. The `checking-screen-output` skill has the steps.
+
+## Dogfooding
+
+Tests prove each piece; a dogfood pass proves that real work gets done.
+For one sitting, neocaca is the only editor, in ReleaseSafe, on real
+tasks: changing this repository, writing a Git commit message, reading a
+100 MB log, editing a million-row CSV and files from other systems,
+hostile and binary files, a misbehaving terminal and a full disk. The
+scenarios, the corpus (`scripts/dogfood-corpus.sh`) and the log of
+passes are in [`docs/dogfooding.md`](docs/dogfooding.md); the
+`dogfooding` skill runs one through tmux.
+
+- **When:** a pass is the last item of every phase in `TODO.md`, and runs
+  before every release. A piece that changes how files are opened, saved
+  or shown gets a shorter pass over what it touched.
+- **What it yields:** every finding becomes a `TODO.md` piece and every
+  measurement goes into the item it measures; nothing is fixed during the
+  pass. A crash, lost data or raw bytes reaching the terminal goes ahead
+  of everything else on the roadmap.
+- **It grows with the editor:** a piece that adds something users do adds
+  its scenario to `docs/dogfooding.md` in the same pull request.

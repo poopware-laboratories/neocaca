@@ -1,0 +1,106 @@
+# Dogfooding
+
+Tests prove that each piece does what its test says. A dogfood pass checks
+something different: whether a person can get real work done in neocaca.
+For one sitting, use it as your only editor on real tasks, in the build
+users run, and write down everything that gets in the way. The first pass
+found five problems that hundreds of tests had missed (see the log at the
+end).
+
+## When
+
+A pass is a piece of its own (M, about an hour), listed in `TODO.md`:
+
+- **before a phase is ticked done**: the last item of every phase is its
+  dogfood pass;
+- **before every release**;
+- **after a piece that changes how files are opened, saved or shown**, a
+  shorter pass over the scenarios that piece touched. A rendering change
+  alone is covered by "Verifying UI changes" in `AGENTS.md`.
+
+## Setting up
+
+```sh
+zig build -Doptimize=safe                    # the build users run
+scripts/dogfood-corpus.sh ~/dogfood          # the same files every pass
+BIG=1 scripts/dogfood-corpus.sh ~/dogfood    # with a 1 GB log, before a release
+```
+
+The corpus is a clone of this repository, a 100 MB server log, a 20 MB
+minified JSON line, a CSV of a million rows, CRLF, BOM and Makefile
+files, a file without a final newline, wide, emoji, combining and
+right-to-left text, escape sequences and invalid UTF-8, an executable,
+symlinks (one dangling), read-only and unreadable files, and a directory.
+Run it as a user who is not root, so the permissions mean something.
+
+Use a real terminal when you can, and at least once a pass a second one
+(another emulator, tmux, or a terminal over ssh). An agent without a
+screen drives tmux instead: the `dogfooding` skill has the commands and
+the traps (Esc then a key sent at once arrives as Alt plus the key; tmux
+treats a trailing `;` as a command separator).
+
+## The scenarios
+
+Each scenario is a task, not a key: do it the way you would at work and
+note what was slow, surprising, ugly or impossible. A gap the roadmap
+already lists is noted once with its item, not reported again.
+
+1. **Change the code.** In `repo/`, make a real change with neocaca alone:
+   rename an identifier everywhere in a file (`%`, `s`, `c`), reorder a
+   block of imports, fix a doc comment, then build and run the tests from
+   the shell after `Ctrl-z`, and come back with `fg`.
+2. **Be the Git editor.** `GIT_EDITOR=neocaca git commit` in `repo/`
+   (`GIT_EDITOR`, which wins over `core.editor` and `EDITOR`): write the
+   message, save and quit; then once more and quit without saving, which
+   must abort the commit.
+3. **Read a log.** Open `server.log`: jump to the end, search back for an
+   `ERROR`, keep only the error lines (`%`, `Alt-s`, `Alt-k`), and look at
+   a stack trace. Time the open and every search.
+4. **Edit data.** In `data.csv`, change one column on a thousand rows at
+   once with multiple selections; in `minified.json`, find a key on the one
+   20 MB line and change it.
+5. **Files from elsewhere.** Edit `windows.txt`, `bom.txt`,
+   `no-final-newline.txt` and the `Makefile`, save, and compare the bytes
+   with `cmp` or `od -c`: only your edit may differ.
+6. **Hostile files.** Open `escapes.txt` and `binary`: nothing may reach
+   the terminal raw (the title, colors and screen stay as they were), and
+   moving through them must not crash.
+7. **Text that is hard to measure.** Move through `unicode.txt` a
+   character at a time; the cursor must never land inside a character or
+   draw over its neighbor.
+8. **Paths that are not plain files.** Open `a-directory`,
+   `link-to-unicode.txt` (saving keeps the link), `dangling-link.txt`,
+   `read-only.txt` (saving must fail and say why), `unreadable.txt`, and a
+   file in a directory that does not exist.
+9. **The terminal misbehaves.** Resize down to one cell and back; paste a
+   large block; close the terminal window with unsaved changes (the
+   recovery file must hold them); suspend in the middle of a prompt.
+10. **Disk and filesystem trouble.** Save while the disk is full or a size
+    limit applies (`ulimit -f 1` in the shell that starts neocaca; its
+    `SIGXFSZ` must not kill the editor): the original file must be
+    untouched and the error shown. Change a file from another shell while
+    it is open.
+11. **What this phase added.** Every pass also works through the features
+    merged since the last one, in the same task-first way.
+
+Scenarios grow with the editor. A piece that adds something users do (a
+command, a mode, a file type, a protocol) adds its scenario here in the
+same pull request, so the next pass covers it without anyone remembering
+to. A scenario that no longer applies is rewritten, not left to rot.
+
+## Reporting
+
+- Every finding becomes a piece in `TODO.md`, under a "fixes from the
+  dogfood pass" pull request in the current phase, with what was done,
+  what happened and what should have; measured numbers go into the
+  existing item they belong to. Nothing is fixed during the pass itself.
+- A crash, lost data or bytes reaching the terminal raw is never a rough
+  edge: it is fixed before anything else on the roadmap.
+- The pass adds a line to the log below, so the numbers can be compared
+  across passes. Measure in ReleaseSafe on the same corpus.
+
+## Log
+
+| Date | Phase | Open 100 MB / 50 MB | Typing (ms a key) | `%` `s` on the big file | Findings |
+|------|-------|---------------------|-------------------|--------------------------|----------|
+| 2026-10-22 | 1 | 50 MB: under 1 s | 50 on 50 MB, instant on small files | 9.6 million selections, 5 s frozen, 830 MB | 5 rough edges ([#12](https://github.com/poopware-laboratories/neocaca/pull/12)); this guide written after it, from a hand-made corpus |

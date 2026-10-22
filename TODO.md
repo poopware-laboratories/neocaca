@@ -145,6 +145,33 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
       recovery file instead of dropping it
 - [x] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `Alt-j` join
       (`J` extends down; see `docs/keys.md`)
+- [x] A dogfood pass: real files edited in a ReleaseSafe build under
+      tmux (a Zig source file, the README, CRLF, BOM, control bytes, wide
+      and combining characters, a 50 MB file, a 48 MB single line, a
+      directory, a missing directory), resizes down to one cell, Ctrl-Z
+      and `fg`. What it found is below or already in Phase 2; how a pass
+      is run from now on is in `docs/dogfooding.md`.
+- **PR: fixes from the dogfood pass**
+  - [ ] S: the view keeps its old scroll when the window grows, hiding
+        lines above while the rows below stay empty (a 4-line file,
+        resized to 5 rows and back to 8, shows lines 2 to 4). It should
+        scroll back to fill the window.
+  - [ ] S: messages name Zig errors (`cannot open ".": IsDir`, `cannot
+        write "…": FileNotFound`); say it in words ("is a directory",
+        "no such directory").
+  - [ ] S: `neocaca <directory>` opens an empty buffer named after the
+        directory; refuse it at startup with an exit code instead. A file
+        in a directory that does not exist says "new file" and fails only
+        at `:w`; say so when it opens.
+  - [ ] S: a message wider than the window is cut mid-word with no mark
+        (`unsaved changes; :q! dis` at 24 columns); end it with `…`.
+  - [ ] S: `Alt-i` or `Alt-a` with no such object around the cursor
+        (`Alt-i"` outside quotes) changes nothing and says nothing, so the
+        next verb acts on the old selection; say "no object here".
+- **PR: the dogfood pass that closes Phase 1**
+  - [ ] M: every scenario of `docs/dogfooding.md` on its corpus, once the
+        fixes above are in; its findings become pieces, and Phase 1 is done
+        when none of them is a crash, lost data or raw terminal bytes.
 
 ## Phase 2: everyday comfort
 
@@ -153,7 +180,9 @@ Safety first, then the biggest daily gains.
 - **PR: cap the number of selections**
   - [ ] S: `max_selections`, tested at the limit and one past it. Today
         `S` or `s` on a huge file can make millions of selections (32
-        bytes each), bounded only by memory.
+        bytes each), bounded only by memory: `%` then `s` `a` on a 50 MB
+        file made 9.6 million, froze the editor for 5 seconds and used
+        830 MB.
 - **PR: respect line endings, the BOM and a missing final newline.**
   The bytes of a file are kept as loaded, but:
   - [ ] M: CRLF files show no `^M` at each line end, and the lines added
@@ -206,7 +235,8 @@ Safety first, then the biggest daily gains.
 - **PR: large files.** Today the text is one contiguous array, and every
   edit rebuilds it and its line index, so an edit costs the size of the
   file.
-  - [ ] S: a benchmark of typing into a 100 MB file
+  - [ ] S: a benchmark of typing into a 100 MB file (by hand, a 50 MB
+        file takes about 50 ms a key in ReleaseSafe)
   - [ ] M: a piece table behind the `buffer::Buffer` interface
   - [ ] M: its line index; `Buffer`'s API is unchanged, so `edit/` does
         not change
@@ -227,6 +257,8 @@ Safety first, then the biggest daily gains.
 - **PR: latency in CI**
   - [ ] S: a benchmark of keypress-to-frame time and startup on a large
         file, in ReleaseSafe, reported on every run
+- **PR: the dogfood pass that closes Phase 2**
+  - [ ] M: every scenario of `docs/dogfooding.md`, with those Phase 2 added
 
 ## Phase 3: code awareness
 
@@ -248,6 +280,7 @@ Safety first, then the biggest daily gains.
 - [ ] Git: change markers in the gutter against `HEAD`, and blame for the
       current line, off the loop
 - [ ] Auto-pairing of brackets and quotes
+- [ ] The dogfood pass that closes Phase 3 (`docs/dogfooding.md`)
 
 ## Phase 4: polish
 
@@ -266,8 +299,15 @@ Safety first, then the biggest daily gains.
 - [ ] Android under termux, checked in CI or by hand
 - [ ] An integrated terminal and remote control over a socket (flow has
       both): decide whether neocaca wants them
+- [ ] Plugins: programs the editor starts, over a bounded, versioned
+      message protocol shared with shell filters, the language server
+      client and remote control. Plugin edits are change sets against a
+      buffer version, always undoable. Custom motions and text objects
+      come from the configuration file, not from plugins.
 - [ ] Persistent undo: history saved beside the file (bounded, checked
       against the file's contents before use, never trusted blindly)
 - [ ] Command palette: every `:` command and key action, searchable by
       name, showing its binding
-- [ ] Packaging and releases
+- [ ] Packaging and releases, each release after a dogfood pass with the
+      1 GB log (`BIG=1`)
+- [ ] The dogfood pass that closes Phase 4 (`docs/dogfooding.md`)
