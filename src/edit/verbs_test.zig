@@ -153,6 +153,13 @@ test "verbs: R replaces the selections with the register" {
     try expectReplace(&.{}, "«a»\n", false, "«a»\n");
 }
 
+test "verbs: R over the last line with a whole line adds no empty line" {
+    try expectReplace(&.{"x\n"}, "a\n«b\n»", true, "a\n«x\n»");
+    try expectReplace(&.{ "1\n", "2\n" }, "«a\n»‹b\n›", true, "«1\n»‹2\n›");
+    // A value without a newline keeps the final one.
+    try expectReplace(&.{"x"}, "a\n«b\n»", true, "a\n«x»\n");
+}
+
 fn expectReplaceChar(before: []const u8, cp: u21, after: []const u8) !void {
     var d = try fx.doc(before);
     defer d.deinit();

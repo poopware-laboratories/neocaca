@@ -145,7 +145,8 @@ pub fn replace(doc: *Document, regs: *const Registers, reg: u8) Error!bool {
     for (list, new, 0..) |s, *n, i| {
         const v = values[@min(i, values.len - 1)];
         const r = s.range(text);
-        const end = @min(r.end, text.len - 1);
+        // The final newline stays, unless a value ending in one replaces it.
+        const end = if (linewise(v)) r.end else @min(r.end, text.len - 1);
         const start: usize = @intCast(@as(isize, @intCast(r.start)) + delta);
         n.* = if (v.len > 0) over(start, v) else .at(start);
         if (end == r.start and v.len == 0) continue;
