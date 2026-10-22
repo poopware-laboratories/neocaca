@@ -12,15 +12,20 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every required job uses the Zig release pinned by `minimum_zig_version` in
+# build.zig.zon (setup-zig reads it when no `version` is given; Alpine reads
+# it in .github/scripts/install-zig.sh). The `zig-latest` job tries the
+# newest stable release as an early warning, without blocking.
+
 jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Without `version`, setup-zig uses `minimum_zig_version` from build.zig.zon.
       - uses: mlugg/setup-zig@v2
       - run: zig build fmt-check
 
+  # glibc on Ubuntu, and macOS on Apple Silicon.
   test:
     strategy:
       fail-fast: false
@@ -36,17 +41,68 @@ jobs:
       # so a test cannot pass only because of the padding it adds.
       - if: matrix.optimize == 'safe'
         run: zig build test -Doptimize=safe -Dmimalloc-secure=off --summary all
+      - if: matrix.optimize == 'safe'
+        run: zig build -Doptimize=safe
+      - if: matrix.optimize == 'safe'
+        uses: actions/upload-artifact@v4
+        with:
+          name: neocaca-${{ runner.os }}-${{ runner.arch }}
+          path: zig-out/bin/neocaca
+          if-no-files-found: error
 
+  # musl on Alpine: the tests run natively against musl, and the release
+  # binary must be fully static (no dynamic loader at all).
+  alpine:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        optimize: [debug, safe]
+    steps:
+      - run: apk add --no-cache curl file git jq tar xz
+      - uses: actions/checkout@v4
+      - run: .github/scripts/install-zig.sh
+      - run: zig build test -Dtarget=x86_64-linux-musl -Doptimize=${{ matrix.optimize }} --summary all
+      - if: matrix.optimize == 'safe'
+        run: zig build test -Dtarget=x86_64-linux-musl -Doptimize=safe -Dmimalloc-secure=off --summary all
+      - if: matrix.optimize == 'safe'
+        run: zig build -Dtarget=x86_64-linux-musl -Doptimize=safe
+      - if: matrix.optimize == 'safe'
+        name: The binary is statically linked
+        run: |
+          file zig-out/bin/neocaca
+          file zig-out/bin/neocaca | grep -q 'statically linked'
+      - if: matrix.optimize == 'safe'
+        uses: actions/upload-artifact@v4
+        with:
+          name: neocaca-x86_64-linux-musl
+          path: zig-out/bin/neocaca
+          if-no-files-found: error
+
+  # A ReleaseSafe build and artifact for every supported target.
   cross:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos, x86_64-freebsd]
+        target:
+          - x86_64-linux
+          - aarch64-linux
+          - x86_64-linux-musl
+          - aarch64-linux-musl
+          - x86_64-macos
+          - aarch64-macos
+          - x86_64-freebsd
     steps:
       - uses: actions/checkout@v4
       - uses: mlugg/setup-zig@v2
       - run: zig build -Dtarget=${{ matrix.target }} -Doptimize=safe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neocaca-cross-${{ matrix.target }}
+          path: zig-out/bin/neocaca
+          if-no-files-found: error
 
   bench:
     runs-on: ubuntu-latest
@@ -56,3 +112,15 @@ jobs:
       # A smoke run: the kernels must agree with their scalar references.
       # Shared runners are too noisy for the numbers to mean anything.
       - run: zig build bench
+
+  # The newest stable Zig, to learn early what the next upgrade breaks.
+  # Not required: the project builds with the pinned release only.
+  zig-latest:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: latest
+      - run: zig build test --summary all

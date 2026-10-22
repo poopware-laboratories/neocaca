@@ -55,10 +55,20 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 - **`build.zig` contract:** `zig build test` must run every test in the project
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
-- **CI** (`.github/workflows/ci.yml`) runs `zig build fmt-check`, the tests
-  in Debug and ReleaseSafe on Linux and macOS (and ReleaseSafe again with
-  `-Dmimalloc-secure=off`), a ReleaseSafe build for every supported target,
-  and a benchmark smoke run. All must pass; run them before pushing.
+- **CI** (`.github/workflows/ci.yml`) runs, all with the pinned Zig:
+  - `zig build fmt-check`;
+  - the tests in Debug and ReleaseSafe (and ReleaseSafe again with
+    `-Dmimalloc-secure=off`) on Ubuntu (glibc), macOS on Apple Silicon and
+    Alpine (musl, in a container, where `.github/scripts/install-zig.sh`
+    installs Zig and checks its SHA-256), each uploading its ReleaseSafe
+    binary; the Alpine binary must be statically linked;
+  - a ReleaseSafe build and artifact for every supported target
+    (`x86_64`/`aarch64` Linux with glibc and musl, both macOS, FreeBSD);
+  - a benchmark smoke run.
+
+  All must pass; run them before pushing (`-Dtarget=x86_64-linux-musl` runs
+  the musl tests on any x86_64 Linux). A non-blocking `zig-latest` job
+  builds with the newest stable Zig to warn before an upgrade.
 - **Platform-gated code** (`switch (builtin.target.os.tag)` and other
   `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with

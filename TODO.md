@@ -8,6 +8,9 @@ clean room.
 ## Phase 0: foundations
 
 - [x] Build, test, fmt and bench steps; CI on Linux and macOS
+- [x] CI on Ubuntu (glibc), Alpine (musl, static) and macOS (Apple Silicon),
+      release artifacts for every target, and an early-warning job on the
+      newest stable Zig
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
 - [x] SIMD kernels (count, find, control bytes) with scalar references
 - [x] Command line parsing, help and version
