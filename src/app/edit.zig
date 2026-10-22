@@ -38,6 +38,7 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
         return .failure;
     };
     defer session.deinit();
+    session.notify = tty.wakeFd();
     if (files.len > 1) session.ed.message.set(false, "editing the first of {d} files", .{files.len});
 
     var buf: [8192]u8 = undefined;

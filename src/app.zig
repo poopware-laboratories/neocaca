@@ -30,6 +30,8 @@ test {
     _ = @import("app/layout_test.zig");
     _ = session;
     _ = @import("app/session_test.zig");
+    _ = @import("app/session_save_test.zig");
+    _ = @import("app/saving_test.zig");
     _ = loop;
     _ = @import("app/loop_test.zig");
     _ = edit;

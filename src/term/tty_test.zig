@@ -90,9 +90,30 @@ test "tty: a resize wakes the wait" {
     defer t.restore();
     try posix.raise(.WINCH);
     const ready = try t.wait(1000);
-    try expect(ready.resized);
+    try expect(ready.woken);
     try expect(!ready.input);
     // The wakeup was taken: the next wait times out.
+    try expectEqual(tty.Ready{}, try t.wait(10));
+}
+
+test "tty: a byte on the wake pipe wakes the wait, from another thread too" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    const Writer = struct {
+        fn run(fd: posix.fd_t) void {
+            _ = std.c.write(fd, "s", 1);
+        }
+    };
+    const thread = try std.Thread.spawn(.{}, Writer.run, .{t.wakeFd()});
+    const ready = try t.wait(10_000);
+    thread.join();
+    try expect(ready.woken);
+    try expect(!ready.input);
+    // Several bytes are one wakeup.
+    _ = std.c.write(t.wakeFd(), "ss", 2);
+    try expect((try t.wait(1000)).woken);
     try expectEqual(tty.Ready{}, try t.wait(10));
 }
 

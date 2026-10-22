@@ -137,3 +137,53 @@ test "document: a failed allocation leaves the document as it was" {
         }
     }.run, .{});
 }
+
+test "document: a save in flight marks the text it started from" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    // Edited while the save runs: the saved text is the one before.
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    try std.testing.expect(!doc.isModified());
+}
+
+test "document: a failed save changes nothing" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    doc.endSave(false);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    // The text loaded is still the saved one.
+    try std.testing.expect(!doc.isModified());
+}
+
+test "document: a save whose text was undone and replaced saves nothing reachable" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    // Back at the loaded text, which the save replaced on disk.
+    try std.testing.expect(doc.isModified());
+}
+
+test "document: a save that ends where it began marks the current text" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    _ = try doc.redo();
+    doc.endSave(true);
+    try std.testing.expect(!doc.isModified());
+}

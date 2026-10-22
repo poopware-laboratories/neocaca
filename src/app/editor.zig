@@ -43,7 +43,12 @@ pub const Request = union(enum) {
     /// Read `path`, then `finishLoad`.
     load: []const u8,
 
-    pub const Save = struct { path: []const u8, quit: bool };
+    pub const Save = struct {
+        path: []const u8,
+        quit: bool,
+        /// The lines of the text to write, set by `ask`.
+        lines: usize = 0,
+    };
 };
 
 /// The line under the status line: what the last command reported.
@@ -92,6 +97,8 @@ pub const Editor = struct {
     search: ?Regex = null,
     /// Set once the editor should exit.
     quit: bool = false,
+    /// A save that quits after it is being written: keys wait.
+    quitting: bool = false,
     /// The screen size, for page scrolling.
     width: usize = 80,
     height: usize = 24,
@@ -132,6 +139,7 @@ pub const Editor = struct {
     pub const draw = layout.draw;
 
     pub fn key(self: *Editor, k: Key) Error!void {
+        if (self.quitting) return;
         if (self.mode != .prompt) self.message.clear();
         self.typed(k) catch |e| switch (e) {
             error.OutOfMemory => self.outOfMemory(),
@@ -142,6 +150,7 @@ pub const Editor = struct {
     /// Bracketed paste: typed at every cursor in insert mode, inserted
     /// before the selections in normal mode, added to the prompt there.
     pub fn paste(self: *Editor, bytes: []const u8) Error!void {
+        if (self.quitting) return;
         self.message.clear();
         self.handlePaste(bytes) catch |e| switch (e) {
             error.OutOfMemory => self.outOfMemory(),
@@ -169,9 +178,21 @@ pub const Editor = struct {
         try self.request_path.appendSlice(self.gpa, path);
         const own = self.request_path.items;
         self.request = switch (r) {
-            .save => |s| .{ .save = .{ .path = own, .quit = s.quit } },
+            .save => |s| .{ .save = .{ .path = own, .quit = s.quit, .lines = self.doc.buffer.lineCount() } },
             .load => .{ .load = own },
         };
+        if (r == .save) {
+            // The text as it is now is what the shell writes.
+            self.doc.beginSave();
+            self.quitting = r.save.quit;
+        }
+    }
+
+    /// The shell could not start the save it was asked for.
+    pub fn abandonSave(self: *Editor) void {
+        self.doc.endSave(false);
+        self.quitting = false;
+        self.outOfMemory();
     }
 
     /// Reports how the save of `s` went.
@@ -180,14 +201,18 @@ pub const Editor = struct {
     }
 
     fn saved(self: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{OutOfMemory}!void {
+        self.quitting = false;
         result catch |e| {
+            self.doc.endSave(false);
             self.message.set(true, "cannot write \"{s}\": {s}", .{ s.path, @errorName(e) });
             return;
         };
-        if (self.path == null) self.path = try self.gpa.dupe(u8, s.path);
-        if (std.mem.eql(u8, self.path.?, s.path)) self.doc.markSaved();
-        const lines = self.doc.buffer.lineCount();
-        self.message.set(false, "\"{s}\" written, {d} line{s}", .{ s.path, lines, plural(lines) });
+        if (self.path == null) self.path = self.gpa.dupe(u8, s.path) catch |e| {
+            self.doc.endSave(false);
+            return e;
+        };
+        self.doc.endSave(std.mem.eql(u8, self.path.?, s.path));
+        self.message.set(false, "\"{s}\" written, {d} line{s}", .{ s.path, s.lines, plural(s.lines) });
         if (s.quit) self.quit = true;
     }
 

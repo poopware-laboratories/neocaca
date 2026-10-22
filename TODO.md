@@ -51,7 +51,9 @@ clean room.
 - [x] `app/`: the event loop wired into `main`
 - [x] `tests/`: whole sessions from scripted key bytes, and the editor
       end to end on a pseudo-terminal
-- [ ] Saves off the event loop (today `:w` blocks typing while it writes)
+- [x] Saves off the event loop: `:w` writes a copy of the text on its own
+      thread and wakes the loop when done
+- [ ] Loads off the event loop (today `:e` blocks typing while it reads)
 - [ ] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
       must stop itself and restore the terminal first)
 - [ ] A hang-up (closed terminal window) writes the unsaved buffer to a

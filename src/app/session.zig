@@ -8,6 +8,7 @@ const fs = @import("../fs.zig");
 const input = @import("../input.zig");
 const rendering = @import("../render.zig");
 const editor = @import("editor.zig");
+const Saving = @import("saving.zig").Saving;
 
 const Editor = editor.Editor;
 const Screen = rendering.Screen;
@@ -24,6 +25,11 @@ pub const Session = struct {
     /// The frame being drawn.
     back: Screen,
     shown: bool = false,
+    /// The save being written, off the event loop; owned.
+    saving: ?*Saving = null,
+    /// Written a byte when a save finishes, to wake the event loop;
+    /// borrowed.
+    notify: ?std.posix.fd_t = null,
 
     /// A session on `path` (null for a scratch buffer), loaded from `dir`,
     /// for a terminal of `width` by `height` cells.
@@ -51,7 +57,9 @@ pub const Session = struct {
         return .{ .gpa = gpa, .io = io, .dir = dir, .ed = ed, .decoder = .init(gpa), .front = front, .back = back };
     }
 
+    /// Waits for a save in flight first: closing never drops one.
     pub fn deinit(self: *Session) void {
+        self.settle();
         self.ed.deinit();
         self.decoder.deinit();
         self.front.deinit();
@@ -98,13 +106,39 @@ pub const Session = struct {
         }
     }
 
-    /// Carries out what the editor asked for.
+    /// Carries out what the editor asked for. A save starts off the event
+    /// loop, after the one before it is over; a load waits for it too.
     fn serve(self: *Session) void {
         const request = self.ed.takeRequest() orelse return;
+        self.settle();
         switch (request) {
-            .save => |s| self.ed.finishSave(s, fs.save(self.io, self.dir, s.path, self.ed.doc.text())),
+            .save => |s| {
+                self.saving = Saving.start(self.gpa, self.io, self.dir, s, self.ed.doc.text(), self.notify) catch {
+                    self.ed.abandonSave();
+                    return;
+                };
+                self.ed.message.set(false, "writing \"{s}\"", .{s.path});
+            },
             .load => |p| self.ed.finishLoad(p, fs.load(self.io, self.gpa, self.dir, p, fs.max_file)),
         }
+    }
+
+    /// Reports the save in flight if it has finished; never waits.
+    pub fn collect(self: *Session) void {
+        const job = self.saving orelse return;
+        if (job.isFinished()) self.report(job);
+    }
+
+    /// Waits for the save in flight, if any, and reports it.
+    pub fn settle(self: *Session) void {
+        if (self.saving) |job| self.report(job);
+    }
+
+    fn report(self: *Session, job: *Saving) void {
+        job.wait();
+        self.saving = null;
+        defer job.destroy();
+        self.ed.finishSave(job.save, job.result);
     }
 
     /// The terminal is now `width` by `height` cells.

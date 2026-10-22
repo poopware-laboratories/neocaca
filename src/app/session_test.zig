@@ -23,11 +23,18 @@ fn readFile(dir: std.Io.Dir, path: []const u8, buf: []u8) ![]const u8 {
 }
 
 /// Types `keys` one byte per read, as a person does: a pause follows each.
-fn typeKeys(s: *Session, keys: []const u8) !void {
+/// Saves run on while the keys are typed.
+fn feedKeys(s: *Session, keys: []const u8) !void {
     for (keys) |*b| {
         try s.feed(b[0..1]);
         try s.timeout();
     }
+}
+
+/// As `feedKeys`, then waits for a save they started.
+fn typeKeys(s: *Session, keys: []const u8) !void {
+    try feedKeys(s, keys);
+    s.settle();
 }
 
 /// Renders a frame and returns the bytes written. Borrowed from `buf`.

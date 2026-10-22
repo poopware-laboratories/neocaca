@@ -14,8 +14,11 @@ pub const escape_timeout_ms = 25;
 pub const read_size = 4096;
 
 /// Runs `session` on `terminal`, writing frames to `out`. Returns once the
-/// editor quits or the terminal reports end of input.
+/// editor quits or the terminal reports end of input; a save still being
+/// written is finished first. A finished save wakes the wait through the
+/// session's `notify` pipe.
 pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
+    defer session.settle();
     var buf: [read_size]u8 = undefined;
     while (true) {
         try session.render(out);
@@ -23,14 +26,15 @@ pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
         if (session.done()) return;
         const timeout: i32 = if (session.waiting()) escape_timeout_ms else -1;
         const ready = try terminal.wait(timeout);
-        if (ready.resized) {
+        session.collect();
+        if (ready.woken) {
             if (terminal.size()) |s| session.resize(s.width, s.height);
         }
         if (ready.input) {
             const n = try terminal.read(&buf);
             if (n == 0) return;
             try session.feed(buf[0..n]);
-        } else if (!ready.resized and session.waiting()) {
+        } else if (!ready.woken and session.waiting()) {
             try session.timeout();
         }
     }

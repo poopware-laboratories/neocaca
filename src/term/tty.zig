@@ -19,7 +19,9 @@ pub const ReadError = posix.ReadError;
 /// What `wait` saw.
 pub const Ready = struct {
     input: bool = false,
-    resized: bool = false,
+    /// The size may have changed, or a byte came on the wake pipe (see
+    /// `wakeFd`).
+    woken: bool = false,
 };
 
 pub const Tty = struct {
@@ -81,9 +83,15 @@ pub const Tty = struct {
         if (fds[1].revents & posix.POLL.IN != 0) {
             var drain: [64]u8 = undefined;
             _ = posix.read(self.wake[0], &drain) catch {};
-            ready.resized = true;
+            ready.woken = true;
         }
         return ready;
+    }
+
+    /// A pipe a byte can be written to, from any thread, to end a `wait`
+    /// (as `woken`). Borrowed; valid until `restore`.
+    pub fn wakeFd(self: *const Tty) fd_t {
+        return self.wake[1];
     }
 
     /// Reads what the terminal sent; 0 when it has gone.

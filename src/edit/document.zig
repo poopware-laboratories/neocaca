@@ -26,6 +26,10 @@ pub const Document = struct {
     /// `history.done` when the text last matched the file, or null when no
     /// undo or redo can get back there.
     saved_at: ?usize = 0,
+    /// While a save runs (`beginSave`): `history.done` when it began, or
+    /// null once no undo or redo can get back there.
+    saving_at: ?usize = null,
+    saving: bool = false,
 
     /// A document holding `initial` (see `Buffer.init`), one selection on its
     /// first character, nothing to undo and nothing modified.
@@ -89,6 +93,9 @@ pub const Document = struct {
         if (self.saved_at) |at| {
             if (at >= self.history.done) self.saved_at = null;
         }
+        if (self.saving_at) |at| {
+            if (at >= self.history.done) self.saving_at = null;
+        }
         self.selections.setAssumeCapacity(self.text(), new, main);
     }
 
@@ -138,5 +145,20 @@ pub const Document = struct {
 
     pub fn markSaved(self: *Document) void {
         self.saved_at = self.history.done;
+    }
+
+    /// The text as it is now is being saved; edits may follow before
+    /// `endSave`.
+    pub fn beginSave(self: *Document) void {
+        self.saving = true;
+        self.saving_at = self.history.done;
+    }
+
+    /// The save `beginSave` started is over: when `ok`, the file holds the
+    /// text it began from.
+    pub fn endSave(self: *Document, ok: bool) void {
+        if (ok and self.saving) self.saved_at = self.saving_at;
+        self.saving = false;
+        self.saving_at = null;
     }
 };

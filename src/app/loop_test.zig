@@ -18,6 +18,8 @@ const Step = union(enum) {
     resize: ?term.Size,
     /// The wait times out.
     idle,
+    /// The save in flight finishes and wakes the wait.
+    saved,
 };
 
 /// Plays `steps`, then reports the terminal gone.
@@ -33,6 +35,7 @@ const Script = struct {
     /// How much output there was when each wait began.
     written: [64]usize = undefined,
     out: ?*std.Io.Writer = null,
+    session: ?*Session = null,
 
     pub fn wait(self: *Script, timeout_ms: i32) !term.tty.Ready {
         self.timeouts[self.waits] = timeout_ms;
@@ -49,9 +52,14 @@ const Script = struct {
             },
             .resize => |s| {
                 self.current_size = s;
-                return .{ .resized = true };
+                return .{ .woken = true };
             },
             .idle => return .{},
+            .saved => {
+                const job = self.session.?.saving.?;
+                while (!job.isFinished()) try std.Io.sleep(io, .fromMilliseconds(1), .awake);
+                return .{ .woken = true };
+            },
         }
     }
 
@@ -91,6 +99,7 @@ const Fixture = struct {
 
     fn run(self: *Fixture, script: *Script) !void {
         script.out = &self.out;
+        script.session = &self.session;
         try loop.run(&self.session, script, &self.out);
     }
 };
@@ -100,16 +109,43 @@ test "loop: typed keys and :wq write the file and end the loop" {
     try f.init("a", "b\n");
     defer f.deinit();
     var script: Script = .{ .steps = &.{
-        .{ .input = "i" },  .{ .input = "a" }, .{ .input = "\x1b" }, .idle,
-        .{ .input = ":" },  .{ .input = "w" }, .{ .input = "q" },    .{ .input = "\r" },
-        .{ .input = "ix" },
+        .{ .input = "i" }, .{ .input = "a" },  .{ .input = "\x1b" }, .idle,
+        .{ .input = ":" }, .{ .input = "w" },  .{ .input = "q" },    .{ .input = "\r" },
+        .saved,            .{ .input = "ix" },
     } };
     try f.run(&script);
     try expect(f.session.done());
     var buf: [16]u8 = undefined;
     try expectEqualStrings("ab\n", try f.tmp.dir.readFile(io, "a", &buf));
     // The last input was never read.
-    try expectEqual(8, script.i);
+    try expectEqual(9, script.i);
+}
+
+test "loop: typing goes on while a save is written, until it wakes the loop" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{ .{ .input = ":w\r" }, .{ .input = "ix\x1b" }, .idle, .saved } };
+    try f.run(&script);
+    try expectEqual(null, f.session.saving);
+    try expectEqualStrings("xb\n", f.session.ed.doc.text());
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("b\n", try f.tmp.dir.readFile(io, "a", &buf));
+    try expectEqualStrings("\"a\" written, 1 line", f.session.ed.message.text());
+    // The report is drawn before the terminal goes away.
+    try expect(std.mem.indexOf(u8, f.out.buffered(), "written") != null);
+}
+
+test "loop: a terminal that goes away during a save still finishes it" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{ .{ .input = "ix\x1b" }, .idle, .{ .input = ":wq\r" } } };
+    try f.run(&script);
+    try expectEqual(null, f.session.saving);
+    try expect(f.session.done());
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("xb\n", try f.tmp.dir.readFile(io, "a", &buf));
 }
 
 test "loop: each frame is written before the next wait" {

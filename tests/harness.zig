@@ -35,6 +35,8 @@ pub const Harness = struct {
             try self.session.feed(b[0..1]);
             try self.session.timeout();
         }
+        // As a person does, wait for a save to finish before looking.
+        self.session.settle();
         try self.frame();
     }
 
@@ -42,6 +44,7 @@ pub const Harness = struct {
     pub fn send(self: *Harness, bytes: []const u8) !void {
         try self.session.feed(bytes);
         try self.session.timeout();
+        self.session.settle();
         try self.frame();
     }
 

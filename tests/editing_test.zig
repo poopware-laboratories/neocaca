@@ -154,7 +154,9 @@ test "editing: :e opens another file, refused over changes until written" {
     try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
     try h.typeKeys("d:e b\r");
     try h.expectText("irst\n");
-    try h.typeKeys(":w\r:e b\r");
+    // Typed after the write is reported: `:e` waits for it.
+    try h.typeKeys(":w\r");
+    try h.typeKeys(":e b\r");
     try h.expectText("second\n");
     try h.expectRow(2, " NORMAL  b                1:1 ");
     var buf: [16]u8 = undefined;
