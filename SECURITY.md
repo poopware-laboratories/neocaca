@@ -43,6 +43,7 @@ this section will list which ones receive security fixes.
 | Saving | A crash or a full disk truncating the file | Saves write a temporary file in the same directory and rename it over the original, keeping its permissions; on any error the original is untouched |
 | Terminal input | Malformed or endless control sequences, huge pastes | Sequences are bounded (`max_csi`) and longer ones skipped whole, never typed; pastes are capped at 16 MiB; nothing the terminal sends is echoed back to it |
 | Search patterns | Patterns that take exponential time or unbounded memory | The regex engine runs in linear time (a Pike VM) with limits on pattern length, nesting, repetition counts and program size |
+| Terminal size | A terminal that reports an enormous size, exhausting memory on every frame | Screens hold at most 4096 columns or rows and 1,048,576 cells (`max_side`, `max_cells`); a larger terminal is drawn in its top left corner |
 | Counts and prompts | A count or prompt large enough to freeze or exhaust memory | Counts stop at 1,000,000 and prompts at 4096 bytes; a counted move or `x` costs about the length of the text, however many selections there are |
 
 Every limit is a named `max_*` constant, tested at the limit and one past

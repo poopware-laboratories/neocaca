@@ -16,6 +16,18 @@ pub const max_cell_bytes = 32;
 /// The largest width or height; larger screens are refused.
 pub const max_side = 4096;
 
+/// The most cells a screen holds (about 40 MB); larger screens are refused.
+pub const max_cells = 1 << 20;
+
+pub const Size = struct { width: usize, height: usize };
+
+/// The largest screen a terminal of `width` by `height` can draw into:
+/// every column up to `max_side`, then the rows that fit in `max_cells`.
+pub fn fit(width: usize, height: usize) Size {
+    const w: usize = @min(width, max_side);
+    return .{ .width = w, .height = @min(height, max_side, max_cells / @max(w, 1)) };
+}
+
 pub const Cell = struct {
     bytes: [max_cell_bytes]u8 = @splat(' '),
     len: u8 = 1,
@@ -47,7 +59,7 @@ pub const Screen = struct {
     /// Where the terminal shows its cursor; null hides it.
     cursor: ?Pos = null,
 
-    /// A blank screen. Sizes above `max_side` fail with OutOfMemory.
+    /// A blank screen. Sizes `fit` would cut fail with OutOfMemory.
     pub fn init(gpa: std.mem.Allocator, width: usize, height: usize) error{OutOfMemory}!Screen {
         return .{ .gpa = gpa, .width = width, .height = height, .cells = try allocCells(gpa, width, height) };
     }
@@ -58,7 +70,7 @@ pub const Screen = struct {
     }
 
     fn allocCells(gpa: std.mem.Allocator, width: usize, height: usize) error{OutOfMemory}![]Cell {
-        if (width > max_side or height > max_side) return error.OutOfMemory;
+        if (width > max_side or height > max_side or width * height > max_cells) return error.OutOfMemory;
         const cells = try gpa.alloc(Cell, width * height);
         @memset(cells, .{});
         return cells;

@@ -4,6 +4,7 @@
 const std = @import("std");
 const Session = @import("session.zig").Session;
 const recovery = @import("recovery.zig");
+const screen = @import("../render.zig").screen;
 
 const io = std.testing.io;
 const gpa = std.testing.allocator;
@@ -297,6 +298,29 @@ test "session: a resize draws the whole screen again at the new size" {
     try expect(std.mem.indexOf(u8, next, "\x1b[2J") != null);
     try expectEqual(20, s.front.width);
     try expectEqual(4, s.front.height);
+}
+
+test "session: a terminal too large to draw whole still gets frames" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "abc\n" });
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 10_000, 10_000);
+    defer s.deinit();
+    const fitted = screen.fit(10_000, 10_000);
+    try expectEqual(fitted.width, s.ed.width);
+    try expectEqual(fitted.height, s.ed.height);
+    var sink: [64]u8 = undefined;
+    var d: std.Io.Writer.Discarding = .init(&sink);
+    try s.render(&d.writer);
+    try expectEqual(fitted.width, s.front.width);
+    // Growing past the limit, and back to a usual size, keeps drawing.
+    s.resize(5000, 100_000);
+    try expect(s.ed.width * s.ed.height <= screen.max_cells);
+    try s.render(&d.writer);
+    s.resize(80, 24);
+    try expectEqual(80, s.ed.width);
+    var buf: [4096]u8 = undefined;
+    try expect(std.mem.indexOf(u8, try frame(&s, &buf), "bc") != null);
 }
 
 test "session: after a failed write the next frame redraws everything" {

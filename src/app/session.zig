@@ -56,7 +56,8 @@ pub const Session = struct {
     ) error{OutOfMemory}!Session {
         var ed: Editor = try .init(gpa, path, "");
         errdefer ed.deinit();
-        ed.resize(width, height);
+        const size = rendering.screen.fit(width, height);
+        ed.resize(size.width, size.height);
         if (path) |p| {
             const result = fs.load(io, gpa, dir, p, fs.max_file) catch |e| switch (e) {
                 error.OutOfMemory => return error.OutOfMemory,
@@ -64,9 +65,9 @@ pub const Session = struct {
             };
             try ed.loaded(p, result);
         }
-        var front: Screen = try .init(gpa, width, height);
+        var front: Screen = try .init(gpa, size.width, size.height);
         errdefer front.deinit();
-        const back: Screen = try .init(gpa, width, height);
+        const back: Screen = try .init(gpa, size.width, size.height);
         return .{ .gpa = gpa, .io = io, .dir = dir, .ed = ed, .decoder = .init(gpa), .front = front, .back = back };
     }
 
@@ -218,9 +219,11 @@ pub const Session = struct {
         self.ed.finishSave(job.save, job.result);
     }
 
-    /// The terminal is now `width` by `height` cells.
+    /// The terminal is now `width` by `height` cells; one too large to
+    /// draw whole is drawn in its top left corner.
     pub fn resize(self: *Session, width: usize, height: usize) void {
-        self.ed.resize(width, height);
+        const size = rendering.screen.fit(width, height);
+        self.ed.resize(size.width, size.height);
     }
 
     pub const RenderError = std.Io.Writer.Error || error{OutOfMemory};
