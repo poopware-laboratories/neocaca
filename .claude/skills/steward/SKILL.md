@@ -13,7 +13,9 @@ description: Use when driving an open neocaca pull request to green - CI failure
   rewrite their history.
 - `build.zig.zon` conflicts: keep `main`'s `minimum_zig_version` and
   dependency hashes, then `zig build` to confirm.
-- Merging is squash only, and only once every check is green.
+- Merging is squash only, once every check is green and the maintainer
+  says *merge*. Until then the pull request stays open for the next piece
+  (AGENTS.md, "Work in pieces").
 - Be proactive on CI and review bots; ask before widening the pull request.
 
 ## Reproducing CI failures locally
