@@ -13,6 +13,7 @@ pub const Regex = regex.Regex;
 pub const Match = regex.Match;
 pub const Error = regex.Error;
 pub const escape = regex.escape;
+pub const describe = regex.describe;
 pub const max_steps = @import("regex/vm.zig").max_steps;
 pub const parse = @import("regex/parse.zig");
 

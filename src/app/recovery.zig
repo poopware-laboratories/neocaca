@@ -14,6 +14,14 @@ pub const max_tries = 100;
 
 pub const Error = fs.file.CreateError || error{ NameTooLong, NoFreeName };
 
+/// Why the recovery file could not be written, in words.
+pub fn describe(e: Error) []const u8 {
+    return switch (e) {
+        error.NoFreeName => "every recovery file name is taken",
+        else => fs.describe(e),
+    };
+}
+
 /// The `n`th name tried for `path` (null: a scratch buffer), in `buf`.
 pub fn name(buf: *[max_name]u8, path: ?[]const u8, n: usize) error{NameTooLong}![]const u8 {
     const base = path orelse "neocaca";

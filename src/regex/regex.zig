@@ -9,6 +9,22 @@ const utf8 = @import("../unicode.zig").utf8;
 pub const Match = vm.Match;
 pub const Error = parse_mod.Error || program.Error;
 
+/// Why `pattern` did not compile, in words for a message.
+pub fn describe(e: Error) []const u8 {
+    return switch (e) {
+        error.OutOfMemory => "out of memory",
+        error.UnbalancedParen => "unbalanced parenthesis",
+        error.BadClass => "a class without its ]",
+        error.BadEscape => "an unknown escape",
+        error.NothingToRepeat => "nothing before the repeat",
+        error.BadCount => "a bad count in {}",
+        error.TooDeep => "groups nested too deep",
+        error.InvalidUtf8 => "the pattern is not valid UTF-8",
+        error.TooLong => "the pattern is too long",
+        error.TooComplex => "the pattern is too complex",
+    };
+}
+
 pub const Regex = struct {
     gpa: std.mem.Allocator,
     prog: program.Program,

@@ -56,7 +56,7 @@ pub fn submit(ed: *Editor) Error!void {
 /// The compiled pattern, or null after showing why it is bad.
 fn compile(ed: *Editor, pattern: []const u8) ?Regex {
     var re = Regex.compile(ed.gpa, pattern) catch |e| {
-        ed.message.set(true, "bad regex: {s}", .{@errorName(e)});
+        ed.message.set(true, "bad regex: {s}", .{regex.describe(e)});
         return null;
     };
     re.scratch.limit = ed.options.regex_steps;

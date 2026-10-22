@@ -3,7 +3,8 @@
 //! random patterns and texts.
 
 const std = @import("std");
-const Regex = @import("regex.zig").Regex;
+const regex = @import("regex.zig");
+const Regex = regex.Regex;
 const program = @import("program.zig");
 const unicode = @import("../unicode.zig");
 const reference = @import("reference_test.zig");
@@ -323,4 +324,33 @@ test "regex: compile of a large program fails cleanly without memory" {
             try std.testing.expect(re.find("xabcz", 0) != null);
         }
     }.run, .{});
+}
+
+test "regex: a pattern that does not compile says why in words" {
+    const cases = [_]struct { []const u8, []const u8 }{
+        .{ "a(", "unbalanced parenthesis" },
+        .{ "a)", "unbalanced parenthesis" },
+        .{ "[a", "a class without its ]" },
+        .{ "\\q", "an unknown escape" },
+        .{ "*a", "nothing before the repeat" },
+        .{ "a{3,1}", "a bad count in {}" },
+        .{ "\xff", "the pattern is not valid UTF-8" },
+        .{ "(a{1000}){1000}", "the pattern is too complex" },
+    };
+    for (cases) |c| {
+        const e = if (Regex.compile(gpa, c[0])) |re| {
+            var r = re;
+            r.deinit();
+            return error.TestUnexpectedResult;
+        } else |e| e;
+        try std.testing.expectEqualStrings(c[1], regex.describe(e));
+    }
+}
+
+test "regex: every compile error has words" {
+    inline for (@typeInfo(regex.Error).error_set.error_names.?) |name| {
+        const words = regex.describe(@field(regex.Error, name));
+        try std.testing.expect(!std.mem.eql(u8, words, name));
+        try std.testing.expect(std.ascii.isLower(words[0]));
+    }
 }

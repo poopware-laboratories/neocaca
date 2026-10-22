@@ -85,9 +85,9 @@ test "session: a file that cannot be read keeps its name and says why" {
     defer s.deinit();
     try expectText(&s, "\n");
     try expectEqualStrings("d", s.ed.path.?);
-    try expectMessage(&s, "cannot open \"d\": IsDir");
+    try expectMessage(&s, "cannot open \"d\": is a directory");
     try typeKeys(&s, ":w\r");
-    try expect(std.mem.startsWith(u8, s.ed.message.text(), "cannot write \"d\": "));
+    try expectMessage(&s, "cannot write \"d\": is a directory");
     try expect(!s.done());
 }
 
@@ -186,7 +186,7 @@ test "session: a failed :wq does not quit" {
     defer s.deinit();
     try typeKeys(&s, "ix\x1b:wq\r");
     try expect(!s.done());
-    try expect(std.mem.startsWith(u8, s.ed.message.text(), "cannot write \"missing/f\": "));
+    try expectMessage(&s, "cannot write \"missing/f\": no such file or directory");
     try expect(s.ed.doc.isModified());
 }
 

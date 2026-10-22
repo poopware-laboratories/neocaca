@@ -156,15 +156,22 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         lines above while the rows below stay empty (a 4-line file,
         resized to 5 rows and back to 8, showed lines 2 to 4). A taller
         window now scrolls back to fill its rows.
-  - [ ] S: messages name Zig errors (`cannot open ".": IsDir`, `cannot
+  - [x] S: messages name Zig errors (`cannot open ".": IsDir`, `cannot
         write "…": FileNotFound`); say it in words ("is a directory",
-        "no such directory").
+        "no such file or directory"). Files, recovery, bad patterns and
+        the error printed when the terminal fails now all say why in
+        words (`fs.describe`, `regex.describe`). Testing it found a
+        crash: a path part over 255 bytes made the standard library
+        panic in Debug builds; `fs/file.zig` now refuses it first.
   - [ ] S: `neocaca <directory>` opens an empty buffer named after the
         directory; refuse it at startup with an exit code instead. A file
         in a directory that does not exist says "new file" and fails only
         at `:w`; say so when it opens.
   - [ ] S: a message wider than the window is cut mid-word with no mark
         (`unsaved changes; :q! dis` at 24 columns); end it with `…`.
+        A message over its 256 bytes loses its end too, so a long path
+        hides the reason (`cannot open "nnn…` with no "the name is too
+        long"); shorten the path, never the reason.
   - [ ] S: `Alt-i` or `Alt-a` with no such object around the cursor
         (`Alt-i"` outside quotes) changes nothing and says nothing, so the
         next verb acts on the old selection; say "no object here".

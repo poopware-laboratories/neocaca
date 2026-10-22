@@ -3,6 +3,7 @@
 //! is printed.
 
 const std = @import("std");
+const fs = @import("../fs.zig");
 const term = @import("../term.zig");
 const exit = @import("exit.zig");
 const loop = @import("loop.zig");
@@ -56,7 +57,11 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
 
 /// Says what stopped the loop, then saves what can be saved.
 fn stopped(session: *Session, e: anyerror, err: *std.Io.Writer) std.Io.Writer.Error!void {
-    try err.print("neocaca: {s}: {s}\n", .{ describeStop(e), @errorName(e) });
+    if (stopDetail(e)) |detail| {
+        try err.print("neocaca: {s}: {s}\n", .{ describeStop(e), detail });
+    } else {
+        try err.print("neocaca: {s}\n", .{describeStop(e)});
+    }
     try recover(session, err);
 }
 
@@ -68,7 +73,7 @@ fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!void {
     switch (session.recover(&buf)) {
         .none => {},
         .written => |where| try err.print("neocaca: unsaved changes written to \"{s}\"\n", .{where}),
-        .failed => |e| try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{@errorName(e)}),
+        .failed => |e| try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)}),
     }
 }
 
@@ -78,6 +83,16 @@ fn describeStop(e: anyerror) []const u8 {
         error.OutOfMemory => "out of memory",
         error.FinalNewline, error.OutOfOrder, error.OutOfBounds => "an internal error stopped the editor (please report it)",
         else => "the terminal failed",
+    };
+}
+
+/// What follows `describeStop`: the terminal's error in words, a bug's
+/// own name for its report, nothing for memory.
+fn stopDetail(e: anyerror) ?[]const u8 {
+    return switch (e) {
+        error.OutOfMemory => null,
+        error.FinalNewline, error.OutOfOrder, error.OutOfBounds => @errorName(e),
+        else => fs.describe(e),
     };
 }
 
@@ -104,6 +119,15 @@ test "edit: describing why the loop stopped" {
     try std.testing.expectEqualStrings("an internal error stopped the editor (please report it)", describeStop(error.FinalNewline));
     try std.testing.expectEqualStrings("an internal error stopped the editor (please report it)", describeStop(error.OutOfOrder));
     try std.testing.expectEqualStrings("an internal error stopped the editor (please report it)", describeStop(error.OutOfBounds));
+}
+
+test "edit: what follows why the loop stopped" {
+    try std.testing.expectEqualStrings("an input/output error", stopDetail(error.InputOutput).?);
+    try std.testing.expectEqualStrings("the pipe is broken", stopDetail(error.BrokenPipe).?);
+    try std.testing.expectEqual(null, stopDetail(error.OutOfMemory));
+    // A bug keeps its name, which the report needs.
+    try std.testing.expectEqualStrings("FinalNewline", stopDetail(error.FinalNewline).?);
+    try std.testing.expectEqualStrings("OutOfBounds", stopDetail(error.OutOfBounds).?);
 }
 
 test "edit: a bug that stops the loop is reported, and the changes kept" {
@@ -134,7 +158,7 @@ test "edit: a terminal that fails after :q has nothing to recover" {
     var err_buf: [256]u8 = undefined;
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.InputOutput, &err);
-    try std.testing.expectEqualStrings("neocaca: the terminal failed: InputOutput\n", err.buffered());
+    try std.testing.expectEqualStrings("neocaca: the terminal failed: an input/output error\n", err.buffered());
 }
 
 test "edit: changes that cannot be recovered are said to be lost" {
@@ -148,8 +172,8 @@ test "edit: changes that cannot be recovered are said to be lost" {
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.OutOfMemory, &err);
     try std.testing.expectEqualStrings(
-        \\neocaca: out of memory: OutOfMemory
-        \\neocaca: the unsaved changes could not be written: FileNotFound
+        \\neocaca: out of memory
+        \\neocaca: the unsaved changes could not be written: no such file or directory
         \\
     , err.buffered());
 }

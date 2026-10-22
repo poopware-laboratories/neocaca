@@ -51,7 +51,7 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{Out
     ed.quitting = false;
     result catch |e| {
         ed.doc.endSave(false);
-        ed.message.set(true, "cannot write \"{s}\": {s}", .{ s.path, @errorName(e) });
+        ed.message.set(true, "cannot write \"{s}\": {s}", .{ s.path, fs.describe(e) });
         return;
     };
     if (ed.path == null) ed.path = ed.gpa.dupe(u8, s.path) catch |e| {
@@ -73,7 +73,7 @@ pub fn finishLoad(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8
 /// unchanged.
 pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) error{OutOfMemory}!void {
     const contents = result catch |e| {
-        ed.message.set(true, "cannot open \"{s}\": {s}", .{ path, @errorName(e) });
+        ed.message.set(true, "cannot open \"{s}\": {s}", .{ path, fs.describe(e) });
         return;
     };
     defer if (contents) |t| ed.gpa.free(t);
