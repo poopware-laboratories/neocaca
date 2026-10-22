@@ -42,7 +42,7 @@ clean room.
   - [x] insert mode at every cursor (`i a I A o O`), auto-indent
   - [x] search `/ ? n N Alt-n *`
   - [x] prompt commands `:w :q :q! :wq :x :e :e! :<line>`
-  - [ ] user-configurable key mappings (`:map`) with stable names
+  - [x] user-configurable key mappings (`:map`, `:unmap`) with stable names
 - [x] `render/`: a cell grid and a minimal diff into escape bytes; control
       bytes and invalid UTF-8 shown visibly
 - [x] `ui/`: gutter, status line, prompt, scrolling with scroll-off

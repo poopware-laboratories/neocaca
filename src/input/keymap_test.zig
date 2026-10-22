@@ -411,3 +411,22 @@ test "keymap: insert mode ignores Control and Alt chords" {
     try expectInsert("<a-x>", null);
     try expectInsert("<pgup>", null);
 }
+
+test "keymap: awaitsKey only while a prefix waits for its key" {
+    var map: Keymap = .{};
+    try std.testing.expect(!map.awaitsKey());
+    // A count or a register waits for a command, not a prefix's key.
+    _ = map.normal(.char('3'));
+    try std.testing.expect(!map.awaitsKey());
+    for ("fgvrG\"") |c| {
+        var m: Keymap = .{};
+        _ = m.normal(.char(c));
+        try std.testing.expect(m.awaitsKey());
+        _ = m.normal(.char('x'));
+        try std.testing.expect(!m.awaitsKey());
+    }
+    _ = map.normal(.alt('i'));
+    try std.testing.expect(map.awaitsKey());
+    _ = map.normal(.{ .code = .escape });
+    try std.testing.expect(!map.awaitsKey());
+}

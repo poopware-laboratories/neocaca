@@ -39,6 +39,12 @@ pub const Keymap = struct {
         return self.count != 0 or self.register != null or self.prefix != .none;
     }
 
+    /// Whether the next key completes a prefix (`f`, `g`, `"`, …) rather
+    /// than starting a command.
+    pub fn awaitsKey(self: *const Keymap) bool {
+        return self.prefix != .none;
+    }
+
     /// The keys typed so far, for the status line. `buf` holds at least
     /// `max_pending_text` bytes; the result is a slice of it.
     pub fn pendingText(self: *const Keymap, buf: []u8) []const u8 {

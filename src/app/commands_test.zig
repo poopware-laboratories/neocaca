@@ -4,6 +4,7 @@ const std = @import("std");
 const commands = @import("commands.zig");
 
 const Command = commands.Command;
+const Key = @import("../input.zig").Key;
 
 fn expectParse(line: []const u8, want: Command) !void {
     const got = try commands.parse(line);
@@ -54,6 +55,60 @@ test "commands: errors" {
     try std.testing.expectError(error.TooManyArguments, commands.parse("x a"));
     try std.testing.expectError(error.BadLine, commands.parse("99999999999999999999999"));
     try std.testing.expectError(error.UnknownCommand, commands.parse("12a"));
+}
+
+test "commands: map a key in a mode to the keys it stands for" {
+    try expectParse("map normal <c-s> :w<ret>", .{ .map = .{ .mode = .normal, .key = .ctrl('s'), .keys = ":w<ret>" } });
+    try expectParse("map insert <a-j> <esc>j", .{ .map = .{ .mode = .insert, .key = .alt('j'), .keys = "<esc>j" } });
+    try expectParse("  map\tnormal  Q   wd ", .{ .map = .{ .mode = .normal, .key = .char('Q'), .keys = "wd" } });
+    try expectParse("map normal <f5> <lt><space>", .{ .map = .{ .mode = .normal, .key = .{ .code = .{ .function = 5 } }, .keys = "<lt><space>" } });
+}
+
+test "commands: mapped keys may be any printable characters" {
+    try expectParse("map insert <a-e> é€😀", .{ .map = .{ .mode = .insert, .key = .alt('e'), .keys = "é€😀" } });
+    try expectParse("map normal ä <c-a-s-pagedown>", .{ .map = .{ .mode = .normal, .key = .char('ä'), .keys = "<c-a-s-pagedown>" } });
+    var buf: [@import("../input.zig").keyname.max_keys]Key = undefined;
+    const got = try commands.keys("é<ret>😀", &buf);
+    try std.testing.expectEqualDeep(&[_]Key{ .char('é'), .{ .code = .enter }, .char(0x1f600) }, got);
+    try std.testing.expectError(error.BadKey, commands.keys("é\xff", &buf));
+    try std.testing.expectError(error.BadKey, commands.keys("<c-s->", &buf));
+}
+
+test "commands: unmap a key in a mode" {
+    try expectParse("unmap normal <c-s>", .{ .unmap = .{ .mode = .normal, .key = .ctrl('s') } });
+    try expectParse("unmap insert é", .{ .unmap = .{ .mode = .insert, .key = .char('é') } });
+}
+
+test "commands: map and unmap errors" {
+    const parse = commands.parse;
+    const expectError = std.testing.expectError;
+    try expectError(error.MissingArgument, parse("map"));
+    try expectError(error.MissingArgument, parse("map normal"));
+    try expectError(error.MissingArgument, parse("map normal Q"));
+    try expectError(error.MissingArgument, parse("unmap normal"));
+    try expectError(error.TooManyArguments, parse("map normal Q w d"));
+    try expectError(error.TooManyArguments, parse("unmap normal Q w"));
+    // Only the two modes keys can be mapped in, by their full names.
+    try expectError(error.BadMode, parse("map prompt Q wd"));
+    try expectError(error.BadMode, parse("map n Q wd"));
+    try expectError(error.BadMode, parse("unmap Normal Q"));
+    // The key and the keys are in the key notation.
+    try expectError(error.BadKey, parse("map normal <nope> wd"));
+    try expectError(error.BadKey, parse("map normal Q <ret"));
+    try expectError(error.BadKey, parse("unmap normal <s-a>"));
+    try expectError(error.NotOneKey, parse("map normal QQ wd"));
+    try expectError(error.NotOneKey, parse("unmap insert <a-j>j"));
+}
+
+test "commands: a mapping names at most max_keys keys" {
+    const max = @import("../input.zig").keyname.max_keys;
+    var line: [16 + max + 1]u8 = undefined;
+    const head = "map normal Q ";
+    @memcpy(line[0..head.len], head);
+    @memset(line[head.len..][0 .. max + 1], 'j');
+    const at_limit = line[0 .. head.len + max];
+    try expectParse(at_limit, .{ .map = .{ .mode = .normal, .key = .char('Q'), .keys = at_limit[head.len..] } });
+    try std.testing.expectError(error.TooManyKeys, commands.parse(line[0 .. head.len + max + 1]));
 }
 
 test "commands: every error has a message" {

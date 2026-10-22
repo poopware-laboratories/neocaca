@@ -205,3 +205,30 @@ test "editing: a pasted escape sequence is text, not keys" {
     try expectEqual(.insert, h.session.ed.mode);
     try h.expectText("\x1b:q!\n\n");
 }
+
+test "editing: map Ctrl-S to write, save with it, then unmap it" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "hello\n", 40, 4);
+    defer h.deinit();
+    try h.typeKeys(":map normal <c-s> :w<ret>\r");
+    try h.typeKeys("dihey \x1b");
+    try h.send("\x13"); // Ctrl-S
+    try h.expectMessage("\"a.txt\" written, 1 line");
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("hey ello\n", try h.file("a.txt", &buf));
+    try h.typeKeys(":unmap normal <c-s>\r");
+    try h.typeKeys("x");
+    try h.send("\x13");
+    try expectEqualStrings("hey ello\n", try h.file("a.txt", &buf));
+}
+
+test "editing: an insert mode mapping leaves insert mode and moves" {
+    var h: Harness = undefined;
+    try h.init("b.txt", "one\ntwo\n", 40, 4);
+    defer h.deinit();
+    try h.typeKeys(":map insert <a-j> <esc>j\r");
+    try h.typeKeys("i>");
+    try h.send("\x1bj"); // Alt-j
+    try h.expectRow(2, " NORMAL  b.txt [+]                  2:2 ");
+    try h.expectText(">one\ntwo\n");
+}

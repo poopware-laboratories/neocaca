@@ -133,3 +133,27 @@ paragraph.
 | `:e <file>` | edit another file; refused while there are unsaved changes |
 | `:e!` | reload the file from disk, discarding changes |
 | `:<n>` | go to line `n` |
+| `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
+| `:unmap <mode> <key>` | forget the mapping of `key` in that mode |
+
+## Mappings
+
+`:map normal <c-s> :w<ret>` makes Ctrl-S write the file. The keys a
+mapping types are not mapped again, so a key can be mapped to itself or to
+keys that are mapped too. A key that completes a prefix (the character
+after `f`, the register name after `"`) and keys typed at the prompt are
+never mapped; a count typed before a mapped key reaches the first key it
+types. At most 256 keys are mapped at once, each to at most 32 keys;
+mapping a key again replaces what it typed.
+
+Keys are written in this notation, whose names stay stable:
+
+| Notation | Key |
+|----------|-----|
+| `a`, `A`, `é`, `;` | that character (Shift is part of the character) |
+| `<ret>` `<tab>` `<bs>` `<esc>` `<del>` `<ins>` | Enter, Tab, Backspace, Escape, Delete, Insert |
+| `<up>` `<down>` `<left>` `<right>` | the arrows |
+| `<home>` `<end>` `<pageup>` `<pagedown>` | Home, End, Page Up, Page Down |
+| `<f1>` … `<f12>` | the function keys |
+| `<lt>` `<gt>` `<space>` | `<`, `>`, a space |
+| `<c-x>` `<a-x>` `<s-left>` | with Ctrl, Alt, Shift; combined as `<c-a-left>` |

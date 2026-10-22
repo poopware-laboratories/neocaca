@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const edit = @import("../edit.zig");
+const input = @import("../input.zig");
 const regex = @import("../regex.zig");
 const commands = @import("commands.zig");
 const editor = @import("editor.zig");
@@ -109,6 +110,19 @@ fn command(ed: *Editor, line: []const u8) Error!void {
                 return;
             }
             try ed.ask(.{ .load = e.path orelse ed.path orelse return noFileName(ed) });
+        },
+        .map => |m| {
+            var buf: [input.keyname.max_keys]input.Key = undefined;
+            // Parsing checked the keys already.
+            const keys = commands.keys(m.keys, &buf) catch unreachable;
+            ed.mappings.set(m.mode, m.key, keys) catch |e| switch (e) {
+                error.TooManyMappings => ed.message.set(true, "at most {d} keys can be mapped", .{input.mapping.max_mappings}),
+                error.OutOfMemory => |oom| return oom,
+            };
+        },
+        .unmap => |u| if (!ed.mappings.remove(u.mode, u.key)) {
+            var name: [input.keyname.max_name]u8 = undefined;
+            ed.message.set(true, "{s} is not mapped in {t} mode", .{ input.keyname.format(u.key, &name), u.mode });
         },
     }
 }

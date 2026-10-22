@@ -78,6 +78,7 @@ pub const Editor = struct {
     doc: Document,
     regs: edit.Registers,
     keymap: input.Keymap = .{},
+    mappings: input.mapping.Mappings,
     mode: Mode = .normal,
     prompt: ui.prompt.Prompt,
     prompt_kind: input.action.Prompt = .command,
@@ -104,12 +105,13 @@ pub const Editor = struct {
         var doc: Document = try .init(gpa, text);
         errdefer doc.deinit();
         const owned = if (path) |p| try gpa.dupe(u8, p) else null;
-        return .{ .gpa = gpa, .doc = doc, .regs = .init(gpa), .prompt = .init(gpa), .path = owned };
+        return .{ .gpa = gpa, .doc = doc, .regs = .init(gpa), .mappings = .init(gpa), .prompt = .init(gpa), .path = owned };
     }
 
     pub fn deinit(self: *Editor) void {
         self.doc.deinit();
         self.regs.deinit();
+        self.mappings.deinit();
         self.prompt.deinit();
         if (self.path) |p| self.gpa.free(p);
         if (self.search) |*re| re.deinit();
@@ -131,7 +133,7 @@ pub const Editor = struct {
 
     pub fn key(self: *Editor, k: Key) Error!void {
         if (self.mode != .prompt) self.message.clear();
-        self.handleKey(k) catch |e| switch (e) {
+        self.typed(k) catch |e| switch (e) {
             error.OutOfMemory => self.outOfMemory(),
             else => |other| return other,
         };
@@ -217,6 +219,21 @@ pub const Editor = struct {
             const lines = self.doc.buffer.lineCount();
             self.message.set(false, "\"{s}\" {d} line{s}", .{ path, lines, plural(lines) });
         }
+    }
+
+    /// Types `k`, or the keys it is mapped to, which are not mapped again.
+    fn typed(self: *Editor, k: Key) Error!void {
+        const mode: input.mapping.Mode = switch (self.mode) {
+            // A key that completes a prefix is that key.
+            .normal => if (self.keymap.awaitsKey()) return self.handleKey(k) else .normal,
+            .insert => .insert,
+            .prompt => return self.handleKey(k),
+        };
+        const mapped = self.mappings.get(mode, k) orelse return self.handleKey(k);
+        // A copy: the keys may map keys again (`:map`) while they run.
+        const keys = try self.gpa.dupe(Key, mapped);
+        defer self.gpa.free(keys);
+        for (keys) |m| try self.handleKey(m);
     }
 
     fn handleKey(self: *Editor, k: Key) Error!void {
