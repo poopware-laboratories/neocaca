@@ -1,13 +1,17 @@
 //! `Session`: one editor joined to the outside world. Terminal bytes go
 //! through the input decoder to the editor, the files it asks for are
-//! loaded and saved through `fs`, and each frame is drawn into a screen
-//! and written as the escape bytes that change the last one into it.
+//! loaded and saved through `fs` off the event loop, and each frame is
+//! drawn into a screen and written as the escape bytes that change the
+//! last one into it.
 
 const std = @import("std");
 const fs = @import("../fs.zig");
 const input = @import("../input.zig");
 const rendering = @import("../render.zig");
 const editor = @import("editor.zig");
+const Saving = @import("saving.zig").Saving;
+const Loading = @import("loading.zig").Loading;
+const recovery = @import("recovery.zig");
 
 const Editor = editor.Editor;
 const Screen = rendering.Screen;
@@ -24,6 +28,21 @@ pub const Session = struct {
     /// The frame being drawn.
     back: Screen,
     shown: bool = false,
+    /// The save being written, off the event loop; owned.
+    saving: ?*Saving = null,
+    /// The file being read, off the event loop; owned. The bytes typed
+    /// meanwhile wait in the decoder.
+    loading: ?*Loading = null,
+    /// The most bytes held while a file is read; more are dropped.
+    max_held: usize = default_max_held,
+    /// Bytes were dropped during the load in flight.
+    dropped: bool = false,
+    /// Written a byte when a save or load finishes, to wake the event
+    /// loop; borrowed.
+    notify: ?std.posix.fd_t = null,
+
+    /// Room for the largest paste with its brackets, and keys around it.
+    pub const default_max_held = input.decoder.default_max_paste + (64 << 10);
 
     /// A session on `path` (null for a scratch buffer), loaded from `dir`,
     /// for a terminal of `width` by `height` cells.
@@ -51,7 +70,10 @@ pub const Session = struct {
         return .{ .gpa = gpa, .io = io, .dir = dir, .ed = ed, .decoder = .init(gpa), .front = front, .back = back };
     }
 
+    /// Waits for a save or load in flight first: closing never drops a
+    /// save.
     pub fn deinit(self: *Session) void {
+        self.settle();
         self.ed.deinit();
         self.decoder.deinit();
         self.front.deinit();
@@ -64,13 +86,47 @@ pub const Session = struct {
         return self.ed.quit;
     }
 
-    /// Whether bytes wait for more input, so `timeout` is due if none come.
-    pub fn waiting(self: *const Session) bool {
-        return self.decoder.pendingLen() > 0;
+    pub const Recovery = union(enum) {
+        /// Nothing was unsaved.
+        none,
+        /// The name written, a slice of the caller's buffer.
+        written: []const u8,
+        failed: recovery.Error,
+    };
+
+    /// Writes unsaved changes to a recovery file (see `recovery.zig`),
+    /// once a save in flight is over; for a terminal that went away.
+    pub fn recover(self: *Session, buf: *[recovery.max_name]u8) Recovery {
+        self.settle();
+        if (!self.ed.doc.isModified()) return .none;
+        const where = recovery.write(self.io, self.dir, self.ed.path, self.ed.doc.text(), buf) catch |e| return .{ .failed = e };
+        return .{ .written = where };
     }
 
-    /// Bytes read from the terminal.
+    /// Whether the editor asked to be suspended, once.
+    pub fn takeSuspend(self: *Session) bool {
+        return self.ed.takeSuspend();
+    }
+
+    /// The terminal shows something else now: the next frame is drawn
+    /// whole.
+    pub fn redrawAll(self: *Session) void {
+        self.shown = false;
+    }
+
+    /// Whether bytes wait for more input, so `timeout` is due if none come.
+    /// Not while a file is read: the bytes wait for it.
+    pub fn waiting(self: *const Session) bool {
+        return self.loading == null and self.decoder.pendingLen() > 0;
+    }
+
+    /// Bytes read from the terminal. While a file is read they are held,
+    /// up to `max_held` (a read that does not fit is dropped whole).
     pub fn feed(self: *Session, bytes: []const u8) editor.Error!void {
+        if (self.loading != null and self.decoder.pendingLen() + bytes.len > self.max_held) {
+            self.dropped = true;
+            return;
+        }
         self.decoder.feed(bytes) catch {
             self.ed.message.set(true, "out of memory", .{});
             return;
@@ -84,7 +140,13 @@ pub const Session = struct {
     }
 
     fn drain(self: *Session, final: bool) editor.Error!void {
-        while (!self.done()) {
+        while (!self.done() and self.loading == null) {
+            // A mapping's keys come before the bytes typed after it.
+            if (self.ed.hasRest()) {
+                try self.ed.resumeKeys();
+                self.serve();
+                continue;
+            }
             const next = self.decoder.next(final) catch {
                 self.ed.message.set(true, "out of memory", .{});
                 return;
@@ -98,13 +160,62 @@ pub const Session = struct {
         }
     }
 
-    /// Carries out what the editor asked for.
+    /// Carries out what the editor asked for. A save starts off the event
+    /// loop, after the one before it is over; a load waits for it too.
     fn serve(self: *Session) void {
         const request = self.ed.takeRequest() orelse return;
+        self.settle();
         switch (request) {
-            .save => |s| self.ed.finishSave(s, fs.save(self.io, self.dir, s.path, self.ed.doc.text())),
-            .load => |p| self.ed.finishLoad(p, fs.load(self.io, self.gpa, self.dir, p, fs.max_file)),
+            .save => |s| {
+                self.saving = Saving.start(self.gpa, self.io, self.dir, s, self.ed.doc.text(), self.notify) catch {
+                    self.ed.abandonSave();
+                    return;
+                };
+                self.ed.message.set(false, "writing \"{s}\"", .{s.path});
+            },
+            .load => |p| {
+                self.loading = Loading.start(self.gpa, self.io, self.dir, p, fs.max_file, self.notify) catch {
+                    self.ed.message.set(true, "out of memory", .{});
+                    return;
+                };
+                self.ed.message.set(false, "reading \"{s}\"", .{p});
+            },
         }
+    }
+
+    /// Reports the save and the load in flight if they have finished, and
+    /// types the keys held for the load; never waits.
+    pub fn collect(self: *Session) editor.Error!void {
+        if (self.saving) |job| {
+            if (job.isFinished()) self.report(job);
+        }
+        const job = self.loading orelse return;
+        if (!job.isFinished()) return;
+        self.reportLoad(job);
+        try self.drain(false);
+        if (self.dropped) self.ed.message.set(true, "keys typed while reading were dropped", .{});
+        self.dropped = false;
+    }
+
+    /// Waits for the save and the load in flight, if any, and reports
+    /// them. Keys held for the load stay in the decoder.
+    pub fn settle(self: *Session) void {
+        if (self.saving) |job| self.report(job);
+        if (self.loading) |job| self.reportLoad(job);
+    }
+
+    fn reportLoad(self: *Session, job: *Loading) void {
+        job.wait();
+        self.loading = null;
+        defer job.destroy();
+        self.ed.finishLoad(job.path, job.take());
+    }
+
+    fn report(self: *Session, job: *Saving) void {
+        job.wait();
+        self.saving = null;
+        defer job.destroy();
+        self.ed.finishSave(job.save, job.result);
     }
 
     /// The terminal is now `width` by `height` cells.

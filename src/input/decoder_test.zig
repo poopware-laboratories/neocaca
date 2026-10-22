@@ -77,6 +77,22 @@ test "decoder: Escape then a key that arrives later is Alt" {
     try expectKey(&d, false, .alt('w'));
 }
 
+test "decoder: a sequence cut by another key loses neither" {
+    var d: Decoder = .init(gpa);
+    defer d.deinit();
+    try d.feed("\x1b[");
+    try expectNone(&d, false);
+    try d.feed("\x1b[A\x1bO\r\x1b[1\x7f");
+    try expectKey(&d, false, .alt('['));
+    try expectKey(&d, false, .{ .code = .up });
+    try expectKey(&d, false, .alt('O'));
+    try expectKey(&d, false, .{ .code = .enter });
+    try expectKey(&d, false, .alt('['));
+    try expectKey(&d, false, .char('1'));
+    try expectKey(&d, false, .{ .code = .backspace });
+    try expectNone(&d, true);
+}
+
 test "decoder: sequences the editor ignores are skipped" {
     var d: Decoder = .init(gpa);
     defer d.deinit();

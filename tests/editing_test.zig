@@ -67,6 +67,38 @@ test "editing: keep and drop selections by pattern" {
     try expectEqual(2, h.session.ed.doc.sels().len);
 }
 
+test "editing: swap two words by rotating their contents, then undo" {
+    var h: Harness = undefined;
+    try h.init("t", "one two three\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%s\\w+\r");
+    try h.send("\x1b)");
+    try h.expectText("three one two\n");
+    try h.expectSelections(&.{ "three", "one", "two" });
+    try h.send("\x1b(");
+    try h.expectText("one two three\n");
+    try h.typeKeys("2");
+    try h.send("\x1b(");
+    try h.expectText("three one two\n");
+    try h.typeKeys("uu");
+    try h.expectText("three one two\n");
+    try h.typeKeys("u");
+    try h.expectText("one two three\n");
+}
+
+test "editing: trim a selection to its whole lines, or say there are none" {
+    var h: Harness = undefined;
+    try h.init("t", "ab\ncd\nef\n", 30, 5);
+    defer h.deinit();
+    try h.typeKeys("lJJ");
+    try h.send("\x1bx");
+    try h.expectSelections(&.{"cd\n"});
+    try h.typeKeys(";");
+    try h.send("\x1bx");
+    try h.expectMessage("no selection holds a whole line");
+    try h.expectSelections(&.{"\n"});
+}
+
 test "editing: search forwards, repeat, and add the next match" {
     var h: Harness = undefined;
     try h.init("t", "one two one two one\n", 30, 4);
@@ -81,6 +113,23 @@ test "editing: search forwards, repeat, and add the next match" {
     // The added match wrapped around to the first "one".
     try h.typeKeys("cX\x1b");
     try h.expectText("X two one two X\n");
+}
+
+test "editing: patterns that match empty at the end of the text find nothing" {
+    var h: Harness = undefined;
+    try h.init("t", "ab\n", 30, 4);
+    defer h.deinit();
+    // `^` matches only empty, the last time after the final newline.
+    try h.typeKeys("/^\r");
+    try h.expectMessage("not found: ^");
+    try h.typeKeys("?^\r");
+    try h.expectMessage("not found: ^");
+    try h.typeKeys("%s^\r");
+    try h.expectMessage("no matches");
+    try h.typeKeys("%S^\r");
+    try h.expectSelections(&.{"ab\n"});
+    try h.typeKeys("%s^.\r");
+    try h.expectSelections(&.{"a"});
 }
 
 test "editing: yank a line into a register and paste it twice below" {
@@ -154,11 +203,24 @@ test "editing: :e opens another file, refused over changes until written" {
     try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
     try h.typeKeys("d:e b\r");
     try h.expectText("irst\n");
-    try h.typeKeys(":w\r:e b\r");
+    // Typed after the write is reported: `:e` waits for it.
+    try h.typeKeys(":w\r");
+    try h.typeKeys(":e b\r");
     try h.expectText("second\n");
     try h.expectRow(2, " NORMAL  b                1:1 ");
     var buf: [16]u8 = undefined;
     try expectEqualStrings("irst\n", try h.file("a", &buf));
+}
+
+test "editing: keys sent with :e edit the file it opens" {
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 30, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
+    // One read: the keys after Enter wait for `b`, not edit `a`.
+    try h.send(":e b\rd");
+    try h.expectText("econd\n");
+    try h.expectRow(2, " NORMAL  b [+]            1:1 ");
 }
 
 test "editing: a write that fails keeps the changes and says why" {
@@ -170,6 +232,20 @@ test "editing: a write that fails keeps the changes and says why" {
     try expect(h.session.ed.doc.isModified());
     try expect(h.session.ed.message.is_error);
     try h.expectText("x\n");
+}
+
+test "editing: deleting the last lines split into selections leaves no empty line" {
+    var h: Harness = undefined;
+    try h.init("t", "a\nb\nc\n", 30, 5);
+    defer h.deinit();
+    try h.typeKeys("jxX");
+    try h.send("\x1bs"); // Alt-s: a selection on each line
+    try expectEqual(2, h.session.ed.doc.sels().len);
+    try h.typeKeys("d");
+    try h.expectText("a\n");
+    try expectEqual(1, h.session.ed.doc.sels().len);
+    try h.typeKeys("u");
+    try h.expectText("a\nb\nc\n");
 }
 
 test "editing: counts repeat moves and verbs" {
@@ -204,4 +280,57 @@ test "editing: a pasted escape sequence is text, not keys" {
     try expect(!h.session.done());
     try expectEqual(.insert, h.session.ed.mode);
     try h.expectText("\x1b:q!\n\n");
+}
+
+test "editing: map Ctrl-S to write, save with it, then unmap it" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "hello\n", 40, 4);
+    defer h.deinit();
+    try h.typeKeys(":map normal <c-s> :w<ret>\r");
+    try h.typeKeys("dihey \x1b");
+    try h.send("\x13"); // Ctrl-S
+    try h.expectMessage("\"a.txt\" written, 1 line");
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("hey ello\n", try h.file("a.txt", &buf));
+    try h.typeKeys(":unmap normal <c-s>\r");
+    try h.typeKeys("x");
+    try h.send("\x13");
+    try expectEqualStrings("hey ello\n", try h.file("a.txt", &buf));
+}
+
+test "editing: a mapping that writes two files writes both" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "hello\n", 40, 4);
+    defer h.deinit();
+    try h.typeKeys(":map normal <c-s> :w<ret>:w<space>b.txt<ret>\r");
+    try h.typeKeys("ix\x1b");
+    try h.send("\x13"); // Ctrl-S
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("xhello\n", try h.file("a.txt", &buf));
+    try expectEqualStrings("xhello\n", try h.file("b.txt", &buf));
+    try h.expectMessage("\"b.txt\" written, 1 line");
+    // a.txt is the file, and it holds the text.
+    try expect(!h.session.ed.doc.isModified());
+}
+
+test "editing: a mapping that opens a file edits it with its next keys" {
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 30, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
+    try h.typeKeys(":map normal Q :e<space>b<ret>d\r");
+    try h.send("Q");
+    try h.expectText("econd\n");
+    try h.expectRow(2, " NORMAL  b [+]            1:1 ");
+}
+
+test "editing: an insert mode mapping leaves insert mode and moves" {
+    var h: Harness = undefined;
+    try h.init("b.txt", "one\ntwo\n", 40, 4);
+    defer h.deinit();
+    try h.typeKeys(":map insert <a-j> <esc>j\r");
+    try h.typeKeys("i>");
+    try h.send("\x1bj"); // Alt-j
+    try h.expectRow(2, " NORMAL  b.txt [+]                  2:2 ");
+    try h.expectText(">one\ntwo\n");
 }

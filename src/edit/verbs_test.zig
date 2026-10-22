@@ -68,6 +68,47 @@ test "verbs: the newline before the last line is not taken twice" {
     try expectDelete("«a»b\n‹c\n›", "«b»‹\n›", &.{ "a", "c\n" });
 }
 
+test "verbs: whole last lines in several selections take the newline before them all" {
+    try expectDelete("a\n«b\n»‹c\n›", "a«\n»", &.{ "b\n", "c\n" });
+    try expectDelete("a\n«b\n»‹c\n›‹d\n›", "a«\n»", &.{ "b\n", "c\n", "d\n" });
+    // An empty last line after them.
+    try expectDelete("a\n«b\n»‹\n›", "a«\n»", &.{ "b\n", "\n" });
+    // A gap between them: only the last run takes the newline before it.
+    try expectDelete("«a\n»b\n‹c\n›", "«b»‹\n›", &.{ "a\n", "c\n" });
+}
+
+test "verbs: the last lines deleted one selection each, or as one, leave the same" {
+    // Lines of different lengths, an empty one among them.
+    const text = "one\n\nthree\nfour\nx\n";
+    const starts = [_]usize{ 0, 4, 5, 11, 16 };
+    for (1..starts.len + 1) |k| {
+        const from = starts.len - k;
+        var whole: Document = try .init(gpa, text);
+        defer whole.deinit();
+        try whole.select(&.{.span(starts[from], text.len - 1)}, 0);
+        try verbs.delete(&whole, null, '"');
+        var split: Document = try .init(gpa, text);
+        defer split.deinit();
+        var sels: [starts.len]@import("selection.zig").Selection = undefined;
+        for (sels[0..k], starts[from..], from..) |*sel, start, i| {
+            const end = if (i + 1 < starts.len) starts[i + 1] else text.len;
+            sel.* = .span(start, end - 1);
+        }
+        try split.select(sels[0..k], 0);
+        try verbs.delete(&split, null, '"');
+        try std.testing.expectEqualStrings(whole.text(), split.text());
+        try expectEqual(1, split.sels().len);
+        try expectEqual(whole.primary(), split.primary());
+    }
+}
+
+test "verbs: deleting to change several last lines keeps one empty line" {
+    var d = try fx.doc("a\n«b\n»‹c\n›");
+    defer d.deinit();
+    try verbs.deleteToChange(&d, null, '"');
+    try fx.expectDoc(&d, "a\n«\n»");
+}
+
 test "verbs: deleting to change keeps the last line to type into" {
     var d = try fx.doc("a\n«b\n»");
     defer d.deinit();
@@ -151,6 +192,13 @@ test "verbs: R replaces the selections with the register" {
     try expectReplace(&.{""}, "a«b»c\n", true, "a«c»\n");
     try expectReplace(&.{ "1", "2" }, "«a» ‹b›\n", true, "«1» ‹2›\n");
     try expectReplace(&.{}, "«a»\n", false, "«a»\n");
+}
+
+test "verbs: R over the last line with a whole line adds no empty line" {
+    try expectReplace(&.{"x\n"}, "a\n«b\n»", true, "a\n«x\n»");
+    try expectReplace(&.{ "1\n", "2\n" }, "«a\n»‹b\n›", true, "«1\n»‹2\n›");
+    // A value without a newline keeps the final one.
+    try expectReplace(&.{"x"}, "a\n«b\n»", true, "a\n«x»\n");
 }
 
 fn expectReplaceChar(before: []const u8, cp: u21, after: []const u8) !void {
@@ -250,6 +298,79 @@ test "verbs: edits are atomic when allocation fails" {
                 return e;
             };
             try std.testing.expectEqualStrings("  a1b\n  c2d\n", d.text());
+        }
+    };
+    try std.testing.checkAllAllocationFailures(gpa, T.run, .{});
+}
+
+fn expectRotate(before: []const u8, delta: isize, after: []const u8) !void {
+    var d = try fx.doc(before);
+    defer d.deinit();
+    try verbs.rotateContents(&d, delta);
+    try fx.expectDoc(&d, after);
+}
+
+test "verbs: Alt-) and Alt-( rotate the selections' contents" {
+    try expectRotate("«a» ‹bc› ‹d›\n", 1, "«d» ‹a› ‹bc›\n");
+    try expectRotate("«a» ‹bc› ‹d›\n", -1, "«bc» ‹d› ‹a›\n");
+    try expectRotate("«a» ‹bc› ‹d›\n", 2, "«bc» ‹d› ‹a›\n");
+    // Counts past the number of selections wrap, both ways.
+    try expectRotate("«a» ‹bc› ‹d›\n", -4, "«bc» ‹d› ‹a›\n");
+    try expectRotate("«a» ‹bc› ‹d›\n", 5, "«bc» ‹d› ‹a›\n");
+    // The main selection keeps its place, not its text.
+    try expectRotate("‹a› «b»\n", 1, "‹b› «a»\n");
+}
+
+test "verbs: rotating whole lines keeps one final newline" {
+    try expectRotate("«a\n»‹b\n›", 1, "«b\n»‹a\n›");
+    // The last line's newline stays when a value without one comes.
+    try expectRotate("«a»\n‹b\n›", 1, "«b\n»\n‹a›\n");
+}
+
+test "verbs: rotating multi-byte text selects whole characters" {
+    try expectRotate("«ä» ‹日本›\n", 1, "«日本» ‹ä›\n");
+    try expectRotate("«e\u{301}» ‹x›\n", -1, "«x» ‹e\u{301}›\n");
+    // The cursor is on the start of the last character, not inside it.
+    var d = try fx.doc("«ä» ‹日本›\n");
+    defer d.deinit();
+    try verbs.rotateContents(&d, 1);
+    try expectEqual(3, d.sels()[0].cursor);
+    try expectEqual(7, d.sels()[1].cursor);
+}
+
+test "verbs: a rotation that moves nothing changes nothing" {
+    var d = try fx.doc("«ab»\n");
+    defer d.deinit();
+    try verbs.rotateContents(&d, 1);
+    try fx.expectDoc(&d, "«ab»\n");
+    try expect(!d.isModified());
+    var e = try fx.doc("«a» ‹b›\n");
+    defer e.deinit();
+    try verbs.rotateContents(&e, -4);
+    try fx.expectDoc(&e, "«a» ‹b›\n");
+    try expect(!e.isModified());
+}
+
+test "verbs: one undo puts every rotated selection back" {
+    var d = try fx.doc("«a» ‹b› ‹c›\n");
+    defer d.deinit();
+    try verbs.rotateContents(&d, 1);
+    try expect(try d.undo());
+    try fx.expectDoc(&d, "«a» ‹b› ‹c›\n");
+}
+
+test "verbs: a rotation that cannot allocate leaves the document as it was" {
+    const T = struct {
+        fn run(a: std.mem.Allocator) !void {
+            var d = try Document.init(a, "a b\n");
+            defer d.deinit();
+            try d.select(&.{ .at(0), .at(2) }, 0);
+            verbs.rotateContents(&d, 1) catch |e| {
+                try std.testing.expectEqualStrings("a b\n", d.text());
+                try expect(!d.isModified());
+                return e;
+            };
+            try std.testing.expectEqualStrings("b a\n", d.text());
         }
     };
     try std.testing.checkAllAllocationFailures(gpa, T.run, .{});

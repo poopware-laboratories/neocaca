@@ -208,6 +208,12 @@ test "keymap: the view prefix places and scrolls the view" {
     try expectNormal("vk", .{ .view = .{ .to = .up } });
     try expectNormal("5vj", .{ .view = .{ .to = .down, .count = 5 } });
     try expectNormal("3vk", .{ .view = .{ .to = .up, .count = 3 } });
+    try expectNormal("vh", .{ .view = .{ .to = .left } });
+    try expectNormal("4vl", .{ .view = .{ .to = .right, .count = 4 } });
+    try expectNormal("vH", null);
+    try expectNormal("v<c-l>", null);
+    try expectNormal("v<esc>", null);
+    try expectNormal("2v<esc>", null);
     try expectNormal("vx", null);
     try expectNormal("v<a-j>", null);
     var map: Keymap = .{};
@@ -226,6 +232,18 @@ test "keymap: scrolling by pages" {
     try expectNormal("<pgup>", .{ .scroll = .page_up });
 }
 
+test "keymap: Ctrl-z suspends, dropping a count or register" {
+    try expectNormal("<c-z>", .@"suspend");
+    try expectNormal("3<c-z>", .@"suspend");
+    try expectNormal("\"a<c-z>", .@"suspend");
+    var map: Keymap = .{};
+    _ = map.normal(.char('5'));
+    try std.testing.expectEqual(Action.@"suspend", map.normal(.ctrl('z')).?);
+    try std.testing.expect(!map.isPending());
+    // Insert mode types no Control chords, Ctrl-z included.
+    try expectInsert("<c-z>", null);
+}
+
 test "keymap: shaping the selections" {
     try expectNormal(";", .reduce);
     try expectNormal("<a-;>", .flip);
@@ -239,6 +257,10 @@ test "keymap: shaping the selections" {
     try expectNormal(")", .{ .rotate_main = 1 });
     try expectNormal("2)", .{ .rotate_main = 2 });
     try expectNormal("<a-s>", .split_lines);
+    try expectNormal("<a-x>", .trim_lines);
+    try expectNormal("<a-)>", .{ .rotate_contents = 1 });
+    try expectNormal("<a-(>", .{ .rotate_contents = -1 });
+    try expectNormal("3<a-(>", .{ .rotate_contents = -3 });
 }
 
 test "keymap: prompts" {
@@ -335,7 +357,7 @@ test "keymap: entering insert mode" {
 
 test "keymap: unbound keys do nothing and clear the count" {
     try expectNormal("Z", null);
-    try expectNormal("<c-z>", null);
+    try expectNormal("<c-x>", null);
     try expectNormal("<a-Z>", null);
     try expectNormal("<del>", null);
     var map: Keymap = .{};
@@ -404,4 +426,23 @@ test "keymap: insert mode ignores Control and Alt chords" {
     try expectInsert("<c-x>", null);
     try expectInsert("<a-x>", null);
     try expectInsert("<pgup>", null);
+}
+
+test "keymap: awaitsKey only while a prefix waits for its key" {
+    var map: Keymap = .{};
+    try std.testing.expect(!map.awaitsKey());
+    // A count or a register waits for a command, not a prefix's key.
+    _ = map.normal(.char('3'));
+    try std.testing.expect(!map.awaitsKey());
+    for ("fgvrG\"") |c| {
+        var m: Keymap = .{};
+        _ = m.normal(.char(c));
+        try std.testing.expect(m.awaitsKey());
+        _ = m.normal(.char('x'));
+        try std.testing.expect(!m.awaitsKey());
+    }
+    _ = map.normal(.alt('i'));
+    try std.testing.expect(map.awaitsKey());
+    _ = map.normal(.{ .code = .escape });
+    try std.testing.expect(!map.awaitsKey());
 }

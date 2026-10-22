@@ -113,3 +113,73 @@ test "file: a saved file loads back byte for byte" {
     defer gpa.free(got);
     try std.testing.expectEqualSlices(u8, &bytes, got);
 }
+
+test "file: create writes a new file readable by its owner only" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try file.create(io, tmp.dir, "r", "unsaved\n");
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("unsaved\n", try tmp.dir.readFile(io, "r", &buf));
+    if (!std.Io.File.Permissions.has_executable_bit) return;
+    const st = try tmp.dir.statFile(io, "r", .{});
+    try std.testing.expectEqual(0, st.permissions.toMode() & 0o077);
+}
+
+test "file: create never replaces a file" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "r", .data = "older\n" });
+    try expectError(error.PathAlreadyExists, file.create(io, tmp.dir, "r", "newer\n"));
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("older\n", try tmp.dir.readFile(io, "r", &buf));
+}
+
+test "file: create writes empty and binary contents byte for byte" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try file.create(io, tmp.dir, "empty", "");
+    const bytes = "\x00\xff\x1b[2J\r\n";
+    try file.create(io, tmp.dir, "bin", bytes);
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("", try tmp.dir.readFile(io, "empty", &buf));
+    try expectEqualStrings(bytes, try tmp.dir.readFile(io, "bin", &buf));
+}
+
+test "file: create into a missing directory fails and makes nothing" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try expectError(error.FileNotFound, file.create(io, tmp.dir, "no/such/r", "x\n"));
+}
+
+test "file: save through a link replaces the file it names, and keeps the link" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDir(io, "d", .default_dir);
+    try tmp.dir.writeFile(io, .{ .sub_path = "d/t", .data = "old\n" });
+    try tmp.dir.symLink(io, "d/t", "l", .{});
+    try file.save(io, tmp.dir, "l", "new\n");
+    var got: [16]u8 = undefined;
+    try expectEqualStrings("new\n", try tmp.dir.readFile(io, "d/t", &got));
+    const n = try tmp.dir.readLink(io, "l", &got);
+    try expectEqualStrings("d/t", got[0..n]);
+}
+
+test "file: save through a dangling link makes the file it names" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.symLink(io, "t", "l", .{});
+    try file.save(io, tmp.dir, "l", "x\n");
+    var got: [16]u8 = undefined;
+    try expectEqualStrings("x\n", try tmp.dir.readFile(io, "t", &got));
+}
+
+test "file: save through a link loop fails and makes nothing" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.symLink(io, "b", "a", .{});
+    try tmp.dir.symLink(io, "a", "b", .{});
+    try expectError(error.SymLinkLoop, file.save(io, tmp.dir, "a", "x\n"));
+    var got: [16]u8 = undefined;
+    const n = try tmp.dir.readLink(io, "a", &got);
+    try expectEqualStrings("b", got[0..n]);
+}

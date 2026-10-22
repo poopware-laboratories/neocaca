@@ -28,9 +28,9 @@ pub const Prompt = enum {
 pub const Scroll = enum { half_down, half_up, page_down, page_up };
 
 /// The `v` prefix: where to put the main cursor's line, or which way to
-/// scroll the view by `count` lines.
+/// scroll the view by `count` lines or columns.
 pub const View = struct {
-    to: enum { center, top, bottom, down, up },
+    to: enum { center, top, bottom, down, up, left, right },
     count: usize = 1,
 };
 
@@ -51,6 +51,10 @@ pub const Action = union(enum) {
     copy_to_line: struct { down: bool, count: usize = 1 },
     select_object: struct { kind: edit.object.Kind, inner: bool },
     split_lines,
+    /// `selecting.trimLines`
+    trim_lines,
+    /// `verbs.rotateContents`
+    rotate_contents: isize,
     prompt: Prompt,
     /// `search.next` with the last pattern.
     search_next: struct { dir: Direction, add: bool = false },
@@ -72,6 +76,8 @@ pub const Action = union(enum) {
     insert: edit.insert.Where,
     scroll: Scroll,
     view: View,
+    /// `Ctrl-z`: stop the editor and give the terminal back to the shell.
+    @"suspend",
 
     // Insert mode.
     /// A character typed at every cursor.

@@ -55,10 +55,20 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 - **`build.zig` contract:** `zig build test` must run every test in the project
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
-- **CI** (`.github/workflows/ci.yml`) runs `zig build fmt-check`, the tests
-  in Debug and ReleaseSafe on Linux and macOS (and ReleaseSafe again with
-  `-Dmimalloc-secure=off`), a ReleaseSafe build for every supported target,
-  and a benchmark smoke run. All must pass; run them before pushing.
+- **CI** (`.github/workflows/ci.yml`) runs, all with the pinned Zig:
+  - `zig build fmt-check`;
+  - the tests in Debug and ReleaseSafe (and ReleaseSafe again with
+    `-Dmimalloc-secure=off`) on Ubuntu (glibc), macOS on Apple Silicon and
+    Alpine (musl, in a container, where `.github/scripts/install-zig.sh`
+    installs Zig and checks its SHA-256), each uploading its ReleaseSafe
+    binary; the Alpine binary must be statically linked;
+  - a ReleaseSafe build and artifact for every supported target
+    (`x86_64`/`aarch64` Linux with glibc and musl, both macOS, FreeBSD);
+  - a benchmark smoke run.
+
+  All must pass; run them before pushing (`-Dtarget=x86_64-linux-musl` runs
+  the musl tests on any x86_64 Linux). A non-blocking `zig-latest` job
+  builds with the newest stable Zig to warn before an upgrade.
 - **Platform-gated code** (`switch (builtin.target.os.tag)` and other
   `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with
@@ -249,8 +259,8 @@ terminal bytes ──► term::Tty ──► app::loop ──► app::Session �
  (raw mode)      (wait, read,     (one thread)   (joins the        (pure; Alt, CSI,     │
                   size, resize)                   outside world)     paste, timeouts)    ▼
                                                       │ fs::file        app::Editor ◄── input::keymap
-                                                      │ (load, save)     │  (modes,       (pure state
-                                                      ▼                  │   prompts)      machine)
+                                                      │ (load, save on   │  (modes,       (pure state
+                                                      ▼  own threads)    │   prompts)      machine)
                                                  :w, :e requests         ▼
                                                                   edit::Document (buffer::Buffer,
                                                                   selections, history) + regex
@@ -263,7 +273,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 |------|----------------|
 | `src/main.zig` | Process setup only: the process allocator, I/O, the arguments, the panic handler that restores the terminal, then `app.run`. No logic worth testing lives here. |
 | `src/root.zig` | The `neocaca` module: re-exports every subsystem namespace, so `zig build test` reaches their tests. |
-| `src/app/` | `run.zig`: a command line to an exit code (tested in `run_test.zig`); `exit.zig`: the exit codes; `edit.zig`: opens the terminal, runs the loop, restores the terminal however it ends; `loop.zig`: the event loop, generic over the terminal so tests script it; `session.zig`: an `Editor` joined to terminal bytes, files and frames; `editor.zig`: the editing state and key routing; `prompting.zig`: what a submitted prompt does; `commands.zig`: `:` command parsing; `layout.zig`: the screen layout. |
+| `src/app/` | `run.zig`: a command line to an exit code (tested in `run_test.zig`); `exit.zig`: the exit codes; `edit.zig`: opens the terminal, runs the loop, restores the terminal however it ends; `loop.zig`: the event loop, generic over the terminal so tests script it; `session.zig`: an `Editor` joined to terminal bytes, files and frames; `saving.zig`: one save on its own thread, which wakes the loop when done; `loading.zig`: one `:e` load on its own thread, the keys typed meanwhile held for the file it reads; `recovery.zig`: the file unsaved changes go to when the terminal hangs up; `editor.zig`: the editing state and key routing; `requesting.zig`: the saves and loads it asks the shell for; `prompting.zig`: what a submitted prompt does; `viewing.zig`: the view keys (`v`, pages); `commands.zig`: `:` command parsing, `:map` included; `layout.zig`: the screen layout. |
 | `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
 | `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
 | `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
@@ -272,11 +282,11 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass. No I/O, no terminal. |
 | `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig`, run by the Pike VM in `vm.zig`; `regex.zig`: the public `Regex`. |
 | `src/edit/` | `document.zig`: a buffer with its selections (`selection.zig`) and history (`history.zig`); `motion.zig`, `object.zig`, `selecting.zig`, `search.zig`: selection changes; `verbs.zig`, `insert.zig`: text changes; `registers.zig`. |
-| `src/input/` | `decode.zig`: pure decoding of terminal bytes into `Key`s (`key.zig`); `decoder.zig`: keys split across reads, pastes, the Escape timeout; `keymap.zig`: keys to `Action`s (`action.zig`) as a pure state machine. |
+| `src/input/` | `decode.zig`: pure decoding of terminal bytes into `Key`s (`key.zig`); `decoder.zig`: keys split across reads, pastes, the Escape timeout; `keymap.zig`: keys to `Action`s (`action.zig`) as a pure state machine; `keyname.zig`: the key notation of `:map`; `mapping.zig`: the user's mappings. |
 | `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
-| `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, size, waits, resizes through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
-| `src/fs/` | `file.zig`: bounded loads and atomic saves that keep permissions. |
+| `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups and finished saves through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
+| `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions and links, and new files that never replace one; `link.zig`: the file a path names once its links are followed. |
 | `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig` and `display_test.zig` assert on the buffers, files and `Screen`; `terminal_test.zig` runs the editor on a pseudo-terminal end to end. |
 
 ## Keybinding model (Kakoune-inspired)

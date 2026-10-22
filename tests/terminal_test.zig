@@ -196,7 +196,7 @@ test "terminal: a resize redraws at the new size" {
     try expectEqual(.ok, try r.finish());
 }
 
-test "terminal: the terminal closing ends the editor without writing" {
+test "terminal: the terminal closing keeps the file and recovers the changes beside it" {
     if (builtin.target.os.tag == .windows) return error.SkipZigTest;
     var r: Run = undefined;
     try r.open(30, 6);
@@ -204,10 +204,29 @@ test "terminal: the terminal closing ends the editor without writing" {
     try r.tmp.dir.writeFile(io, .{ .sub_path = "keep", .data = "safe\n" });
     try r.start(&.{"keep"});
     try r.drain(200);
-    try r.typeKeys("dd");
+    try r.typeKeys("ix");
+    try r.drain(200);
     r.hangUp();
     r.thread.?.join();
     r.thread = null;
     var buf: [64]u8 = undefined;
     try expectEqualStrings("safe\n", try r.tmp.dir.readFile(io, "keep", &buf));
+    try expectEqualStrings("xsafe\n", try r.tmp.dir.readFile(io, "keep.recovered", &buf));
+    try expect(std.mem.indexOf(u8, r.err.buffered(), "unsaved changes written to \"keep.recovered\"") != null);
+}
+
+test "terminal: the terminal closing over no changes recovers nothing" {
+    if (builtin.target.os.tag == .windows) return error.SkipZigTest;
+    var r: Run = undefined;
+    try r.open(30, 6);
+    defer r.close();
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "keep", .data = "safe\n" });
+    try r.start(&.{"keep"});
+    try r.drain(200);
+    r.hangUp();
+    r.thread.?.join();
+    r.thread = null;
+    var buf: [64]u8 = undefined;
+    try std.testing.expectError(error.FileNotFound, r.tmp.dir.readFile(io, "keep.recovered", &buf));
+    try expect(std.mem.indexOf(u8, r.err.buffered(), "recovered") == null);
 }

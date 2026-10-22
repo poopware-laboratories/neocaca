@@ -8,6 +8,9 @@ clean room.
 ## Phase 0: foundations
 
 - [x] Build, test, fmt and bench steps; CI on Linux and macOS
+- [x] CI on Ubuntu (glibc), Alpine (musl, static) and macOS (Apple Silicon),
+      release artifacts for every target, and an early-warning job on the
+      newest stable Zig
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
 - [x] SIMD kernels (count, find, control bytes) with scalar references
 - [x] Command line parsing, help and version
@@ -27,19 +30,19 @@ clean room.
       matching bracket, buffer start/end) and text objects
 - [x] `input/`: decode terminal bytes into keys (legacy, CSI, SS3, Alt as
       ESC prefix, bracketed paste)
-- [ ] **Kakoune-style modal keybind system** (`input/keymap.zig`):
+- [x] **Kakoune-style modal keybind system** (`input/keymap.zig`):
   - [x] normal mode: selection first, then verb (`d c y p P R r ~ > <`)
   - [x] Shift extends; counts; registers (`"x`)
   - [x] multiple selections: `C`, `Alt-C`, `s`, `S`, `Alt-s`, `Alt-k`,
-        `Alt-K`, `,`, `Alt-,`, `(`, `)`, `;`, `Alt-;`
+        `Alt-K`, `,`, `Alt-,`, `(`, `)`, `Alt-(`, `Alt-)`, `;`, `Alt-;`, `Alt-x`
   - [x] object selection: `Alt-i` / `Alt-a` with `w W ( [ { < " ' ` p`
   - [x] goto prefix (`g`)
   - [x] view prefix (`v`: center, top, bottom, scroll without moving)
-  - [ ] `vh` / `vl`: scroll the view by columns
+  - [x] `vh` / `vl`: scroll the view by columns
   - [x] insert mode at every cursor (`i a I A o O`), auto-indent
   - [x] search `/ ? n N Alt-n *`
   - [x] prompt commands `:w :q :q! :wq :x :e :e! :<line>`
-  - [ ] user-configurable key mappings (`:map`) with stable names
+  - [x] user-configurable key mappings (`:map`, `:unmap`) with stable names
 - [x] `render/`: a cell grid and a minimal diff into escape bytes; control
       bytes and invalid UTF-8 shown visibly
 - [x] `ui/`: gutter, status line, prompt, scrolling with scroll-off
@@ -48,15 +51,18 @@ clean room.
 - [x] `app/`: the event loop wired into `main`
 - [x] `tests/`: whole sessions from scripted key bytes, and the editor
       end to end on a pseudo-terminal
-- [ ] Saves off the event loop (today `:w` blocks typing while it writes)
-- [ ] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
-      must stop itself and restore the terminal first)
-- [ ] A hang-up (closed terminal window) writes the unsaved buffer to a
+- [x] Saves off the event loop: `:w` writes a copy of the text on its own
+      thread and wakes the loop when done
+- [x] Loads off the event loop: `:e` reads on its own thread, and the keys
+      typed meanwhile edit the file once it is in
+- [x] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
+      stops itself and restores the terminal first)
+- [x] A hang-up (closed terminal window) writes the unsaved buffer to a
       recovery file instead of dropping it
 - [x] `xd` on the last line leaves an empty line, because the final
       newline is never deleted; delete the newline before it instead
-- [ ] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `J` (see
-      `docs/keys.md`)
+- [x] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `Alt-j` join
+      (`J` extends down; see `docs/keys.md`)
 
 ## Phase 2: everyday comfort
 

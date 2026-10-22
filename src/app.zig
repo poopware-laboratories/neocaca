@@ -1,9 +1,12 @@
 //! The editor application: a command line to an exit code (`run.zig`,
-//! codes in `exit.zig`); the editor state (`editor.zig`) with its `:`
-//! commands (`commands.zig`), prompts (`prompting.zig`) and screen layout
-//! (`layout.zig`); a session joining it to bytes, files and frames
-//! (`session.zig`); the event loop (`loop.zig`); and editing in the real
-//! terminal (`edit.zig`).
+//! codes in `exit.zig`); the editor state (`editor.zig`) with the
+//! requests it hands the shell (`requesting.zig`), its `:` commands
+//! (`commands.zig`), prompts (`prompting.zig`), view keys
+//! (`viewing.zig`) and screen layout (`layout.zig`); a session joining it
+//! to bytes, files and frames (`session.zig`), saving and loading off the
+//! loop (`saving.zig`, `loading.zig`) and recovering unsaved changes on a
+//! hang-up (`recovery.zig`); the event loop (`loop.zig`); and editing in
+//! the real terminal (`edit.zig`).
 
 pub const exit = @import("app/exit.zig");
 pub const run = @import("app/run.zig").run;
@@ -23,11 +26,21 @@ test {
     _ = @import("app/commands_test.zig");
     _ = editor;
     _ = @import("app/editor_test.zig");
+    _ = @import("app/editor_prompt_test.zig");
+    _ = @import("app/editor_view_test.zig");
+    _ = @import("app/editor_map_test.zig");
+    _ = @import("app/requesting.zig");
     _ = @import("app/prompting.zig");
+    _ = @import("app/viewing.zig");
     _ = @import("app/layout.zig");
     _ = @import("app/layout_test.zig");
     _ = session;
     _ = @import("app/session_test.zig");
+    _ = @import("app/session_save_test.zig");
+    _ = @import("app/session_load_test.zig");
+    _ = @import("app/saving_test.zig");
+    _ = @import("app/loading_test.zig");
+    _ = @import("app/recovery_test.zig");
     _ = loop;
     _ = @import("app/loop_test.zig");
     _ = edit;

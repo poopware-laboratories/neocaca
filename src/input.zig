@@ -4,10 +4,12 @@
 //! keys to editor actions (`input/keymap.zig`, `input/action.zig`).
 
 pub const key = @import("input/key.zig");
+pub const keyname = @import("input/keyname.zig");
 pub const decode = @import("input/decode.zig");
 pub const decoder = @import("input/decoder.zig");
 pub const action = @import("input/action.zig");
 pub const keymap = @import("input/keymap.zig");
+pub const mapping = @import("input/mapping.zig");
 
 pub const Key = key.Key;
 pub const Decoder = decoder.Decoder;
@@ -17,6 +19,8 @@ pub const Keymap = keymap.Keymap;
 
 test {
     _ = key;
+    _ = @import("input/keyname_test.zig");
+    _ = @import("input/mapping_test.zig");
     _ = decode;
     _ = decoder;
     _ = @import("input/decoder_test.zig");

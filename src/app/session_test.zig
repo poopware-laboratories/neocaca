@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const Session = @import("session.zig").Session;
+const recovery = @import("recovery.zig");
 
 const io = std.testing.io;
 const gpa = std.testing.allocator;
@@ -23,11 +24,18 @@ fn readFile(dir: std.Io.Dir, path: []const u8, buf: []u8) ![]const u8 {
 }
 
 /// Types `keys` one byte per read, as a person does: a pause follows each.
-fn typeKeys(s: *Session, keys: []const u8) !void {
+/// Saves run on while the keys are typed.
+fn feedKeys(s: *Session, keys: []const u8) !void {
     for (keys) |*b| {
         try s.feed(b[0..1]);
         try s.timeout();
     }
+}
+
+/// As `feedKeys`, then waits for a save they started.
+fn typeKeys(s: *Session, keys: []const u8) !void {
+    try feedKeys(s, keys);
+    s.settle();
 }
 
 /// Renders a frame and returns the bytes written. Borrowed from `buf`.
@@ -80,6 +88,68 @@ test "session: a file that cannot be read keeps its name and says why" {
     try typeKeys(&s, ":w\r");
     try expect(std.mem.startsWith(u8, s.ed.message.text(), "cannot write \"d\": "));
     try expect(!s.done());
+}
+
+test "session: Ctrl-z is taken once, and the next frame is drawn whole" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, null, 20, 4);
+    defer s.deinit();
+    var buf: [4096]u8 = undefined;
+    _ = try frame(&s, &buf);
+    try expect(!s.takeSuspend());
+    try s.feed("\x1a");
+    try expect(s.takeSuspend());
+    try expect(!s.takeSuspend());
+    // Nothing changed, so an ordinary frame writes no clear.
+    try expect(std.mem.indexOf(u8, try frame(&s, &buf), "\x1b[2J") == null);
+    // After a suspend the terminal holds the shell's output.
+    s.redrawAll();
+    try expect(std.mem.indexOf(u8, try frame(&s, &buf), "\x1b[2J") != null);
+}
+
+test "session: recovering an unmodified buffer writes nothing" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 4);
+    defer s.deinit();
+    var buf: [recovery.max_name]u8 = undefined;
+    try expectEqual(.none, s.recover(&buf));
+    try typeKeys(&s, "ix\x1b:w");
+    try s.feed("\r");
+    // The save is still in flight: what it writes is not unsaved.
+    try expect(s.saving != null);
+    try expectEqual(.none, s.recover(&buf));
+    var text: [16]u8 = undefined;
+    try std.testing.expectError(error.FileNotFound, readFile(tmp.dir, "f.recovered", &text));
+}
+
+test "session: recovering writes the unsaved text beside the file" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "saved\n" });
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 4);
+    defer s.deinit();
+    try typeKeys(&s, "ix\x1b");
+    var buf: [recovery.max_name]u8 = undefined;
+    try expectEqualStrings("f.recovered", (s.recover(&buf)).written);
+    var text: [16]u8 = undefined;
+    try expectEqualStrings("xsaved\n", try readFile(tmp.dir, "f.recovered", &text));
+    try expectEqualStrings("saved\n", try readFile(tmp.dir, "f", &text));
+}
+
+test "session: recovering a scratch buffer, and failing to" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, null, 20, 4);
+    defer s.deinit();
+    try typeKeys(&s, "iscratch\x1b");
+    var buf: [recovery.max_name]u8 = undefined;
+    try expectEqualStrings("neocaca.recovered", (s.recover(&buf)).written);
+    var t: Session = try .init(gpa, io, tmp.dir, "gone/f", 20, 4);
+    defer t.deinit();
+    try typeKeys(&t, "ix\x1b");
+    try expectEqual(error.FileNotFound, (t.recover(&buf)).failed);
 }
 
 test "session: typed keys edit, and :w writes the file" {

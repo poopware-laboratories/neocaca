@@ -144,6 +144,49 @@ test "selecting: X extends over every line the selection touches" {
     try expectOp("a«|bc\nd»e\nf\n", selecting.selectLines, .{ 1, true }, true, "«|abc\nde\n»f\n");
 }
 
+test "selecting: Alt-x trims the selections to the whole lines inside them" {
+    try expectOp("a«bc\nde\nf»g\n", selecting.trimLines, .{}, true, "abc\n«de\n»fg\n");
+    try expectOp("«abc\nde\n»", selecting.trimLines, .{}, true, "«abc\nde\n»");
+    try expectOp("«abc\n»de\n", selecting.trimLines, .{}, true, "«abc\n»de\n");
+    try expectOp("a«|bc\nde\nf»g\n", selecting.trimLines, .{}, true, "abc\n«|de\n»fg\n");
+    try expectOp("a\n«\n»b\n", selecting.trimLines, .{}, true, "a\n«\n»b\n");
+}
+
+test "selecting: Alt-x drops the selections without a whole line" {
+    try expectOp("«ab»c\n‹de\n›", selecting.trimLines, .{}, true, "abc\n«de\n»");
+    try expectOp("‹a\n›«b»\n‹c\n›", selecting.trimLines, .{}, true, "‹a\n›b\n«c\n»");
+    try expectOp("‹a\n›«b»\n", selecting.trimLines, .{}, true, "«a\n»b\n");
+    try expectOp("«ab»c\n‹d›\n", selecting.trimLines, .{}, false, "«ab»c\n‹d›\n");
+    try expectOp("a«\nb»\n", selecting.trimLines, .{}, false, "a«\nb»\n");
+}
+
+test "selecting: Alt-x works on characters of any width" {
+    try expectOp("«ä\nö»\n", selecting.trimLines, .{}, true, "«ä\n»ö\n");
+    try expectOp("a«é\n日本\n»", selecting.trimLines, .{}, true, "aé\n«日本\n»");
+    try expectOp("«日»本\n", selecting.trimLines, .{}, false, "«日»本\n");
+}
+
+test "selecting: Alt-x that cannot allocate leaves the selections as they were" {
+    const T = struct {
+        fn run(a: std.mem.Allocator) !void {
+            var d = try Document.init(a, "ab\ncd\nef\n");
+            defer d.deinit();
+            try d.select(&.{ .span(1, 7), .at(9) }, 1);
+            const ok = selecting.trimLines(&d) catch |e| {
+                try std.testing.expectEqual(2, d.sels().len);
+                try std.testing.expectEqual(7, d.sels()[0].cursor);
+                try std.testing.expectEqual(1, d.selections.main);
+                return e;
+            };
+            try expect(ok);
+            try std.testing.expectEqual(1, d.sels().len);
+            try std.testing.expectEqual(3, d.sels()[0].anchor);
+            try std.testing.expectEqual(5, d.sels()[0].cursor);
+        }
+    };
+    try std.testing.checkAllAllocationFailures(gpa, T.run, .{});
+}
+
 test "selecting: select all" {
     try expectOp("a«b»\n‹c›\n", selecting.selectAll, .{}, true, "«ab\nc\n»");
 }
@@ -183,6 +226,9 @@ test "selecting: s selects the matches inside the selections" {
     try expectRegexOp("«ab»\n", selecting.selectMatches, "x*", .{}, false, "«ab»\n");
     try expectRegexOp("‹ab› «ab»\n", selecting.selectMatches, "b", .{}, true, "a‹b› a«b»\n");
     try expectRegexOp("«a\nb\n»", selecting.selectMatches, "^.", .{}, true, "«a»\n‹b›\n");
+    // `^` also matches, empty, at the end of the text.
+    try expectRegexOp("«a\nb\n»", selecting.selectMatches, "^", .{}, false, "«a\nb\n»");
+    try expectRegexOp("«a\nb\n»", selecting.selectMatches, "b|^", .{}, true, "a\n«b»\n");
 }
 
 test "selecting: S splits the selections at the matches" {
@@ -190,6 +236,8 @@ test "selecting: S splits the selections at the matches" {
     try expectRegexOp("«,a,»\n", selecting.split, ",", .{}, true, ",«a»,\n");
     try expectRegexOp("«,,»\n", selecting.split, ",", .{}, false, "«,,»\n");
     try expectRegexOp("«ab»\n", selecting.split, ",", .{}, true, "«ab»\n");
+    try expectRegexOp("«a\nb\n»", selecting.split, "^", .{}, true, "«a\nb\n»");
+    try expectRegexOp("«a,b\n»", selecting.split, "^|,", .{}, true, "«a»,‹b\n›");
 }
 
 test "selecting: Alt-s splits the selections into lines" {

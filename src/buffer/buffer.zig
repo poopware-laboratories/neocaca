@@ -71,12 +71,27 @@ pub const Buffer = struct {
     /// Applies a change set. The result must still end with a newline; on
     /// any error the buffer is unchanged.
     pub fn apply(self: *Buffer, changes: []const Change) ApplyError!void {
-        try change.validate(changes, self.text.len);
-        const n = change.newLen(changes, self.text.len);
-        const text = try self.gpa.alloc(u8, n);
-        errdefer self.gpa.free(text);
-        change.applyInto(changes, self.text, text);
-        if (n == 0 or text[n - 1] != '\n') return error.FinalNewline;
+        return self.applySets(&.{changes});
+    }
+
+    /// Applies change sets in order, each to the text the one before made,
+    /// as one edit: every text between them must end with a newline too,
+    /// and on any error the buffer is unchanged.
+    pub fn applySets(self: *Buffer, sets: []const []const Change) ApplyError!void {
+        // The text the sets made so far, once it is not `self.text`.
+        var made: ?[]u8 = null;
+        errdefer if (made) |t| self.gpa.free(t);
+        for (sets) |changes| {
+            const old = made orelse self.text;
+            try change.validate(changes, old.len);
+            const n = change.newLen(changes, old.len);
+            const text = try self.gpa.alloc(u8, n);
+            change.applyInto(changes, old, text);
+            if (made) |t| self.gpa.free(t);
+            made = text;
+            if (n == 0 or text[n - 1] != '\n') return error.FinalNewline;
+        }
+        const text = made orelse return;
         const starts = try lines.starts(self.gpa, text);
         self.gpa.free(self.text);
         self.gpa.free(self.line_starts);

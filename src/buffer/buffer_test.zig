@@ -173,6 +173,65 @@ test "buffer: every allocation failure in apply leaves the buffer as it was" {
     }.run, .{});
 }
 
+test "buffer: applySets applies each set to the text the one before made" {
+    var b: Buffer = try .init(gpa, "abc\n");
+    defer b.deinit();
+    try b.applySets(&.{
+        &.{.{ .start = 0, .end = 0, .text = "x\n" }},
+        // Offsets in "x\nabc\n".
+        &.{.{ .start = 2, .end = 3, .text = "y" }},
+    });
+    try expectEqualStrings("x\nybc\n", b.bytes());
+    try expectEqual(2, b.lineCount());
+    try expectEqual(2, b.lineStart(1));
+}
+
+test "buffer: applySets with no sets keeps the text" {
+    var b: Buffer = try .init(gpa, "ab\n");
+    defer b.deinit();
+    try b.applySets(&.{});
+    try expectEqualStrings("ab\n", b.bytes());
+    try expectEqual(1, b.lineCount());
+}
+
+test "buffer: a later set that fails keeps the text from before the first" {
+    var b: Buffer = try .init(gpa, "ab\ncd\n");
+    defer b.deinit();
+    try std.testing.expectError(error.OutOfBounds, b.applySets(&.{
+        &.{.{ .start = 0, .end = 0, .text = "x" }},
+        // Within "xab\ncd\n" no more.
+        &.{.{ .start = 0, .end = 8, .text = "" }},
+    }));
+    try expectEqualStrings("ab\ncd\n", b.bytes());
+    try std.testing.expectError(error.FinalNewline, b.applySets(&.{
+        &.{.{ .start = 0, .end = 6, .text = "" }},
+        &.{.{ .start = 0, .end = 0, .text = "z\n" }},
+    }));
+    try expectEqualStrings("ab\ncd\n", b.bytes());
+    try expectEqual(2, b.lineCount());
+    try expectEqual(3, b.lineStart(1));
+}
+
+test "buffer: every allocation failure in applySets leaves the buffer as it was" {
+    try std.testing.checkAllAllocationFailures(gpa, struct {
+        fn run(a: std.mem.Allocator) !void {
+            var b: Buffer = try .init(a, "ab\ncd\n");
+            defer b.deinit();
+            b.applySets(&.{
+                &.{.{ .start = 0, .end = 0, .text = "x\n" }},
+                &.{.{ .start = 5, .end = 7, .text = "" }},
+                &.{.{ .start = 5, .end = 5, .text = "!" }},
+            }) catch |err| {
+                try expectEqualStrings("ab\ncd\n", b.bytes());
+                try expectEqual(2, b.lineCount());
+                return err;
+            };
+            try expectEqualStrings("x\nab\n!\n", b.bytes());
+            try expectEqual(3, b.lineCount());
+        }
+    }.run, .{});
+}
+
 /// The reference: the change set applied by concatenation, or the error
 /// `apply` must return.
 fn applyReference(old: []const u8, changes: []const @import("buffer.zig").Change, out: *std.ArrayList(u8)) !void {

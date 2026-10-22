@@ -15,26 +15,32 @@ pub const Direction = enum { forward, backward };
 
 pub const Result = enum { found, wrapped, not_found };
 
-/// The first non-empty match starting at or after `from`.
-fn firstFrom(re: *Regex, text: []const u8, from: usize) ?Match {
+/// The first non-empty match inside `text[from..to]`.
+pub fn nonEmpty(re: *Regex, text: []const u8, from: usize, to: usize) ?Match {
     var at = from;
-    while (at < text.len) {
-        const m = re.find(text, at) orelse return null;
+    while (at < to) {
+        const m = re.findIn(text, at, to) orelse return null;
         if (m.end > m.start) return m;
+        // An empty match at `to` (`^` after the last newline) ends it.
+        if (m.start >= to) return null;
         at = unicode.chars.next(text, m.start);
     }
     return null;
 }
 
-/// The last non-empty match ending at or before `end`, matches taken
-/// left to right without overlapping.
+/// The first non-empty match starting at or after `from`.
+fn firstFrom(re: *Regex, text: []const u8, from: usize) ?Match {
+    return nonEmpty(re, text, from, text.len);
+}
+
+/// The non-empty match inside `text[0..end]` that starts last, overlapping
+/// matches included.
 fn lastBefore(re: *Regex, text: []const u8, end: usize) ?Match {
     var last: ?Match = null;
     var at: usize = 0;
-    while (firstFrom(re, text, at)) |m| {
-        if (m.end > end) break;
+    while (nonEmpty(re, text, at, end)) |m| {
         last = m;
-        at = m.end;
+        at = unicode.chars.next(text, m.start);
     }
     return last;
 }

@@ -35,12 +35,20 @@ pub const Harness = struct {
             try self.session.feed(b[0..1]);
             try self.session.timeout();
         }
-        try self.frame();
+        try self.finish();
     }
 
     /// Sends `bytes` as the terminal would in one read, then draws.
     pub fn send(self: *Harness, bytes: []const u8) !void {
         try self.session.feed(bytes);
+        try self.session.timeout();
+        try self.finish();
+    }
+
+    /// As a person does, waits for a save or a load to finish, replays the
+    /// keys held for the load, then draws.
+    fn finish(self: *Harness) !void {
+        self.session.settle();
         try self.session.timeout();
         try self.frame();
     }

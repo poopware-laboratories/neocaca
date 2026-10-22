@@ -26,6 +26,13 @@ pub const Document = struct {
     /// `history.done` when the text last matched the file, or null when no
     /// undo or redo can get back there.
     saved_at: ?usize = 0,
+    /// The saves in flight, oldest first (`beginSave`): `history.done` when
+    /// each began, or null once no undo or redo can get back there.
+    saving_at: [max_saves]?usize = undefined,
+    saves: usize = 0,
+
+    /// The most saves in flight: one written, one waiting for it.
+    pub const max_saves = 2;
 
     /// A document holding `initial` (see `Buffer.init`), one selection on its
     /// first character, nothing to undo and nothing modified.
@@ -89,6 +96,11 @@ pub const Document = struct {
         if (self.saved_at) |at| {
             if (at >= self.history.done) self.saved_at = null;
         }
+        for (self.saving_at[0..self.saves]) |*slot| {
+            if (slot.*) |at| {
+                if (at >= self.history.done) slot.* = null;
+            }
+        }
         self.selections.setAssumeCapacity(self.text(), new, main);
     }
 
@@ -103,30 +115,32 @@ pub const Document = struct {
     }
 
     /// Reverts the newest group of revisions; false when there is none.
+    /// On any error the document is unchanged.
     pub fn undo(self: *Document) Error!bool {
         const revs = self.history.undoGroup();
         if (revs.len == 0) return false;
         try self.selections.list.ensureTotalCapacity(self.gpa, revs[0].before.len);
-        var i = revs.len;
-        while (i > 0) {
-            i -= 1;
-            try self.buffer.apply(revs[i].inverse);
-            self.history.done -= 1;
-        }
+        const sets = try self.gpa.alloc([]const Change, revs.len);
+        defer self.gpa.free(sets);
+        for (sets, 0..) |*set, i| set.* = revs[revs.len - 1 - i].inverse;
+        try self.buffer.applySets(sets);
+        self.history.done -= revs.len;
         self.selections.setAssumeCapacity(self.text(), revs[0].before, revs[0].before_main);
         return true;
     }
 
     /// Reapplies the next group of undone revisions; false when there is none.
+    /// On any error the document is unchanged.
     pub fn redo(self: *Document) Error!bool {
         const revs = self.history.redoGroup();
         if (revs.len == 0) return false;
         const last = revs[revs.len - 1];
         try self.selections.list.ensureTotalCapacity(self.gpa, last.after.len);
-        for (revs) |r| {
-            try self.buffer.apply(r.changes);
-            self.history.done += 1;
-        }
+        const sets = try self.gpa.alloc([]const Change, revs.len);
+        defer self.gpa.free(sets);
+        for (sets, revs) |*set, r| set.* = r.changes;
+        try self.buffer.applySets(sets);
+        self.history.done += revs.len;
         self.selections.setAssumeCapacity(self.text(), last.after, last.after_main);
         return true;
     }
@@ -138,5 +152,27 @@ pub const Document = struct {
 
     pub fn markSaved(self: *Document) void {
         self.saved_at = self.history.done;
+    }
+
+    /// Whether a save is in flight.
+    pub fn isSaving(self: *const Document) bool {
+        return self.saves > 0;
+    }
+
+    /// The text as it is now is being saved; edits may follow before
+    /// `endSave`. At most `max_saves` are in flight.
+    pub fn beginSave(self: *Document) void {
+        std.debug.assert(self.saves < max_saves);
+        self.saving_at[self.saves] = self.history.done;
+        self.saves += 1;
+    }
+
+    /// The oldest save in flight is over: when `ok`, the file holds the
+    /// text it began from.
+    pub fn endSave(self: *Document, ok: bool) void {
+        std.debug.assert(self.saves > 0);
+        if (ok) self.saved_at = self.saving_at[0];
+        std.mem.copyForwards(?usize, self.saving_at[0 .. self.saves - 1], self.saving_at[1..self.saves]);
+        self.saves -= 1;
     }
 };

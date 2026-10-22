@@ -137,3 +137,149 @@ test "document: a failed allocation leaves the document as it was" {
         }
     }.run, .{});
 }
+
+/// A document with one undo step of two edits, "a" and "b" typed into
+/// "one\n" in a session.
+fn twoEditSession(a: std.mem.Allocator) !Document {
+    var doc: Document = try .init(a, "one\n");
+    errdefer doc.deinit();
+    doc.beginSession();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "a" }}, &.{.at(1)}, 0);
+    try doc.edit(&.{.{ .start = 1, .end = 1, .text = "b" }}, &.{ .at(2), .at(4) }, 0);
+    doc.endSession();
+    return doc;
+}
+
+test "document: a failed allocation in an undo leaves the document as it was" {
+    try std.testing.checkAllAllocationFailures(gpa, struct {
+        fn run(a: std.mem.Allocator) !void {
+            var doc = try twoEditSession(a);
+            defer doc.deinit();
+            _ = doc.undo() catch |err| {
+                try expectEqualStrings("abone\n", doc.text());
+                try expectEqual(2, doc.sels().len);
+                try std.testing.expect(doc.isModified());
+                return err;
+            };
+            try expectEqualStrings("one\n", doc.text());
+            try std.testing.expect(!doc.isModified());
+            try std.testing.expect(try doc.redo());
+            try expectEqualStrings("abone\n", doc.text());
+        }
+    }.run, .{});
+}
+
+test "document: a failed allocation in a redo leaves the document as it was" {
+    try std.testing.checkAllAllocationFailures(gpa, struct {
+        fn run(a: std.mem.Allocator) !void {
+            var doc = try twoEditSession(a);
+            defer doc.deinit();
+            _ = try doc.undo();
+            _ = doc.redo() catch |err| {
+                try expectEqualStrings("one\n", doc.text());
+                try expectEqual(1, doc.sels().len);
+                try std.testing.expect(!doc.isModified());
+                return err;
+            };
+            try expectEqualStrings("abone\n", doc.text());
+            try expectEqual(2, doc.sels().len);
+            try std.testing.expect(!try doc.redo());
+        }
+    }.run, .{});
+}
+
+test "document: a save in flight marks the text it started from" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    // Edited while the save runs: the saved text is the one before.
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    try std.testing.expect(!doc.isModified());
+}
+
+test "document: two saves in flight end in the order they began" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try std.testing.expect(doc.isSaving());
+    // The first wrote "1a": the text now, "21a", is not on disk yet.
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+    try std.testing.expect(doc.isSaving());
+    doc.endSave(true);
+    try std.testing.expect(!doc.isModified());
+    try std.testing.expect(!doc.isSaving());
+}
+
+test "document: of two saves in flight, the failed one marks nothing" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    doc.endSave(true);
+    doc.endSave(false);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    try std.testing.expect(!doc.isModified());
+}
+
+test "document: the second save in flight saves nothing reachable once its text is replaced" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    // As far from the start as "21a" was, on another branch.
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "3" }}, &.{.at(0)}, 0);
+    doc.endSave(true);
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+}
+
+test "document: a failed save changes nothing" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    doc.endSave(false);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    // The text loaded is still the saved one.
+    try std.testing.expect(!doc.isModified());
+}
+
+test "document: a save whose text was undone and replaced saves nothing reachable" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    // Back at the loaded text, which the save replaced on disk.
+    try std.testing.expect(doc.isModified());
+}
+
+test "document: a save that ends where it began marks the current text" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    _ = try doc.redo();
+    doc.endSave(true);
+    try std.testing.expect(!doc.isModified());
+}

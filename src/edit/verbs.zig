@@ -61,20 +61,28 @@ fn remove(doc: *Document, regs: ?*Registers, reg: u8, last_lines: bool) Error!vo
     defer new.deinit(doc.gpa);
     try changes.ensureTotalCapacity(doc.gpa, doc.sels().len);
     try new.ensureTotalCapacity(doc.gpa, doc.sels().len);
-    var removed: usize = 0;
-    var last_end: usize = 0;
     for (doc.sels()) |s| {
         const r = s.range(text);
         var start = r.start;
-        // Unless an earlier selection already took that newline.
-        if (last_lines and r.end == text.len and start > last_end and text[start - 1] == '\n') start -= 1;
+        if (last_lines and r.end == text.len) {
+            // The newline before the deletions that end here, run
+            // together, unless one of them already takes it.
+            var k = changes.items.len;
+            var first = start;
+            while (k > 0 and changes.items[k - 1].end == first) {
+                k -= 1;
+                first = changes.items[k].start;
+            }
+            if (first > 0 and text[first - 1] == '\n') {
+                if (k < changes.items.len) changes.items[k].start -= 1 else start -= 1;
+            }
+        }
         const end = @min(r.end, text.len - 1);
-        new.appendAssumeCapacity(.at(start - removed));
+        new.appendAssumeCapacity(.at(r.start));
         if (end <= start) continue;
         changes.appendAssumeCapacity(.{ .start = start, .end = end, .text = "" });
-        removed += end - start;
-        last_end = end;
     }
+    for (new.items) |*n| n.* = .at(buffer.change.mapPos(changes.items, n.cursor, .before));
     try doc.edit(changes.items, new.items, doc.selections.main);
 }
 
@@ -134,6 +142,30 @@ pub fn paste(doc: *Document, regs: *const Registers, reg: u8, before: bool) Erro
 pub fn replace(doc: *Document, regs: *const Registers, reg: u8) Error!bool {
     const values = regs.get(reg);
     if (values.len == 0) return false;
+    try replaceWith(doc, values);
+    return true;
+}
+
+/// `Alt-)` (`delta` 1) and `Alt-(` (-1): each selection takes the text of
+/// the selection `delta` places before it, wrapping around.
+pub fn rotateContents(doc: *Document, delta: isize) Error!void {
+    const list = doc.sels();
+    const n: isize = @intCast(list.len);
+    if (@mod(delta, n) == 0) return;
+    const text = doc.text();
+    const values = try doc.gpa.alloc([]const u8, list.len);
+    defer doc.gpa.free(values);
+    for (values, 0..) |*v, i| {
+        const from: usize = @intCast(@mod(@as(isize, @intCast(i)) - delta, n));
+        const r = list[from].range(text);
+        v.* = text[r.start..r.end];
+    }
+    try replaceWith(doc, values);
+}
+
+/// Replaces each selection with its value in `values` (the last value for
+/// the rest) and selects it.
+fn replaceWith(doc: *Document, values: []const []const u8) Error!void {
     const text = doc.text();
     const list = doc.sels();
     var changes: std.ArrayList(Change) = .empty;
@@ -145,7 +177,8 @@ pub fn replace(doc: *Document, regs: *const Registers, reg: u8) Error!bool {
     for (list, new, 0..) |s, *n, i| {
         const v = values[@min(i, values.len - 1)];
         const r = s.range(text);
-        const end = @min(r.end, text.len - 1);
+        // The final newline stays, unless a value ending in one replaces it.
+        const end = if (linewise(v)) r.end else @min(r.end, text.len - 1);
         const start: usize = @intCast(@as(isize, @intCast(r.start)) + delta);
         n.* = if (v.len > 0) over(start, v) else .at(start);
         if (end == r.start and v.len == 0) continue;
@@ -153,7 +186,6 @@ pub fn replace(doc: *Document, regs: *const Registers, reg: u8) Error!bool {
         delta += @as(isize, @intCast(v.len)) - @as(isize, @intCast(end - r.start));
     }
     try doc.edit(changes.items, new, doc.selections.main);
-    return true;
 }
 
 /// `r<c>`: replaces every character of the selections, newlines aside,

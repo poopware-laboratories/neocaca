@@ -87,8 +87,15 @@ fn escape(bytes: []const u8, final: bool) Parsed {
     }
 }
 
+/// Whether `b` may be part of a control sequence: anything else (a
+/// control or a non-ASCII byte) means the sequence was a key on its own.
+fn inSequence(b: u8) bool {
+    return b >= 0x20 and b <= 0x7e;
+}
+
 fn ss3(bytes: []const u8, final: bool) Parsed {
     if (bytes.len == 2) return if (final) found(.alt('O'), 2) else .incomplete;
+    if (!inSequence(bytes[2])) return found(.alt('O'), 2);
     return if (cursorKey(bytes[2])) |c| code(c, .{}, 3) else .{ .ignored = 3 };
 }
 
@@ -138,6 +145,7 @@ fn csi(bytes: []const u8, final: bool) Parsed {
     while (true) : (i += 1) {
         if (i == max_csi) return .{ .ignored = max_csi };
         if (i == bytes.len) return if (final) .{ .ignored = bytes.len } else .incomplete;
+        if (!inSequence(bytes[i])) return found(.alt('['), 2);
         if (bytes[i] >= 0x40 and bytes[i] <= 0x7e) break;
     }
     const len = i + 1;

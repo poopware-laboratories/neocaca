@@ -133,6 +133,17 @@ test "decode: unknown, mouse and overlong sequences are skipped whole" {
     try std.testing.expectEqual(decode.Parsed{ .ignored = decode.max_csi }, decode.parse(&many, false));
 }
 
+test "decode: a sequence cut by a control byte is Alt with its first byte" {
+    // Only parameter and intermediate bytes come before the final byte of
+    // a CSI (ECMA-48 5.4): Alt-[ then up, typed fast, stays two keys.
+    try expectKey("\x1b[\x1b[A", false, .alt('['), 2);
+    try expectKey("\x1b[1;5\r", false, .alt('['), 2);
+    try expectKey("\x1bO\x1bOA", false, .alt('O'), 2);
+    try expectKey("\x1b[\xc3\xa9", false, .alt('['), 2);
+    // Bytes the parameters may hold still wait for the final byte.
+    try std.testing.expectEqual(decode.Parsed.incomplete, decode.parse("\x1b[1 ", false));
+}
+
 test "decode: parameters that overflow do not crash" {
     try std.testing.expectEqual(decode.Parsed{ .ignored = 23 }, decode.parse("\x1b[99999999999999999999~", false));
     try std.testing.expectEqual(decode.Parsed{ .ignored = 16 }, decode.parse("\x1b[9999999999999u", false));

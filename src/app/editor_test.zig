@@ -124,6 +124,25 @@ test "editor: insert mode Backspace, Delete and arrows" {
     try expectText(&ed, "a\n");
 }
 
+test "editor: Ctrl-z asks the shell to suspend, once, and changes nothing else" {
+    var ed: Editor = try .init(gpa, null, "abc");
+    defer ed.deinit();
+    try expect(!ed.takeSuspend());
+    try typeKeys(&ed, "l");
+    try ed.key(.ctrl('z'));
+    try expect(ed.takeSuspend());
+    try expect(!ed.takeSuspend());
+    try expectEqual(.normal, ed.mode);
+    try expectMain(&ed, 1, 1);
+    try expectText(&ed, "abc\n");
+    try expectEqual(null, ed.takeRequest());
+    // In insert mode it is not a key.
+    try typeKeys(&ed, "i");
+    try ed.key(.ctrl('z'));
+    try expect(!ed.takeSuspend());
+    try expectEqual(.insert, ed.mode);
+}
+
 test "editor: undo with nothing to undo says so" {
     var ed: Editor = try .init(gpa, null, "a\n");
     defer ed.deinit();
@@ -227,301 +246,6 @@ test "editor: Alt-s splits the selections into lines" {
     try expectEqual(3, ed.doc.sels().len);
 }
 
-test "editor: : opens the command prompt, Escape closes it" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":");
-    try expectEqual(.prompt, ed.mode);
-    try typeKeys(&ed, "q");
-    try expectEqualStrings("q", ed.prompt.text());
-    try typeKeys(&ed, "\x1b");
-    try expectEqual(.normal, ed.mode);
-    try expect(!ed.quit);
-}
-
-test "editor: Backspace on an empty prompt closes it" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":\x7f");
-    try expectEqual(.normal, ed.mode);
-}
-
-test "editor: a reopened prompt starts empty" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":abc\x1b:");
-    try expectEqualStrings("", ed.prompt.text());
-}
-
-test "editor: :q quits, but not over unsaved changes" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "d:q\r");
-    try expect(!ed.quit);
-    try expectEqual(.normal, ed.mode);
-    try expectMessage(&ed, "unsaved changes; :q! discards them", true);
-    try typeKeys(&ed, ":q!\r");
-    try expect(ed.quit);
-}
-
-test "editor: :q quits an unmodified buffer" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":q\r");
-    try expect(ed.quit);
-}
-
-test "editor: an unknown command is an error" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":nope\r");
-    try expectMessage(&ed, "unknown command", true);
-    try expectEqual(.normal, ed.mode);
-}
-
-test "editor: :<n> goes to line n" {
-    var ed: Editor = try .init(gpa, null, "a\nb\nc\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":3\r");
-    try expectMain(&ed, 4, 4);
-    try typeKeys(&ed, ":99\r");
-    try expectMain(&ed, 4, 4);
-}
-
-test "editor: :w asks the shell to save the buffer to its file" {
-    var ed: Editor = try .init(gpa, "f.txt", "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "d:w\r");
-    const r = ed.takeRequest().?;
-    try expectEqualStrings("f.txt", r.save.path);
-    try expect(!r.save.quit);
-    try expectEqual(null, ed.takeRequest());
-    ed.finishSave(r.save, {});
-    try expect(!ed.doc.isModified());
-    try expectMessage(&ed, "\"f.txt\" written, 1 line", false);
-}
-
-test "editor: :w without any file name is an error" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":w\r");
-    try expectEqual(null, ed.takeRequest());
-    try expectMessage(&ed, "no file name; :w <file>", true);
-}
-
-test "editor: :w <file> names a buffer that had no file" {
-    var ed: Editor = try .init(gpa, null, "a\nb\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":w new.txt\r");
-    const r = ed.takeRequest().?;
-    try expectEqualStrings("new.txt", r.save.path);
-    ed.finishSave(r.save, {});
-    try expectEqualStrings("new.txt", ed.path.?);
-    try expectMessage(&ed, "\"new.txt\" written, 2 lines", false);
-}
-
-test "editor: :w <file> to another file keeps the buffer's own name and state" {
-    var ed: Editor = try .init(gpa, "mine", "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "d:w copy\r");
-    const r = ed.takeRequest().?;
-    ed.finishSave(r.save, {});
-    try expectEqualStrings("mine", ed.path.?);
-    try expect(ed.doc.isModified());
-}
-
-test "editor: a failed save is reported and keeps the changes marked" {
-    var ed: Editor = try .init(gpa, "f", "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "d:wq\r");
-    const r = ed.takeRequest().?;
-    try expect(r.save.quit);
-    ed.finishSave(r.save, error.AccessDenied);
-    try expect(!ed.quit);
-    try expect(ed.doc.isModified());
-    try expectMessage(&ed, "cannot write \"f\": AccessDenied", true);
-}
-
-test "editor: :wq quits once the save succeeds" {
-    var ed: Editor = try .init(gpa, "f", "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":wq\r");
-    const r = ed.takeRequest().?;
-    try expect(!ed.quit);
-    ed.finishSave(r.save, {});
-    try expect(ed.quit);
-}
-
-test "editor: :x writes only when there are changes" {
-    var ed: Editor = try .init(gpa, "f", "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":x\r");
-    try expectEqual(null, ed.takeRequest());
-    try expect(ed.quit);
-
-    var ed2: Editor = try .init(gpa, "f", "a\n");
-    defer ed2.deinit();
-    try typeKeys(&ed2, "d:x\r");
-    const r = ed2.takeRequest().?;
-    ed2.finishSave(r.save, {});
-    try expect(ed2.quit);
-}
-
-test "editor: :e asks for a file and takes its contents" {
-    var ed: Editor = try .init(gpa, "a", "old\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "w:e b.txt\r");
-    const r = ed.takeRequest().?;
-    try expectEqualStrings("b.txt", r.load);
-    const text = try gpa.dupe(u8, "one\ntwo\n");
-    ed.finishLoad(r.load, text);
-    try expectText(&ed, "one\ntwo\n");
-    try expectEqualStrings("b.txt", ed.path.?);
-    try expectMain(&ed, 0, 0);
-    try expectMessage(&ed, "\"b.txt\" 2 lines", false);
-}
-
-test "editor: :e of a missing file opens a new, empty buffer" {
-    var ed: Editor = try .init(gpa, "a", "old\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":e new\r");
-    const r = ed.takeRequest().?;
-    ed.finishLoad(r.load, null);
-    try expectText(&ed, "\n");
-    try expectMessage(&ed, "\"new\" new file", false);
-}
-
-test "editor: a failed load keeps the buffer" {
-    var ed: Editor = try .init(gpa, "a", "old\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":e big\r");
-    const r = ed.takeRequest().?;
-    ed.finishLoad(r.load, error.FileTooBig);
-    try expectText(&ed, "old\n");
-    try expectEqualStrings("a", ed.path.?);
-    try expectMessage(&ed, "cannot open \"big\": FileTooBig", true);
-}
-
-test "editor: :e is refused over unsaved changes, :e! reloads" {
-    var ed: Editor = try .init(gpa, "a", "old\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "d:e b\r");
-    try expectEqual(null, ed.takeRequest());
-    try expectMessage(&ed, "unsaved changes; :e! discards them", true);
-    try typeKeys(&ed, ":e!\r");
-    const r = ed.takeRequest().?;
-    try expectEqualStrings("a", r.load);
-}
-
-test "editor: :e! without a file name is an error" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, ":e!\r");
-    try expectEqual(null, ed.takeRequest());
-    try expectMessage(&ed, "no file name; :w <file>", true);
-}
-
-test "editor: / searches, n repeats, N adds" {
-    var ed: Editor = try .init(gpa, null, "ab ab ab\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "/ab\r");
-    try expectMain(&ed, 3, 4);
-    try typeKeys(&ed, "n");
-    try expectMain(&ed, 6, 7);
-    try typeKeys(&ed, "n");
-    try expectMain(&ed, 0, 1);
-    try expectMessage(&ed, "search wrapped", false);
-    try typeKeys(&ed, "N");
-    try expectEqual(2, ed.doc.sels().len);
-    try expectEqualStrings("ab", ed.regs.get('/')[0]);
-}
-
-test "editor: ? searches backwards, Alt-n repeats backwards" {
-    var ed: Editor = try .init(gpa, null, "x1 x2 x3\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "gl?x\\d\r");
-    try expectMain(&ed, 3, 4);
-    try ed.key(.alt('n'));
-    try expectMain(&ed, 0, 1);
-}
-
-test "editor: an empty search prompt reuses the last pattern" {
-    var ed: Editor = try .init(gpa, null, "ab ab ab\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "/b\r/\r");
-    try expectMain(&ed, 4, 4);
-}
-
-test "editor: n before any search is an error" {
-    var ed: Editor = try .init(gpa, null, "a\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "n");
-    try expectMessage(&ed, "no search pattern", true);
-}
-
-test "editor: a search that finds nothing says so" {
-    var ed: Editor = try .init(gpa, null, "abc\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "/zz\r");
-    try expectMessage(&ed, "not found: zz", true);
-    try expectMain(&ed, 0, 0);
-}
-
-test "editor: a bad regex is reported and changes nothing" {
-    var ed: Editor = try .init(gpa, null, "abc\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "/a(\r");
-    try expect(ed.message.is_error);
-    try expect(std.mem.startsWith(u8, ed.message.text(), "bad regex: "));
-    try typeKeys(&ed, "n");
-    try expectMessage(&ed, "no search pattern", true);
-}
-
-test "editor: * searches for the main selection, literally" {
-    var ed: Editor = try .init(gpa, null, "a.b axb a.b\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "2L*n");
-    try expectMain(&ed, 8, 10);
-}
-
-test "editor: s selects the matches inside the selections" {
-    var ed: Editor = try .init(gpa, null, "a1 b2 c3\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "%s\\d\r");
-    try expectEqual(3, ed.doc.sels().len);
-    try typeKeys(&ed, "d");
-    try expectText(&ed, "a b c\n");
-}
-
-test "editor: s with no match keeps the selections and says so" {
-    var ed: Editor = try .init(gpa, null, "abc\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "%s\\d\r");
-    try expectMessage(&ed, "no matches", true);
-    try expectMain(&ed, 0, 3);
-}
-
-test "editor: S splits the selections at the matches" {
-    var ed: Editor = try .init(gpa, null, "a,b,c\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "xS,\r");
-    try expectEqual(3, ed.doc.sels().len);
-}
-
-test "editor: Alt-k keeps and Alt-K drops the matching selections" {
-    var ed: Editor = try .init(gpa, null, "a1\nb\nc2\n");
-    defer ed.deinit();
-    try typeKeys(&ed, "%");
-    try ed.key(.alt('s'));
-    try ed.key(.alt('k'));
-    try typeKeys(&ed, "\\d\r");
-    try expectEqual(2, ed.doc.sels().len);
-    try ed.key(.alt('K'));
-    try typeKeys(&ed, "1\r");
-    try expectEqual(1, ed.doc.sels().len);
-    try expectMain(&ed, 5, 7);
-}
-
 test "editor: a paste in normal mode goes before the selections as one step" {
     var ed: Editor = try .init(gpa, null, "ab\n");
     defer ed.deinit();
@@ -549,94 +273,6 @@ test "editor: a paste in the prompt goes to the prompt" {
     try ed.paste("w x\ny");
     try expectEqualStrings("w x y", ed.prompt.text());
     try expectText(&ed, "a\n");
-}
-
-test "editor: scrolling moves the cursor by pages" {
-    var text: [200]u8 = undefined;
-    for (0..100) |i| {
-        text[2 * i] = 'a';
-        text[2 * i + 1] = '\n';
-    }
-    var ed: Editor = try .init(gpa, null, &text);
-    defer ed.deinit();
-    ed.resize(80, 12); // ten rows of text
-    // The view moves by the page; the cursor moves with it and stays
-    // outside the scroll margin.
-    try ed.key(.ctrl('f'));
-    try expectEqual(10, ed.view.top);
-    try expectEqual(13, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
-    try ed.key(.ctrl('d'));
-    try expectEqual(15, ed.view.top);
-    try expectEqual(18, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
-    try ed.key(.ctrl('u'));
-    try expectEqual(13, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
-    try ed.key(.ctrl('b'));
-    try expectEqual(0, ed.view.top);
-    try expectEqual(3, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
-    for (0..20) |_| try ed.key(.ctrl('f'));
-    try expectEqual(99, ed.view.top);
-    try expectEqual(99, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
-}
-
-fn hundredLines(text: *[200]u8) []const u8 {
-    for (0..100) |i| {
-        text[2 * i] = 'a';
-        text[2 * i + 1] = '\n';
-    }
-    return text;
-}
-
-fn cursorLine(ed: *const Editor) usize {
-    return ed.doc.buffer.lineOf(ed.doc.primary().cursor);
-}
-
-test "editor: the view prefix places the cursor line without moving it" {
-    var text: [200]u8 = undefined;
-    var ed: Editor = try .init(gpa, null, hundredLines(&text));
-    defer ed.deinit();
-    ed.resize(80, 12); // ten rows of text, scrolloff 3
-    try typeKeys(&ed, "50g");
-    try typeKeys(&ed, "vt");
-    try expectEqual(46, ed.view.top);
-    try typeKeys(&ed, "vb");
-    try expectEqual(43, ed.view.top);
-    try typeKeys(&ed, "vc");
-    try expectEqual(45, ed.view.top);
-    try typeKeys(&ed, "vv");
-    try expectEqual(45, ed.view.top);
-    try expectEqual(49, cursorLine(&ed));
-}
-
-test "editor: vj and vk scroll the view, moving the cursor only out of the margin" {
-    var text: [200]u8 = undefined;
-    var ed: Editor = try .init(gpa, null, hundredLines(&text));
-    defer ed.deinit();
-    ed.resize(80, 12);
-    try typeKeys(&ed, "5j");
-    try typeKeys(&ed, "vj");
-    try expectEqual(1, ed.view.top);
-    try expectEqual(5, cursorLine(&ed));
-    try typeKeys(&ed, "3vj");
-    try expectEqual(4, ed.view.top);
-    // The cursor is pushed down to stay out of the top margin.
-    try expectEqual(7, cursorLine(&ed));
-    try typeKeys(&ed, "vk");
-    try expectEqual(3, ed.view.top);
-    try expectEqual(7, cursorLine(&ed));
-    try typeKeys(&ed, "9vk");
-    try expectEqual(0, ed.view.top);
-    // Pulled up to stay out of the bottom margin.
-    try expectEqual(6, cursorLine(&ed));
-    try typeKeys(&ed, "vk");
-    try expectEqual(0, ed.view.top);
-    try typeKeys(&ed, "200vj");
-    try expectEqual(99, ed.view.top);
-    try expectEqual(99, cursorLine(&ed));
-    // The status line shows the pending prefix.
-    try typeKeys(&ed, "v");
-    try expect(ed.keymap.isPending());
-    try typeKeys(&ed, "\x1b");
-    try expect(!ed.keymap.isPending());
 }
 
 test "editor: out of memory is reported and leaves the text as it was" {
@@ -678,4 +314,36 @@ test "editor: a session survives an allocation failure at any point" {
         try typeKeys(&ed, "%y");
         try expectEqual(1, ed.regs.get('"').len);
     }
+}
+
+test "editor: a save asked while one is written marks only what the first wrote" {
+    var ed: Editor = try .init(gpa, "a.txt", "one\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "iX\x1b:w\r");
+    const first = ed.takeRequest().?.save;
+    try typeKeys(&ed, "iY\x1b:w\r");
+    const second = ed.takeRequest().?.save;
+    // The shell reports each save once the one before it is over.
+    ed.finishSave(first, {});
+    try expect(ed.doc.isModified());
+    ed.finishSave(second, {});
+    try expect(!ed.doc.isModified());
+}
+
+test "editor: a save to another file while one is written leaves the text modified" {
+    var ed: Editor = try .init(gpa, "a.txt", "one\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "iX\x1b:w\r");
+    var first = ed.takeRequest().?.save;
+    // The shell copies the path, which the next request reuses.
+    first.path = try gpa.dupe(u8, first.path);
+    defer gpa.free(first.path);
+    try typeKeys(&ed, "iY\x1b:w b.txt\r");
+    const second = ed.takeRequest().?.save;
+    ed.finishSave(first, {});
+    ed.finishSave(second, {});
+    // a.txt holds "Xone": `:q` must not quit.
+    try expect(ed.doc.isModified());
+    try typeKeys(&ed, ":q\r");
+    try expect(!ed.quit);
 }

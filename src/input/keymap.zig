@@ -39,6 +39,12 @@ pub const Keymap = struct {
         return self.count != 0 or self.register != null or self.prefix != .none;
     }
 
+    /// Whether the next key completes a prefix (`f`, `g`, `"`, …) rather
+    /// than starting a command.
+    pub fn awaitsKey(self: *const Keymap) bool {
+        return self.prefix != .none;
+    }
+
     /// The keys typed so far, for the status line. `buf` holds at least
     /// `max_pending_text` bytes; the result is a slice of it.
     pub fn pendingText(self: *const Keymap, buf: []u8) []const u8 {
@@ -150,6 +156,8 @@ pub const Keymap = struct {
                     'b' => .bottom,
                     'j' => .down,
                     'k' => .up,
+                    'h' => .left,
+                    'l' => .right,
                     else => return null,
                 };
                 return .{ .view = .{ .to = to, .count = self.times() } };
@@ -177,6 +185,7 @@ pub const Keymap = struct {
             'u' => .{ .scroll = .half_up },
             'f' => .{ .scroll = .page_down },
             'b' => .{ .scroll = .page_up },
+            'z' => .@"suspend",
             else => null,
         };
         if (k.mods.alt) return self.bindAlt(c);
@@ -274,6 +283,9 @@ pub const Keymap = struct {
             ',' => .drop_main,
             'C' => .{ .copy_to_line = .{ .down = false, .count = self.times() } },
             's' => .split_lines,
+            'x' => .trim_lines,
+            '(' => .{ .rotate_contents = -@as(isize, @intCast(self.times())) },
+            ')' => .{ .rotate_contents = @intCast(self.times()) },
             'k' => .{ .prompt = .keep },
             'K' => .{ .prompt = .drop },
             'n' => .{ .search_next = .{ .dir = .backward } },

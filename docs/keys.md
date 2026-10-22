@@ -46,6 +46,7 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 | `Ctrl-f` `Ctrl-b`, PageDown, PageUp | a page down / up |
 | `vc` `vv` / `vt` / `vb` | put the cursor's line in the middle / at the top / at the bottom of the view |
 | `vj` / `vk` | scroll the view a line down / up (with a count, that many), the cursor moving only to stay in view |
+| `vh` / `vl` | scroll the view a column left / right (with a count, that many), the cursor moving along its line only to stay in view |
 
 ### Shaping the selections
 
@@ -58,14 +59,14 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 | `Alt-,` | drop the main selection |
 | `C` / `Alt-C` | copy the main selection's shape to the next / previous line |
 | `(` / `)` | make the previous / next selection the main one |
-| `Alt-(` `Alt-)` | rotate the selections' contents *(planned)* |
+| `Alt-)` / `Alt-(` | rotate the selections' contents forward / backward: each takes the text of the one before (after) it |
 | `s` | prompt for a regex; select its matches inside the selections |
 | `S` | prompt for a regex; split the selections at its matches |
 | `Alt-s` | split the selections into lines |
 | `Alt-k` / `Alt-K` | keep / drop the selections that match a regex |
 | `Alt-i<o>` | select inside object `o` |
 | `Alt-a<o>` | select around object `o` |
-| `Alt-x` | trim each selection to whole lines *(planned)* |
+| `Alt-x` | trim each selection to the whole lines inside it; those without one are dropped |
 
 Objects: `w` word, `W` WORD, `(` `)` `b` parentheses, `[` `]` brackets,
 `{` `}` `B` braces, `<` `>` angle brackets, `"` `'` `` ` `` quotes, `p`
@@ -94,12 +95,13 @@ paragraph.
 | `r<c>` | replace every character of the selections with `c` |
 | `~` / `` ` `` / `` Alt-` `` | upper case / lower case / swap case |
 | `>` / `<` | indent / dedent the selected lines |
-| `Alt-j` | join the selected lines *(planned: `J` remains free)* |
+| `Alt-j` | join the selected lines (`J` extends down) |
 | `u` / `U` | undo / redo |
 | `i` / `a` | insert before / after each selection |
 | `I` / `A` | insert at the line start (first non-blank) / line end |
 | `o` / `O` | open a new line below / above and insert |
 | `:` | command prompt |
+| `Ctrl-z` | suspend: give the terminal back to the shell until `fg` |
 
 ## Insert mode
 
@@ -132,3 +134,27 @@ paragraph.
 | `:e <file>` | edit another file; refused while there are unsaved changes |
 | `:e!` | reload the file from disk, discarding changes |
 | `:<n>` | go to line `n` |
+| `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
+| `:unmap <mode> <key>` | forget the mapping of `key` in that mode |
+
+## Mappings
+
+`:map normal <c-s> :w<ret>` makes Ctrl-S write the file. The keys a
+mapping types are not mapped again, so a key can be mapped to itself or to
+keys that are mapped too. A key that completes a prefix (the character
+after `f`, the register name after `"`) and keys typed at the prompt are
+never mapped; a count typed before a mapped key reaches the first key it
+types. At most 256 keys are mapped at once, each to at most 32 keys;
+mapping a key again replaces what it typed.
+
+Keys are written in this notation, whose names stay stable:
+
+| Notation | Key |
+|----------|-----|
+| `a`, `A`, `é`, `;` | that character (Shift is part of the character) |
+| `<ret>` `<tab>` `<bs>` `<esc>` `<del>` `<ins>` | Enter, Tab, Backspace, Escape, Delete, Insert |
+| `<up>` `<down>` `<left>` `<right>` | the arrows |
+| `<home>` `<end>` `<pageup>` `<pagedown>` | Home, End, Page Up, Page Down |
+| `<f1>` … `<f12>` | the function keys |
+| `<lt>` `<gt>` `<space>` | `<`, `>`, a space |
+| `<c-x>` `<a-x>` `<s-left>` | with Ctrl, Alt, Shift; combined as `<c-a-left>` |
