@@ -279,6 +279,19 @@ test "editing: s on a combining mark selects and deletes the whole character" {
     try h.expectSelections(&.{ "a", "b ", "\n" });
 }
 
+test "editing: inserting at an inner object's cursor keeps its last character whole" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "(é) \"中\"\n", 30, 4);
+    defer h.deinit();
+    try h.send("\x1bi");
+    try h.typeKeys("(;ix\x1b"); // reduced to the cursor: before é
+    try h.expectText("(xé) \"中\"\n");
+    try h.typeKeys("glh"); // onto 中
+    try h.send("\x1bi");
+    try h.typeKeys("\"cy\x1b");
+    try h.expectText("(xé) \"y\"\n");
+}
+
 test "editing: counts repeat moves and verbs" {
     var h: Harness = undefined;
     try h.init("t", "1\n2\n3\n4\n5\n", 30, 7);

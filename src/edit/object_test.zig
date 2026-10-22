@@ -4,6 +4,7 @@ const std = @import("std");
 const object = @import("object.zig");
 const Buffer = @import("../buffer.zig").Buffer;
 const Selection = @import("selection.zig").Selection;
+const chars = @import("../unicode.zig").chars;
 
 const gpa = std.testing.allocator;
 const expectEqual = std.testing.expectEqual;
@@ -27,6 +28,7 @@ fn expectObject(text: []const u8, at: usize, kind: object.Kind, inner: bool, wan
     const r = g.range(b.bytes());
     try std.testing.expectEqualStrings(want.?, b.bytes()[r.start..r.end]);
     try expectEqual(r.start, g.anchor); // objects select forward
+    try expectEqual(chars.prev(b.bytes(), r.end), g.cursor); // on the last character's start
 }
 
 test "object: keys name the objects" {
@@ -79,6 +81,15 @@ test "object: brackets fail when unmatched, empty inside or absent" {
     try expectObject("abc\n", 1, .paren, false, null);
     try expectObject("(a) b\n", 4, .paren, false, null); // after the pair, not inside
     try expectObject(")(\n", 0, .paren, false, null);
+}
+
+test "object: inner brackets and quotes end on the start of a wide or marked character" {
+    try expectObject("(é)\n", 0, .paren, true, "é");
+    try expectObject("(a中)\n", 1, .paren, true, "a中");
+    try expectObject("[e\u{301}]\n", 1, .bracket, true, "e\u{301}");
+    try expectObject("\"aé\"\n", 1, .double_quote, true, "aé");
+    try expectObject("'中'\n", 1, .single_quote, true, "中");
+    try expectObject("(é)\n", 1, .paren, false, "(é)");
 }
 
 test "object: quotes pair up from the line start" {
