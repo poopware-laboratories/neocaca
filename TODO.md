@@ -152,10 +152,10 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
       and `fg`. What it found is below or already in Phase 2; how a pass
       is run from now on is in `docs/dogfooding.md`.
 - **PR: fixes from the dogfood pass**
-  - [ ] S: the view keeps its old scroll when the window grows, hiding
+  - [x] S: the view keeps its old scroll when the window grows, hiding
         lines above while the rows below stay empty (a 4-line file,
-        resized to 5 rows and back to 8, shows lines 2 to 4). It should
-        scroll back to fill the window.
+        resized to 5 rows and back to 8, showed lines 2 to 4). A taller
+        window now scrolls back to fill its rows.
   - [ ] S: messages name Zig errors (`cannot open ".": IsDir`, `cannot
         write "…": FileNotFound`); say it in words ("is a directory",
         "no such directory").

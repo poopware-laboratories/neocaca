@@ -135,9 +135,13 @@ pub const Editor = struct {
         self.* = undefined;
     }
 
+    /// A taller window shows the lines scrolled off above, rather than
+    /// empty rows below.
     pub fn resize(self: *Editor, width: usize, height: usize) void {
+        const rows = self.textRows();
         self.width = width;
         self.height = height;
+        if (self.textRows() > rows) self.view.fill(self.textRows(), self.doc.buffer.lineCount());
     }
 
     /// The rows the document gets: all but the status and message lines.

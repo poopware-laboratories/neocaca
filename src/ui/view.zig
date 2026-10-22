@@ -55,6 +55,12 @@ pub const View = struct {
         self.top = @min(top, p.lines -| 1);
     }
 
+    /// Scrolls back so a window of `height` rows over `lines` lines ends
+    /// at the last line, when that shows more of the buffer.
+    pub fn fill(self: *View, height: usize, lines: usize) void {
+        self.top = @min(self.top, lines -| height);
+    }
+
     /// Moves the first line shown by `delta`, staying on the buffer's lines.
     pub fn scroll(self: *View, delta: isize, lines: usize) void {
         if (delta < 0) {

@@ -100,6 +100,48 @@ test "editor: scrolling moves the cursor by pages" {
     try expectEqual(99, ed.doc.buffer.lineOf(ed.doc.primary().cursor));
 }
 
+test "editor: a taller window shows the lines scrolled off above" {
+    var ed: Editor = try .init(gpa, null, "1\n2\n3\n4\n");
+    defer ed.deinit();
+    ed.resize(80, 5); // three rows of text
+    try typeKeys(&ed, "gevt");
+    try expectEqual(2, ed.view.top);
+    ed.resize(80, 8);
+    try expectEqual(0, ed.view.top);
+    try expectEqual(3, cursorLine(&ed));
+}
+
+test "editor: a resize keeps the view while the text fills the window" {
+    var text: [200]u8 = undefined;
+    var ed: Editor = try .init(gpa, null, hundredLines(&text));
+    defer ed.deinit();
+    ed.resize(80, 12);
+    try typeKeys(&ed, "50gvt");
+    try expectEqual(46, ed.view.top);
+    ed.resize(80, 24);
+    try expectEqual(46, ed.view.top);
+    ed.resize(80, 6);
+    try expectEqual(46, ed.view.top);
+    ed.resize(200, 6);
+    try expectEqual(46, ed.view.top);
+    // Taller than what is left below: back just far enough.
+    ed.resize(80, 62);
+    try expectEqual(40, ed.view.top);
+}
+
+test "editor: the view past the end stays until the window grows" {
+    var text: [200]u8 = undefined;
+    var ed: Editor = try .init(gpa, null, hundredLines(&text));
+    defer ed.deinit();
+    ed.resize(80, 12);
+    try typeKeys(&ed, "gevt");
+    try expectEqual(96, ed.view.top);
+    ed.resize(80, 12);
+    try expectEqual(96, ed.view.top);
+    ed.resize(80, 13);
+    try expectEqual(89, ed.view.top);
+}
+
 /// The main cursor's byte offset in its line.
 fn cursorOffset(ed: *const Editor) usize {
     return ed.doc.primary().cursor - ed.doc.buffer.lineStart(cursorLine(ed));
