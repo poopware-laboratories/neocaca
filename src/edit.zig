@@ -30,6 +30,7 @@ test {
     _ = @import("edit/stopped_test.zig");
     _ = verbs;
     _ = @import("edit/verbs_test.zig");
+    _ = @import("edit/mapped_test.zig");
     _ = insert;
     _ = @import("edit/insert_test.zig");
     _ = search;

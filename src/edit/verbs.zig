@@ -20,10 +20,10 @@ pub const Error = document.Error;
 fn applyMapped(doc: *Document, changes: []const Change) Error!void {
     const new = try doc.gpa.alloc(Selection, doc.sels().len);
     defer doc.gpa.free(new);
-    for (doc.sels(), new) |s, *n| n.* = .span(
-        buffer.change.mapPos(changes, s.anchor, .after),
-        buffer.change.mapPos(changes, s.cursor, .after),
-    );
+    // Sorted selections: anchors and cursors each come in order.
+    var anchors: buffer.change.Mapper = .init(changes);
+    var cursors: buffer.change.Mapper = .init(changes);
+    for (doc.sels(), new) |s, *n| n.* = .span(anchors.map(s.anchor, .after), cursors.map(s.cursor, .after));
     try doc.edit(changes, new, doc.selections.main);
 }
 
@@ -82,7 +82,8 @@ fn remove(doc: *Document, regs: ?*Registers, reg: u8, last_lines: bool) Error!vo
         if (end <= start) continue;
         changes.appendAssumeCapacity(.{ .start = start, .end = end, .text = "" });
     }
-    for (new.items) |*n| n.* = .at(buffer.change.mapPos(changes.items, n.cursor, .before));
+    var m: buffer.change.Mapper = .init(changes.items);
+    for (new.items) |*n| n.* = .at(m.map(n.cursor, .before));
     try doc.edit(changes.items, new.items, doc.selections.main);
 }
 
@@ -131,10 +132,12 @@ pub fn paste(doc: *Document, regs: *const Registers, reg: u8, before: bool) Erro
         new[p.owner] = over(p.change.start + added, p.change.text);
         added += p.change.text.len;
     }
+    var anchors: buffer.change.Mapper = .init(changes);
+    var cursors: buffer.change.Mapper = .init(changes);
     for (list, new, 0..) |s, *n, i| {
         // Selections with an empty value stay, mapped through the pastes.
         if (values[@min(i, values.len - 1)].len > 0) continue;
-        n.* = .span(buffer.change.mapPos(changes, s.anchor, .after), buffer.change.mapPos(changes, s.cursor, .after));
+        n.* = .span(anchors.map(s.anchor, .after), cursors.map(s.cursor, .after));
     }
     try doc.edit(changes, new, doc.selections.main);
     return true;
