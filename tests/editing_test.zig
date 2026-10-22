@@ -115,6 +115,23 @@ test "editing: search forwards, repeat, and add the next match" {
     try h.expectText("X two one two X\n");
 }
 
+test "editing: patterns that match empty at the end of the text find nothing" {
+    var h: Harness = undefined;
+    try h.init("t", "ab\n", 30, 4);
+    defer h.deinit();
+    // `^` matches only empty, the last time after the final newline.
+    try h.typeKeys("/^\r");
+    try h.expectMessage("not found: ^");
+    try h.typeKeys("?^\r");
+    try h.expectMessage("not found: ^");
+    try h.typeKeys("%s^\r");
+    try h.expectMessage("no matches");
+    try h.typeKeys("%S^\r");
+    try h.expectSelections(&.{"ab\n"});
+    try h.typeKeys("%s^.\r");
+    try h.expectSelections(&.{"a"});
+}
+
 test "editing: yank a line into a register and paste it twice below" {
     var h: Harness = undefined;
     try h.init("t", "first\nsecond\n", 30, 5);

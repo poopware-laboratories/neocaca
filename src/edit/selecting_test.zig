@@ -226,6 +226,9 @@ test "selecting: s selects the matches inside the selections" {
     try expectRegexOp("«ab»\n", selecting.selectMatches, "x*", .{}, false, "«ab»\n");
     try expectRegexOp("‹ab› «ab»\n", selecting.selectMatches, "b", .{}, true, "a‹b› a«b»\n");
     try expectRegexOp("«a\nb\n»", selecting.selectMatches, "^.", .{}, true, "«a»\n‹b›\n");
+    // `^` also matches, empty, at the end of the text.
+    try expectRegexOp("«a\nb\n»", selecting.selectMatches, "^", .{}, false, "«a\nb\n»");
+    try expectRegexOp("«a\nb\n»", selecting.selectMatches, "b|^", .{}, true, "a\n«b»\n");
 }
 
 test "selecting: S splits the selections at the matches" {
@@ -233,6 +236,8 @@ test "selecting: S splits the selections at the matches" {
     try expectRegexOp("«,a,»\n", selecting.split, ",", .{}, true, ",«a»,\n");
     try expectRegexOp("«,,»\n", selecting.split, ",", .{}, false, "«,,»\n");
     try expectRegexOp("«ab»\n", selecting.split, ",", .{}, true, "«ab»\n");
+    try expectRegexOp("«a\nb\n»", selecting.split, "^", .{}, true, "«a\nb\n»");
+    try expectRegexOp("«a,b\n»", selecting.split, "^|,", .{}, true, "«a»,‹b\n›");
 }
 
 test "selecting: Alt-s splits the selections into lines" {

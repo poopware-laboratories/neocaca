@@ -12,6 +12,7 @@ const Document = @import("document.zig").Document;
 const motion = @import("motion.zig");
 const object = @import("object.zig");
 const Selection = @import("selection.zig").Selection;
+const search = @import("search.zig");
 
 const chars = unicode.chars;
 const Error = error{OutOfMemory};
@@ -283,12 +284,7 @@ pub fn selectMatches(doc: *Document, re: *Regex) Error!bool {
         if (k == doc.selections.main) main = out.items.len;
         const r = s.range(text);
         var from = r.start;
-        while (from < r.end) {
-            const m = re.findIn(text, from, r.end) orelse break;
-            if (m.end == m.start) {
-                from = chars.next(text, m.start);
-                continue;
-            }
+        while (search.nonEmpty(re, text, from, r.end)) |m| {
             try out.append(doc.gpa, .span(m.start, chars.prev(text, m.end)));
             from = m.end;
         }
@@ -308,12 +304,7 @@ pub fn split(doc: *Document, re: *Regex) Error!bool {
         const r = s.range(text);
         var start = r.start;
         var from = r.start;
-        while (from < r.end) {
-            const m = re.findIn(text, from, r.end) orelse break;
-            if (m.end == m.start) {
-                from = chars.next(text, m.start);
-                continue;
-            }
+        while (search.nonEmpty(re, text, from, r.end)) |m| {
             if (m.start > start) try out.append(doc.gpa, .span(start, chars.prev(text, m.start)));
             start = m.end;
             from = m.end;
