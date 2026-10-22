@@ -1,9 +1,8 @@
 //! Editing workflows from the first key to the file on disk: selections,
-//! verbs, multiple cursors, search, registers, undo, and the `:` commands,
-//! each typed as a person types it.
+//! verbs, multiple cursors, search, registers, undo and mappings, each
+//! typed as a person types it (the `:` commands are in `commands_test.zig`).
 
 const std = @import("std");
-const builtin = @import("builtin");
 const neocaca = @import("neocaca");
 const Harness = @import("harness.zig").Harness;
 
@@ -170,84 +169,6 @@ test "editing: undo takes back a whole insert session, redo brings it again" {
     try h.expectMessage("nothing to undo");
     try h.typeKeys("U");
     try h.expectText("abx\n");
-}
-
-test "editing: a scratch buffer is written under the name :w gives it" {
-    var h: Harness = undefined;
-    try h.init(null, null, 30, 4);
-    defer h.deinit();
-    try h.typeKeys("inotes\x1b:w\r");
-    try h.expectMessage("no file name; :w <file>");
-    try h.typeKeys(":w out.txt\r");
-    var buf: [64]u8 = undefined;
-    try expectEqualStrings("notes\n", try h.file("out.txt", &buf));
-    try h.expectRow(2, " NORMAL  out.txt          1:6 ");
-    try h.typeKeys(":q\r");
-    try expect(h.session.done());
-}
-
-test "editing: :q refuses over changes, :q! leaves them unwritten" {
-    var h: Harness = undefined;
-    try h.init("a", "x\n", 30, 4);
-    defer h.deinit();
-    try h.typeKeys("iy\x1b:q\r");
-    try expect(!h.session.done());
-    try h.typeKeys(":q!\r");
-    try expect(h.session.done());
-    var buf: [16]u8 = undefined;
-    try expectEqualStrings("x\n", try h.file("a", &buf));
-}
-
-test "editing: :e opens another file, refused over changes until written" {
-    var h: Harness = undefined;
-    try h.init("a", "first\n", 30, 4);
-    defer h.deinit();
-    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
-    try h.typeKeys("d:e b\r");
-    try h.expectText("irst\n");
-    // Typed after the write is reported: `:e` waits for it.
-    try h.typeKeys(":w\r");
-    try h.typeKeys(":e b\r");
-    try h.expectText("second\n");
-    try h.expectRow(2, " NORMAL  b                1:1 ");
-    var buf: [16]u8 = undefined;
-    try expectEqualStrings("irst\n", try h.file("a", &buf));
-}
-
-test "editing: keys sent with :e edit the file it opens" {
-    var h: Harness = undefined;
-    try h.init("a", "first\n", 30, 4);
-    defer h.deinit();
-    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
-    // One read: the keys after Enter wait for `b`, not edit `a`.
-    try h.send(":e b\rd");
-    try h.expectText("econd\n");
-    try h.expectRow(2, " NORMAL  b [+]            1:1 ");
-}
-
-test "editing: :e on a named pipe is refused instead of waiting for a writer" {
-    if (builtin.target.os.tag != .linux) return error.SkipZigTest;
-    var h: Harness = undefined;
-    try h.init("a", "first\n", 40, 4);
-    defer h.deinit();
-    const linux = std.os.linux;
-    try expectEqual(.SUCCESS, linux.errno(linux.mknodat(h.tmp.dir.handle, "p", linux.S.IFIFO | 0o600, 0)));
-    try h.typeKeys(":e p\r");
-    try h.expectText("first\n");
-    try h.expectRow(3, "cannot open \"p\": NotAFile               ");
-    try h.typeKeys(":q\r");
-    try expect(h.session.done());
-}
-
-test "editing: a write that fails keeps the changes and says why" {
-    var h: Harness = undefined;
-    try h.init("dir/a", null, 40, 4);
-    defer h.deinit();
-    try h.typeKeys("ix\x1b:wq\r");
-    try expect(!h.session.done());
-    try expect(h.session.ed.doc.isModified());
-    try expect(h.session.ed.message.is_error);
-    try h.expectText("x\n");
 }
 
 test "editing: deleting the last lines split into selections leaves no empty line" {
