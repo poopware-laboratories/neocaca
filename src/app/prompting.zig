@@ -90,7 +90,7 @@ fn command(ed: *Editor, line: []const u8) Error!void {
         .none => {},
         .goto_line => |n| try selecting.move(&ed.doc, .{ .line = n }, 1, false, ed.options.tab_width),
         .quit => |q| {
-            if (!q.force and ed.doc.saving) return stillWriting(ed);
+            if (!q.force and ed.doc.isSaving()) return stillWriting(ed);
             if (!q.force and ed.doc.isModified()) {
                 ed.message.set(true, "unsaved changes; :q! discards them", .{});
                 return;
@@ -106,7 +106,7 @@ fn command(ed: *Editor, line: []const u8) Error!void {
             try ed.ask(.{ .save = .{ .path = path, .quit = w.quit } });
         },
         .edit => |e| {
-            if (!e.force and ed.doc.saving) return stillWriting(ed);
+            if (!e.force and ed.doc.isSaving()) return stillWriting(ed);
             if (!e.force and ed.doc.isModified()) {
                 ed.message.set(true, "unsaved changes; :e! discards them", .{});
                 return;

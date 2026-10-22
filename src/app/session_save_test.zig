@@ -231,7 +231,7 @@ test "session: out of memory naming an unnamed buffer leaves it unnamed and modi
     try expectEqualStrings("out of memory", s.ed.message.text());
     try expectEqual(null, s.ed.path);
     try expect(s.ed.doc.isModified());
-    try expect(!s.ed.doc.saving);
+    try expect(!s.ed.doc.isSaving());
     // The file itself was written.
     var buf: [16]u8 = undefined;
     try expectEqualStrings("x\n", try readFile(tmp.dir, "g", &buf));

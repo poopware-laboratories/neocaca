@@ -37,7 +37,7 @@ pub const Options = struct {
 };
 
 /// What the shell must do for the editor. Paths are borrowed from the
-/// editor until the request is finished.
+/// editor until the next `ask`: the shell copies what it keeps.
 pub const Request = union(enum) {
     /// Write the document's text to `path`, then `finishSave`.
     save: Save,

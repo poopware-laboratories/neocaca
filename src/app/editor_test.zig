@@ -315,3 +315,35 @@ test "editor: a session survives an allocation failure at any point" {
         try expectEqual(1, ed.regs.get('"').len);
     }
 }
+
+test "editor: a save asked while one is written marks only what the first wrote" {
+    var ed: Editor = try .init(gpa, "a.txt", "one\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "iX\x1b:w\r");
+    const first = ed.takeRequest().?.save;
+    try typeKeys(&ed, "iY\x1b:w\r");
+    const second = ed.takeRequest().?.save;
+    // The shell reports each save once the one before it is over.
+    ed.finishSave(first, {});
+    try expect(ed.doc.isModified());
+    ed.finishSave(second, {});
+    try expect(!ed.doc.isModified());
+}
+
+test "editor: a save to another file while one is written leaves the text modified" {
+    var ed: Editor = try .init(gpa, "a.txt", "one\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "iX\x1b:w\r");
+    var first = ed.takeRequest().?.save;
+    // The shell copies the path, which the next request reuses.
+    first.path = try gpa.dupe(u8, first.path);
+    defer gpa.free(first.path);
+    try typeKeys(&ed, "iY\x1b:w b.txt\r");
+    const second = ed.takeRequest().?.save;
+    ed.finishSave(first, {});
+    ed.finishSave(second, {});
+    // a.txt holds "Xone": `:q` must not quit.
+    try expect(ed.doc.isModified());
+    try typeKeys(&ed, ":q\r");
+    try expect(!ed.quit);
+}

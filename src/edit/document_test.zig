@@ -151,6 +151,52 @@ test "document: a save in flight marks the text it started from" {
     try std.testing.expect(!doc.isModified());
 }
 
+test "document: two saves in flight end in the order they began" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try std.testing.expect(doc.isSaving());
+    // The first wrote "1a": the text now, "21a", is not on disk yet.
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+    try std.testing.expect(doc.isSaving());
+    doc.endSave(true);
+    try std.testing.expect(!doc.isModified());
+    try std.testing.expect(!doc.isSaving());
+}
+
+test "document: of two saves in flight, the failed one marks nothing" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    doc.endSave(true);
+    doc.endSave(false);
+    try std.testing.expect(doc.isModified());
+    _ = try doc.undo();
+    try std.testing.expect(!doc.isModified());
+}
+
+test "document: the second save in flight saves nothing reachable once its text is replaced" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    // As far from the start as "21a" was, on another branch.
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "3" }}, &.{.at(0)}, 0);
+    doc.endSave(true);
+    doc.endSave(true);
+    try std.testing.expect(doc.isModified());
+}
+
 test "document: a failed save changes nothing" {
     var doc: Document = try .init(gpa, "a\n");
     defer doc.deinit();

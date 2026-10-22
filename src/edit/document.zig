@@ -26,10 +26,13 @@ pub const Document = struct {
     /// `history.done` when the text last matched the file, or null when no
     /// undo or redo can get back there.
     saved_at: ?usize = 0,
-    /// While a save runs (`beginSave`): `history.done` when it began, or
-    /// null once no undo or redo can get back there.
-    saving_at: ?usize = null,
-    saving: bool = false,
+    /// The saves in flight, oldest first (`beginSave`): `history.done` when
+    /// each began, or null once no undo or redo can get back there.
+    saving_at: [max_saves]?usize = undefined,
+    saves: usize = 0,
+
+    /// The most saves in flight: one written, one waiting for it.
+    pub const max_saves = 2;
 
     /// A document holding `initial` (see `Buffer.init`), one selection on its
     /// first character, nothing to undo and nothing modified.
@@ -93,8 +96,10 @@ pub const Document = struct {
         if (self.saved_at) |at| {
             if (at >= self.history.done) self.saved_at = null;
         }
-        if (self.saving_at) |at| {
-            if (at >= self.history.done) self.saving_at = null;
+        for (self.saving_at[0..self.saves]) |*slot| {
+            if (slot.*) |at| {
+                if (at >= self.history.done) slot.* = null;
+            }
         }
         self.selections.setAssumeCapacity(self.text(), new, main);
     }
@@ -147,18 +152,25 @@ pub const Document = struct {
         self.saved_at = self.history.done;
     }
 
-    /// The text as it is now is being saved; edits may follow before
-    /// `endSave`.
-    pub fn beginSave(self: *Document) void {
-        self.saving = true;
-        self.saving_at = self.history.done;
+    /// Whether a save is in flight.
+    pub fn isSaving(self: *const Document) bool {
+        return self.saves > 0;
     }
 
-    /// The save `beginSave` started is over: when `ok`, the file holds the
+    /// The text as it is now is being saved; edits may follow before
+    /// `endSave`. At most `max_saves` are in flight.
+    pub fn beginSave(self: *Document) void {
+        std.debug.assert(self.saves < max_saves);
+        self.saving_at[self.saves] = self.history.done;
+        self.saves += 1;
+    }
+
+    /// The oldest save in flight is over: when `ok`, the file holds the
     /// text it began from.
     pub fn endSave(self: *Document, ok: bool) void {
-        if (ok and self.saving) self.saved_at = self.saving_at;
-        self.saving = false;
-        self.saving_at = null;
+        std.debug.assert(self.saves > 0);
+        if (ok) self.saved_at = self.saving_at[0];
+        std.mem.copyForwards(?usize, self.saving_at[0 .. self.saves - 1], self.saving_at[1..self.saves]);
+        self.saves -= 1;
     }
 };
