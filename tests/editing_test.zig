@@ -3,6 +3,7 @@
 //! each typed as a person types it.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const Harness = @import("harness.zig").Harness;
 
 const expect = std.testing.expect;
@@ -221,6 +222,20 @@ test "editing: keys sent with :e edit the file it opens" {
     try h.send(":e b\rd");
     try h.expectText("econd\n");
     try h.expectRow(2, " NORMAL  b [+]            1:1 ");
+}
+
+test "editing: :e on a named pipe is refused instead of waiting for a writer" {
+    if (builtin.target.os.tag != .linux) return error.SkipZigTest;
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 40, 4);
+    defer h.deinit();
+    const linux = std.os.linux;
+    try expectEqual(.SUCCESS, linux.errno(linux.mknodat(h.tmp.dir.handle, "p", linux.S.IFIFO | 0o600, 0)));
+    try h.typeKeys(":e p\r");
+    try h.expectText("first\n");
+    try h.expectRow(3, "cannot open \"p\": NotAFile               ");
+    try h.typeKeys(":q\r");
+    try expect(h.session.done());
 }
 
 test "editing: a write that fails keeps the changes and says why" {
