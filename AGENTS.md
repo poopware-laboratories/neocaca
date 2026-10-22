@@ -280,7 +280,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. |
 | `src/unicode/` | `utf8.zig`: decoding that never fails; `width.zig`: display width from UAX #11; `chars.zig`: characters with their combining marks; `class.zig`: word and space classes; `display.zig`: how a character is drawn (`^[` for controls). |
 | `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass. No I/O, no terminal. |
-| `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig`, run by the Pike VM in `vm.zig`; `regex.zig`: the public `Regex`. |
+| `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig` (forwards, and reversed for backward search), run by the Pike VM in `vm.zig`; `regex.zig`: the public `Regex`. |
 | `src/edit/` | `document.zig`: a buffer with its selections (`selection.zig`) and history (`history.zig`); `motion.zig`, `object.zig`, `selecting.zig`, `search.zig`: selection changes; `verbs.zig`, `insert.zig`: text changes; `registers.zig`. |
 | `src/input/` | `decode.zig`: pure decoding of terminal bytes into `Key`s (`key.zig`); `decoder.zig`: keys split across reads, pastes, the Escape timeout; `keymap.zig`: keys to `Action`s (`action.zig`) as a pure state machine; `keyname.zig`: the key notation of `:map`; `mapping.zig`: the user's mappings. |
 | `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |

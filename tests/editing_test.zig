@@ -426,3 +426,29 @@ test "editing: a control sequence too long to read is never typed" {
     try h.expectText("ababc\n");
     try h.expectSelections(&.{"a"});
 }
+
+test "editing: ? and Alt-n step back through overlapping matches" {
+    var h: Harness = undefined;
+    try h.init("t", "aaa\nb\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("j?a+\r");
+    // Each match ends before the selection: the one starting last is one
+    // character, and each step back starts one earlier.
+    for ([_]usize{ 2, 1, 0 }) |at| {
+        try h.expectSelections(&.{"a"});
+        try expectEqual(at, h.session.ed.doc.primary().anchor);
+        try h.send("\x1bn");
+    }
+    try h.expectMessage("search wrapped");
+    try expectEqual(2, h.session.ed.doc.primary().anchor);
+}
+
+test "editing: s with a lazy pattern selects and deletes each match" {
+    var h: Harness = undefined;
+    try h.init("t", "aa b\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%sa*?\r");
+    try h.expectSelections(&.{ "a", "a" });
+    try h.typeKeys("d");
+    try h.expectText(" b\n");
+}

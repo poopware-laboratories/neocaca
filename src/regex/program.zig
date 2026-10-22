@@ -38,7 +38,18 @@ pub const Program = struct {
 
 /// Compiles `tree`. Caller owns the result (`Program.deinit`).
 pub fn compile(gpa: std.mem.Allocator, tree: ast.Tree) Error!Program {
-    var c: Compiler = .{ .gpa = gpa, .tree = tree };
+    return compileWith(gpa, tree, false);
+}
+
+/// Compiles `tree` to match its pattern backwards: every concatenation in
+/// reverse, so a run from right to left over a text finds where matches
+/// start (`vm.lastStart`). Caller owns the result.
+pub fn compileReversed(gpa: std.mem.Allocator, tree: ast.Tree) Error!Program {
+    return compileWith(gpa, tree, true);
+}
+
+fn compileWith(gpa: std.mem.Allocator, tree: ast.Tree, reversed: bool) Error!Program {
+    var c: Compiler = .{ .gpa = gpa, .tree = tree, .reversed = reversed };
     defer c.insts.deinit(gpa);
     try c.emitNode(tree.root);
     _ = try c.emit(.match);
@@ -51,6 +62,7 @@ const Compiler = struct {
     gpa: std.mem.Allocator,
     tree: ast.Tree,
     insts: std.ArrayList(Inst) = .empty,
+    reversed: bool,
     /// Nodes visited; nested counts over empty bodies emit nothing but
     /// would still loop, so they are bounded too.
     visits: usize = 0,
@@ -78,7 +90,10 @@ const Compiler = struct {
             .line_end => _ = try self.emit(.line_end),
             .word_boundary => _ = try self.emit(.word_boundary),
             .not_word_boundary => _ = try self.emit(.not_word_boundary),
-            .concat => |r| for (self.tree.children[r.start..][0..r.len]) |child| try self.emitNode(child),
+            .concat => |r| {
+                const children = self.tree.children[r.start..][0..r.len];
+                for (0..children.len) |k| try self.emitNode(children[if (self.reversed) children.len - 1 - k else k]);
+            },
             .alt => |r| try self.emitAlt(self.tree.children[r.start..][0..r.len]),
             .repeat => |r| try self.emitRepeat(r.child, r.min, r.max, r.greedy),
         }

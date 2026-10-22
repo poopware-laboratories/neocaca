@@ -339,6 +339,15 @@ test "selecting: s selects the matches inside the selections" {
     try expectRegexOp("«a\nb\n»", selecting.selectMatches, "b|^", .{}, true, "a\n«b»\n");
 }
 
+test "selecting: s and S take a lazy or empty-first pattern's non-empty match" {
+    // An empty match is never taken, but the pattern's next choice at the
+    // same place is: these selected nothing when empty matches were skipped
+    // a character at a time.
+    try expectRegexOp("«aa b»\n", selecting.selectMatches, "a*?", .{}, true, "«a»‹a› b\n");
+    try expectRegexOp("«ab ab»\n", selecting.selectMatches, "(|ab)", .{}, true, "«ab» ‹ab›\n");
+    try expectRegexOp("«axbxc»\n", selecting.split, "(|x)", .{}, true, "«a»x‹b›x‹c›\n");
+}
+
 test "selecting: S splits the selections at the matches" {
     try expectRegexOp("«a,b,,c»\n", selecting.split, ",", .{}, true, "«a»,‹b›,,‹c›\n");
     try expectRegexOp("«,a,»\n", selecting.split, ",", .{}, true, ",«a»,\n");

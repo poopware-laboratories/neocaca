@@ -126,9 +126,22 @@ fn inClass(prog: *const Program, start: u32, len: u32, cp: u21) bool {
     return false;
 }
 
-/// The leftmost-first match starting in `[from, to]` and ending by `to`.
+/// Whether the instruction at `pc` consumes the character `d`, which
+/// starts at `at`.
+fn consumes(prog: *const Program, pc: u32, d: unicode.utf8.Decoded, text: []const u8, at: usize) bool {
+    return switch (prog.insts[pc]) {
+        .char => |c| d.cp == c,
+        .byte => |b| d.cp == null and d.len > 0 and text[at] == b,
+        .any => d.len > 0 and d.cp != '\n',
+        .class => |k| if (d.cp) |cp| inClass(prog, k.start, k.len, cp) != k.negated else d.len > 0 and k.negated,
+        else => unreachable,
+    };
+}
+
+/// The leftmost-first match starting in `[from, to]` and ending by `to`;
+/// with `non_empty`, the leftmost-first of those that are not empty.
 /// Assertions see the whole `text`, so `^` and `\b` work inside a slice.
-pub fn find(prog: *const Program, scratch: *Scratch, text: []const u8, from: usize, to: usize) ?Match {
+pub fn find(prog: *const Program, scratch: *Scratch, text: []const u8, from: usize, to: usize, non_empty: bool) ?Match {
     std.debug.assert(from <= to and to <= text.len);
     var clist = &scratch.a;
     var nlist = &scratch.b;
@@ -143,18 +156,13 @@ pub fn find(prog: *const Program, scratch: *Scratch, text: []const u8, from: usi
         scratch.nextGeneration();
         nlist.len = 0;
         for (clist.threads[0..clist.len]) |t| {
-            const ok = switch (prog.insts[t.pc]) {
-                .match => {
-                    matched = .{ .start = t.start, .end = pos };
-                    break; // lower-priority threads lose to this match
-                },
-                .char => |c| d.cp == c,
-                .byte => |b| d.cp == null and d.len > 0 and text[pos] == b,
-                .any => d.len > 0 and d.cp != '\n',
-                .class => |k| if (d.cp) |cp| inClass(prog, k.start, k.len, cp) != k.negated else d.len > 0 and k.negated,
-                else => unreachable,
-            };
-            if (ok) add(prog, scratch, nlist, t.pc + 1, t.start, text, next);
+            if (prog.insts[t.pc] == .match) {
+                // An empty one, when unwanted, lets the threads below go on.
+                if (non_empty and t.start == pos) continue;
+                matched = .{ .start = t.start, .end = pos };
+                break; // lower-priority threads lose to this match
+            }
+            if (consumes(prog, t.pc, d, text, pos)) add(prog, scratch, nlist, t.pc + 1, t.start, text, next);
         }
         if (pos >= to) break;
         pos = next;
@@ -165,4 +173,37 @@ pub fn find(prog: *const Program, scratch: *Scratch, text: []const u8, from: usi
         std.mem.swap(*List, &clist, &nlist);
     }
     return matched;
+}
+
+/// Where the non-empty match that starts last in `[from, to)` and ends by
+/// `to` starts, `rev` being the pattern compiled reversed. One pass from
+/// `to` back to `from`: a thread holds where its match would end, a new
+/// one joins at every position after those already running, and the
+/// first to reach `match` past its end starts last.
+pub fn lastStart(rev: *const Program, scratch: *Scratch, text: []const u8, from: usize, to: usize) ?usize {
+    std.debug.assert(from <= to and to <= text.len);
+    var clist = &scratch.a;
+    var nlist = &scratch.b;
+    clist.len = 0;
+    scratch.nextGeneration();
+    add(rev, scratch, clist, 0, to, text, to);
+    var pos = to;
+    while (true) {
+        for (clist.threads[0..clist.len]) |t| {
+            if (rev.insts[t.pc] == .match and t.start > pos) return pos;
+        }
+        if (pos == from) return null;
+        // The character before `pos`, as a forward walk from `from` sees it.
+        const prev = from + unicode.utf8.prevStart(text[from..pos], pos - from);
+        const d = unicode.utf8.decode(text[prev..pos]);
+        scratch.nextGeneration();
+        nlist.len = 0;
+        for (clist.threads[0..clist.len]) |t| {
+            if (rev.insts[t.pc] == .match) continue;
+            if (consumes(rev, t.pc, d, text, prev)) add(rev, scratch, nlist, t.pc + 1, t.start, text, prev);
+        }
+        add(rev, scratch, nlist, 0, prev, text, prev);
+        pos = prev;
+        std.mem.swap(*List, &clist, &nlist);
+    }
 }
