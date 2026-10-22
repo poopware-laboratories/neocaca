@@ -261,3 +261,20 @@ test "session: a paste after :wq is ignored while it writes" {
     s.settle();
     try expect(s.done());
 }
+
+test "session: keys typed after a mapping that saves run after the keys it held" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "a\n" });
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 5);
+    defer s.deinit();
+    try feedKeys(&s, ":map normal Q :w<ret>ix<esc>\r");
+    // One read: `Q`, then keys typed before the mapping's own are done.
+    try s.feed("Qiy\x1b");
+    try s.timeout();
+    try expectEqualStrings("xya\n", s.ed.doc.text());
+    s.settle();
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("a\n", try readFile(tmp.dir, "f", &buf));
+    try expect(s.ed.doc.isModified());
+}

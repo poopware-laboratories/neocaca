@@ -108,6 +108,9 @@ pub const Editor = struct {
     request: ?Request = null,
     /// Owned storage for the path of `request`.
     request_path: std.ArrayList(u8) = .empty,
+    /// The keys of a mapping after one that asked for a request, waiting
+    /// for the shell to serve it (`resumeKeys`).
+    rest: std.ArrayList(Key) = .empty,
 
     /// An editor on `text`, the contents of `path` (null for a buffer
     /// without a file). Both are copied.
@@ -126,6 +129,7 @@ pub const Editor = struct {
         if (self.path) |p| self.gpa.free(p);
         if (self.search) |*re| re.deinit();
         self.request_path.deinit(self.gpa);
+        self.rest.deinit(self.gpa);
         self.* = undefined;
     }
 
@@ -145,6 +149,25 @@ pub const Editor = struct {
         if (self.quitting) return;
         if (self.mode != .prompt) self.message.clear();
         self.typed(k) catch |e| switch (e) {
+            error.OutOfMemory => self.outOfMemory(),
+            else => |other| return other,
+        };
+    }
+
+    /// Whether keys of a mapping wait for `resumeKeys`.
+    pub fn hasRest(self: *const Editor) bool {
+        return self.rest.items.len > 0;
+    }
+
+    /// Types the keys of a mapping that waited for a request, once the
+    /// shell has taken it; they may stop at another. Dropped while a save
+    /// that quits is written, as typed keys are.
+    pub fn resumeKeys(self: *Editor) Error!void {
+        var keys = self.rest;
+        self.rest = .empty;
+        defer keys.deinit(self.gpa);
+        if (self.quitting) return;
+        self.runKeys(keys.items) catch |e| switch (e) {
             error.OutOfMemory => self.outOfMemory(),
             else => |other| return other,
         };
@@ -267,7 +290,17 @@ pub const Editor = struct {
         // A copy: the keys may map keys again (`:map`) while they run.
         const keys = try self.gpa.dupe(Key, mapped);
         defer self.gpa.free(keys);
-        for (keys) |m| try self.handleKey(m);
+        try self.runKeys(keys);
+    }
+
+    /// Types `keys` until one asks for a request; the ones after it wait
+    /// in `rest`. Room for them is made first: out of memory types none.
+    fn runKeys(self: *Editor, keys: []const Key) Error!void {
+        try self.rest.ensureTotalCapacity(self.gpa, keys.len);
+        for (keys, 1..) |m, i| {
+            try self.handleKey(m);
+            if (self.request != null) return self.rest.appendSliceAssumeCapacity(keys[i..]);
+        }
     }
 
     fn handleKey(self: *Editor, k: Key) Error!void {

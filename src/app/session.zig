@@ -141,6 +141,12 @@ pub const Session = struct {
 
     fn drain(self: *Session, final: bool) editor.Error!void {
         while (!self.done() and self.loading == null) {
+            // A mapping's keys come before the bytes typed after it.
+            if (self.ed.hasRest()) {
+                try self.ed.resumeKeys();
+                self.serve();
+                continue;
+            }
             const next = self.decoder.next(final) catch {
                 self.ed.message.set(true, "out of memory", .{});
                 return;

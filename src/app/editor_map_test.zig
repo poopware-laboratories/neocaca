@@ -232,3 +232,81 @@ test "editor: a mapping can leave a prompt open for the user to finish" {
     try expectEqual(4, ed.doc.primary().anchor);
     try expectEqual(6, ed.doc.primary().cursor);
 }
+
+test "editor: a mapping that asks twice waits for the first request" {
+    var ed: Editor = try .init(gpa, "f.txt", "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, ":map normal <c-s> :w<ret>:w<space>g.txt<ret>\r");
+    try ed.key(.ctrl('s'));
+    const first = ed.takeRequest().?;
+    try expectEqualStrings("f.txt", first.save.path);
+    // The keys after the first request wait for the shell to serve it.
+    try expect(ed.hasRest());
+    ed.finishSave(first.save, {});
+    try ed.resumeKeys();
+    try expect(!ed.hasRest());
+    const second = ed.takeRequest().?;
+    try expectEqualStrings("g.txt", second.save.path);
+    ed.finishSave(second.save, {});
+    try expectMessage(&ed, "\"g.txt\" written, 1 line", false);
+}
+
+test "editor: the keys of a mapping after a request run once it is served" {
+    var ed: Editor = try .init(gpa, "f.txt", "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, ":map normal Q :w<ret>ix<esc>\r");
+    try typeKeys(&ed, "Q");
+    try expectEqualStrings("abc\n", ed.doc.text());
+    ed.finishSave(ed.takeRequest().?.save, {});
+    try ed.resumeKeys();
+    try expectEqualStrings("xabc\n", ed.doc.text());
+    try expectEqual(.normal, ed.mode);
+    try expect(ed.doc.isModified());
+}
+
+test "editor: the keys of a mapping after a save that quits are dropped" {
+    var ed: Editor = try .init(gpa, "f.txt", "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, ":map normal Q :wq<ret>ix<esc>\r");
+    try typeKeys(&ed, "Q");
+    const r = ed.takeRequest().?;
+    // Still being written: typed keys wait, and so do none of these.
+    try ed.resumeKeys();
+    try expect(!ed.hasRest());
+    try expectEqualStrings("abc\n", ed.doc.text());
+    ed.finishSave(r.save, {});
+    try expect(ed.quit);
+}
+
+test "editor: a mapping whose last key asks leaves nothing to resume" {
+    var ed: Editor = try .init(gpa, "f.txt", "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, ":map normal Q ix<esc>:w<ret>\r");
+    try typeKeys(&ed, "Q");
+    try expect(!ed.hasRest());
+    try expectEqualStrings("xabc\n", ed.doc.text());
+    ed.finishSave(ed.takeRequest().?.save, {});
+}
+
+test "editor: a mapping that asks survives an allocation failure at any point" {
+    // The n-th allocation after the mapping is set fails, for every n the
+    // mapping makes: nothing leaks, the failure is said, and the key that
+    // failed changes nothing, nor does any key after it.
+    var n: usize = 0;
+    while (true) : (n += 1) {
+        var failing: std.testing.FailingAllocator = .init(gpa, .{});
+        var ed: Editor = try .init(failing.allocator(), "f.txt", "abc");
+        defer ed.deinit();
+        try typeKeys(&ed, ":map normal Q :w<ret>ix<esc>\r");
+        failing.fail_index = failing.alloc_index + n;
+        try typeKeys(&ed, "Q");
+        if (ed.takeRequest()) |r| ed.finishSave(r.save, {});
+        try ed.resumeKeys();
+        if (!failing.has_induced_failure) break;
+        try expectMessage(&ed, "out of memory", true);
+        try expect(!ed.hasRest());
+        try expectEqualStrings("abc\n", ed.doc.text());
+    }
+    // Every allocation it makes was failed once.
+    try expect(n >= 3);
+}

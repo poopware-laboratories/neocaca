@@ -284,6 +284,32 @@ test "editing: map Ctrl-S to write, save with it, then unmap it" {
     try expectEqualStrings("hey ello\n", try h.file("a.txt", &buf));
 }
 
+test "editing: a mapping that writes two files writes both" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "hello\n", 40, 4);
+    defer h.deinit();
+    try h.typeKeys(":map normal <c-s> :w<ret>:w<space>b.txt<ret>\r");
+    try h.typeKeys("ix\x1b");
+    try h.send("\x13"); // Ctrl-S
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("xhello\n", try h.file("a.txt", &buf));
+    try expectEqualStrings("xhello\n", try h.file("b.txt", &buf));
+    try h.expectMessage("\"b.txt\" written, 1 line");
+    // a.txt is the file, and it holds the text.
+    try expect(!h.session.ed.doc.isModified());
+}
+
+test "editing: a mapping that opens a file edits it with its next keys" {
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 30, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
+    try h.typeKeys(":map normal Q :e<space>b<ret>d\r");
+    try h.send("Q");
+    try h.expectText("econd\n");
+    try h.expectRow(2, " NORMAL  b [+]            1:1 ");
+}
+
 test "editing: an insert mode mapping leaves insert mode and moves" {
     var h: Harness = undefined;
     try h.init("b.txt", "one\ntwo\n", 40, 4);
