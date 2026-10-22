@@ -55,7 +55,8 @@ behavior, never its source.
 | Restart under sudo to save root-owned files | Phase 4: saving files you cannot write |
 | Many themes, VS Code themes imported | Phase 4: themes |
 | The kitty text sizing protocol | Phase 4: kitty text sizing |
-| Windows and Android (termux) | Phase 4: more platforms |
+| Android (termux) | Phase 4: termux |
+| Windows | Not planned: neocaca is POSIX only |
 | Vim, Helix, Emacs and VS Code key modes | Not planned: one modal model done well, with `:map` |
 | An integrated terminal, remote control over a socket | Phase 4: decide whether neocaca wants them |
 
@@ -262,7 +263,7 @@ Safety first, then the biggest daily gains.
       minutes so a crash, not only a hang-up, loses nothing
 - [ ] Saving a file you cannot write (owned by root) without restarting
       the editor
-- [ ] More platforms: Windows (its console API) and Android under termux
+- [ ] Android under termux, checked in CI or by hand
 - [ ] An integrated terminal and remote control over a socket (flow has
       both): decide whether neocaca wants them
 - [ ] Persistent undo: history saved beside the file (bounded, checked
