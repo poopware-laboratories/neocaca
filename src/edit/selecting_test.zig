@@ -201,10 +201,117 @@ test "selecting: C copies the main selection to the next line where it fits" {
     try expectOp("«|ab»c\nxyz\n", selecting.copyToLine, .{ true, 1, 8 }, true, "‹|ab›c\n«|xy»z\n");
 }
 
+test "selecting: C with a count stacks copies of a selection over several lines" {
+    try expectOp("a«b\nc»d\nef\ngh\nij\nkl\n", selecting.copyToLine, .{ true, 2, 8 }, true, "a‹b\nc›d\ne‹f\ng›h\ni«j\nk»l\n");
+    try expectOp("ab\ncd\nef\ngh\ni«j\nk»l\n", selecting.copyToLine, .{ false, 2, 8 }, true, "a«b\nc»d\ne‹f\ng›h\ni‹j\nk›l\n");
+    try expectOp("a«b\nc»d\nef\ngh\nij\n", selecting.copyToLine, .{ true, 3, 8 }, true, "a‹b\nc›d\ne«f\ng»h\nij\n");
+}
+
+test "selecting: C that cannot allocate adds no copy" {
+    const T = struct {
+        fn run(a: std.mem.Allocator) !void {
+            var d: Document = try .init(a, "a\nb\nc\nd\n");
+            defer d.deinit();
+            _ = selecting.copyToLine(&d, true, 3, 8) catch |err| {
+                try std.testing.expectEqual(1, d.sels().len);
+                return err;
+            };
+            try std.testing.expectEqual(4, d.sels().len);
+        }
+    };
+    try std.testing.checkAllAllocationFailures(gpa, T.run, .{});
+}
+
 test "selecting: C works in display columns" {
     try expectOp("«a»中\n中a\n", selecting.copyToLine, .{ true, 1, 8 }, true, "‹a›中\n«中»a\n");
     try expectOp("a«b»\n中x\n", selecting.copyToLine, .{ true, 1, 8 }, false, "a«b»\n中x\n"); // column 1 is half of 中
     try expectOp("a«b»\n\tx\nyz\n", selecting.copyToLine, .{ true, 1, 8 }, true, "a‹b›\n\tx\ny«z»\n");
+}
+
+test "selecting: a count of x, X and C does what as many presses do" {
+    var prng: std.Random.DefaultPrng = .init(0x636f756e);
+    const random = prng.random();
+    const alphabet = [_][]const u8{ "a", "bc", "\n", "\n", "\t", "中" };
+    var buf: [48]u8 = undefined;
+    for (0..300) |_| {
+        var len: usize = 0;
+        while (len + 4 < buf.len and random.uintLessThan(u8, 10) != 0) {
+            const piece = alphabet[random.uintLessThan(usize, alphabet.len)];
+            @memcpy(buf[len..][0..piece.len], piece);
+            len += piece.len;
+        }
+        buf[len] = '\n';
+        const text = buf[0 .. len + 1];
+        const a = random.uintLessThan(usize, text.len);
+        const c = random.uintLessThan(usize, text.len);
+        const count = random.uintLessThan(usize, 6) + 1;
+        const op = random.uintLessThan(u8, 4);
+        var once: Document = try .init(gpa, text);
+        defer once.deinit();
+        var each: Document = try .init(gpa, text);
+        defer each.deinit();
+        for ([_]*Document{ &once, &each }) |d| try d.select(&.{.span(onChar(text, a), onChar(text, c))}, 0);
+        var ok_once = false;
+        var ok_each = false;
+        switch (op) {
+            0, 1 => {
+                selecting.selectLines(&once, count, op == 1);
+                for (0..count) |_| selecting.selectLines(&each, 1, op == 1);
+            },
+            else => {
+                ok_once = try selecting.copyToLine(&once, op == 2, count, 4);
+                for (0..count) |_| ok_each = try selecting.copyToLine(&each, op == 2, 1, 4) or ok_each;
+            },
+        }
+        const want = try fx.spec(&each);
+        defer gpa.free(want);
+        std.testing.expectEqual(ok_each, ok_once) catch |err| {
+            std.debug.print("op {d} count {d} on {s}\n", .{ op, count, want });
+            return err;
+        };
+        fx.expectDoc(&once, want) catch |err| {
+            std.debug.print("op {d} count {d}\n", .{ op, count });
+            return err;
+        };
+    }
+}
+
+/// The start of the character holding byte `i`.
+fn onChar(text: []const u8, i: usize) usize {
+    var walk: chars.Walk = .{ .text = text, .at = 0 };
+    return walk.start(i);
+}
+
+/// A document of `lines` lines `ab`.
+fn manyLines(lines: usize) !Document {
+    const text = try gpa.alloc(u8, lines * 3);
+    defer gpa.free(text);
+    for (0..lines) |i| @memcpy(text[i * 3 ..][0..3], "ab\n");
+    return .init(gpa, text);
+}
+
+test "selecting: x with a huge count stops once every selection covers the buffer" {
+    var d = try manyLines(2000);
+    defer d.deinit();
+    var sels: [1000]@import("selection.zig").Selection = undefined;
+    for (&sels, 0..) |*s, i| s.* = .at(i * 6);
+    try d.select(&sels, 0);
+    selecting.selectLines(&d, 1_000_000, false);
+    try expect(d.sels().len == 1);
+    try std.testing.expectEqual(d.buffer.len() - 1, d.sels()[0].max());
+    selecting.selectLines(&d, 1_000_000, true);
+    try std.testing.expectEqual(0, d.sels()[0].min());
+}
+
+test "selecting: C with a huge count copies to every line once" {
+    var d = try manyLines(50_000);
+    defer d.deinit();
+    try d.select(&.{.at(1)}, 0);
+    try expect(try selecting.copyToLine(&d, true, 1_000_000, 8));
+    try std.testing.expectEqual(50_000, d.sels().len);
+    try std.testing.expectEqual(d.sels().len - 1, d.selections.main);
+    try std.testing.expectEqual(d.buffer.len() - 2, d.primary().cursor);
+    try expect(try selecting.copyToLine(&d, false, 3, 8) == false);
 }
 
 test "selecting: objects apply where they exist" {

@@ -165,7 +165,10 @@ pub fn selectLines(doc: *Document, count: usize, every_line: bool) void {
             }
             const start = buf.lineStart(first);
             const end = buf.lineEnd(last);
-            s.* = if (every_line and s.cursor < s.anchor) .span(end, start) else .span(start, end);
+            const grown: Selection = if (every_line and s.cursor < s.anchor) .span(end, start) else .span(start, end);
+            // At the end of the buffer it grows no further.
+            if (grown.anchor == s.anchor and grown.cursor == s.cursor) break;
+            s.* = grown;
         }
     }
     doc.selections.normalize(buf.bytes());
@@ -213,17 +216,20 @@ fn atColumn(buf: *const Buffer, n: usize, col: usize, tab_width: usize) ?usize {
 /// and makes it main. Repeated `count` times; false when no copy fits.
 pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) Error!bool {
     const buf = &doc.buffer;
-    var added = false;
+    var copies: std.ArrayList(Selection) = .empty;
+    defer copies.deinit(doc.gpa);
+    // Each copy lies past every selection, so it is the next one's main
+    // selection and edge; the selections are sorted once at the end.
+    var m = doc.primary();
+    const list = doc.sels();
+    var edge: usize = if (down) buf.lineOf(list[list.len - 1].max()) else buf.lineOf(list[0].min());
     for (0..@max(count, 1)) |_| {
-        const m = doc.primary();
         const a_line = buf.lineOf(m.anchor);
         const c_line = buf.lineOf(m.cursor);
         const top = @min(a_line, c_line);
         const height = @max(a_line, c_line) - top;
         const a_col = motion.column(buf, m.anchor, tab_width);
         const c_col = motion.column(buf, m.cursor, tab_width);
-        const list = doc.sels();
-        var edge: usize = if (down) buf.lineOf(list[list.len - 1].max()) else buf.lineOf(list[0].min());
         const found: ?Selection = while (true) {
             // `edge` walks to the next candidate top line for the copy.
             if (down) {
@@ -238,14 +244,15 @@ pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) Er
             const cursor = atColumn(buf, t + c_line - top, c_col, tab_width) orelse continue;
             break .span(anchor, cursor);
         };
-        const copy = found orelse break;
-        try doc.selections.list.ensureUnusedCapacity(doc.gpa, 1);
-        doc.selections.list.appendAssumeCapacity(copy);
-        doc.selections.main = doc.sels().len - 1;
-        doc.selections.normalize(buf.bytes());
-        added = true;
+        m = found orelse break;
+        try copies.append(doc.gpa, m);
+        edge = if (down) buf.lineOf(m.max()) else buf.lineOf(m.min());
     }
-    return added;
+    if (copies.items.len == 0) return false;
+    try doc.selections.list.appendSlice(doc.gpa, copies.items);
+    doc.selections.main = doc.sels().len - 1;
+    doc.selections.normalize(buf.bytes());
+    return true;
 }
 
 /// `Alt-i` (`inner`) and `Alt-a`: selects object `kind` around each
