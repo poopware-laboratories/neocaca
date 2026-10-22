@@ -101,5 +101,8 @@ clean room.
 
 - [ ] Splits and windows
 - [ ] Themes (light and dark), true color with 256-color fallback
+- [ ] Accessibility (see `ACCESSIBILITY.md`): honor `NO_COLOR`, show
+      which text is selected without relying on color, and a screen
+      reader mode that announces changes instead of redrawing the grid
 - [ ] Session restore
 - [ ] Packaging and releases

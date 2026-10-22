@@ -1,0 +1,77 @@
+# Security policy
+
+An editor opens files it did not write, inside a terminal that obeys
+escape sequences. neocaca treats both as hostile. This page says what we
+protect against, what the limits are, and how to tell us when something
+gets through.
+
+## Reporting a vulnerability
+
+**Do not open a public issue for a security problem.** Report it
+privately through GitHub:
+[**Report a vulnerability**](https://github.com/poopware-laboratories/neocaca/security/advisories/new)
+(the *Security* tab, then *Report a vulnerability*).
+
+If that form is not available to you, open an issue that only asks for a
+private contact, with no details of the problem.
+
+A useful report includes:
+
+- what an attacker controls (a file's contents, its name, a symbolic
+  link, bytes the terminal sends back) and what they gain;
+- the smallest file or key sequence that shows it, and the commit you
+  tested (`git rev-parse HEAD`);
+- your operating system, terminal emulator and build mode
+  (`-Doptimize=safe` is the build we ship).
+
+We will acknowledge the report, work on a fix in a private advisory, and
+credit you when the fix is published unless you ask us not to. Please give
+us a reasonable time to ship the fix before you disclose the problem.
+
+## Supported versions
+
+neocaca has no releases yet. Fixes go to `main` only. Once releases exist,
+this section will list which ones receive security fixes.
+
+## What we treat as untrusted
+
+| Input | What could go wrong | How neocaca handles it |
+|-------|---------------------|------------------------|
+| File contents | Escape sequences that retitle, recolor or reprogram the terminal; invalid UTF-8; NUL bytes; huge lines and files | Control bytes are drawn as visible text (`^[`), never written raw; UTF-8 decoding never fails and shows bad bytes as U+FFFD; loads are capped at 256 MiB (`fs.max_file`) |
+| Special files | A named pipe that never answers, a device that never ends (`/dev/zero`) | Only regular files are loaded; anything else is refused with `NotAFile` |
+| Paths and links | A save that replaces a symbolic link, or a recovery file that overwrites something | Saves follow links (at most 40) and replace the file they name; recovery files are created only where nothing exists |
+| Saving | A crash or a full disk truncating the file | Saves write a temporary file in the same directory and rename it over the original, keeping its permissions; on any error the original is untouched |
+| Terminal input | Malformed or endless control sequences, huge pastes | Sequences are bounded (`max_csi`); pastes are capped at 16 MiB; nothing the terminal sends is echoed back to it |
+| Search patterns | Patterns that take exponential time or unbounded memory | The regex engine runs in linear time (a Pike VM) with limits on pattern length, nesting, repetition counts and program size |
+| Counts and prompts | A count or prompt large enough to freeze or exhaust memory | Counts stop at 1,000,000 and prompts at 4096 bytes |
+
+Every limit is a named `max_*` constant, tested at the limit and one past
+it.
+
+## How it is built to resist
+
+- **Safety checks stay on.** The shipped build is ReleaseSafe: bounds,
+  integer overflow and unreachable-code checks remain on, so a bug stops
+  the editor instead of corrupting memory. Fast paths are written so those
+  checks cost nothing; they are not turned off.
+- **A hardened allocator.** Release builds use mimalloc with its secure
+  mode on (guard pages, randomized allocation, double-free and free-list
+  corruption detection). Debug builds and tests use Zig's leak-checking
+  allocator.
+- **Out of memory is an error, not a crash.** An edit that cannot allocate
+  leaves the buffer as it was; the code that handles allocation failure is
+  tested by failing each of its allocations in turn.
+- **The terminal is always restored**, on a normal exit, on an error and on
+  a panic. When the terminal hangs up with changes unsaved, they go to a
+  `<file>.recovered` file instead of being lost.
+- **One dependency.** Apart from the Zig standard library, the only
+  third-party code is mimalloc, pinned by URL and hash in `build.zig.zon`.
+
+## Out of scope
+
+- Anything that needs an attacker to run code as your user already, or to
+  change your build environment.
+- Bugs in your terminal emulator, unless neocaca sends it something that
+  came from a file.
+- Debug builds' crashes on assertions: those are bugs we want to hear
+  about, through an ordinary issue, unless they lead somewhere worse.
