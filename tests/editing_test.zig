@@ -408,3 +408,21 @@ test "editing: indenting a line that starts with a mark keeps the selection on a
     try h.typeKeys("uu");
     try h.expectText("\u{301}a\n");
 }
+
+test "editing: a control sequence too long to read is never typed" {
+    var h: Harness = undefined;
+    try h.init("t", "abc\n", 30, 4);
+    defer h.deinit();
+    var long: [80]u8 = @splat('1');
+    long[0] = 0x1b;
+    long[1] = '[';
+    // Its tail comes in a later read, before the Escape timeout.
+    try h.session.feed(&long);
+    try h.send(";2~");
+    try h.expectText("abc\n");
+    try h.typeKeys("i");
+    try h.session.feed("ab\x1b[1;");
+    try h.send("1R"); // a short one split across reads is skipped too
+    try h.expectText("ababc\n");
+    try h.expectSelections(&.{"a"});
+}

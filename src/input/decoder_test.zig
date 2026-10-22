@@ -3,6 +3,7 @@
 const std = @import("std");
 const Decoder = @import("decoder.zig").Decoder;
 const Key = @import("key.zig").Key;
+const decode = @import("decode.zig");
 
 const gpa = std.testing.allocator;
 
@@ -109,13 +110,46 @@ test "decoder: an overlong sequence never stalls the input" {
     long[1] = '[';
     try d.feed(&long);
     try d.feed("~z");
-    // The sequence is cut at max_csi; its tail reads as text.
-    var last: ?Key = null;
-    var count: usize = 0;
-    while (try d.next(false)) |ev| : (count += 1) last = ev.key;
-    try std.testing.expect(last.?.eql(.char('z')));
-    try std.testing.expectEqual(100 - 32 + 2, count);
+    // The whole sequence is skipped, however long; none of it is typed.
+    try expectKey(&d, false, .char('z'));
+    try expectNone(&d, false);
     try std.testing.expectEqual(0, d.pendingLen());
+}
+
+test "decoder: the tail of an overlong sequence is skipped across reads" {
+    var d: Decoder = .init(gpa);
+    defer d.deinit();
+    var long: [40]u8 = @splat('2');
+    long[0] = 0x1b;
+    long[1] = '[';
+    try d.feed(&long);
+    try expectNone(&d, false);
+    try std.testing.expectEqual(0, d.pendingLen());
+    try d.feed(";3;4");
+    try expectNone(&d, false);
+    try d.feed("Rq");
+    try expectKey(&d, false, .char('q'));
+    try expectNone(&d, false);
+}
+
+test "decoder: a control byte or a timeout ends an overlong sequence" {
+    var d: Decoder = .init(gpa);
+    defer d.deinit();
+    var long: [decode.max_csi + 3]u8 = @splat('5');
+    long[0] = 0x1b;
+    long[1] = '[';
+    // An Escape starts the next key, and a carriage return is typed.
+    try d.feed(&long);
+    try d.feed("\x1b[A\r");
+    try expectKey(&d, false, .{ .code = .up });
+    try expectKey(&d, false, .{ .code = .enter });
+    try expectNone(&d, false);
+    // Once no more bytes come in time, what is typed next is a key again.
+    try d.feed(&long);
+    try expectNone(&d, false);
+    try expectNone(&d, true);
+    try d.feed("x");
+    try expectKey(&d, false, .char('x'));
 }
 
 test "decoder: a bracketed paste is one event" {
@@ -227,4 +261,17 @@ test "decoder: a read that fails to allocate can be retried" {
     try expectNone(&d, false);
     try d.feed("\x1b[201~");
     try expectPaste(&d, "ab");
+}
+
+test "decoder: a paste right after an overlong sequence is still a paste" {
+    var d: Decoder = .init(gpa);
+    defer d.deinit();
+    var long: [decode.max_csi * 2]u8 = @splat(';');
+    long[0] = 0x1b;
+    long[1] = '[';
+    try d.feed(&long);
+    try d.feed("\x1b[200~hi\x1b[201~");
+    try expectPaste(&d, "hi");
+    try expectNone(&d, false);
+    try std.testing.expect(!d.in_overlong);
 }

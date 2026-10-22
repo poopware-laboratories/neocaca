@@ -41,7 +41,7 @@ this section will list which ones receive security fixes.
 | Special files | A named pipe that never answers, a device that never ends (`/dev/zero`) | Only regular files are loaded; anything else is refused with `NotAFile` |
 | Paths and links | A save that replaces a symbolic link, or a recovery file that overwrites something | Saves follow links (at most 40) and replace the file they name; recovery files are created only where nothing exists |
 | Saving | A crash or a full disk truncating the file | Saves write a temporary file in the same directory and rename it over the original, keeping its permissions; on any error the original is untouched |
-| Terminal input | Malformed or endless control sequences, huge pastes | Sequences are bounded (`max_csi`); pastes are capped at 16 MiB; nothing the terminal sends is echoed back to it |
+| Terminal input | Malformed or endless control sequences, huge pastes | Sequences are bounded (`max_csi`) and longer ones skipped whole, never typed; pastes are capped at 16 MiB; nothing the terminal sends is echoed back to it |
 | Search patterns | Patterns that take exponential time or unbounded memory | The regex engine runs in linear time (a Pike VM) with limits on pattern length, nesting, repetition counts and program size |
 | Counts and prompts | A count or prompt large enough to freeze or exhaust memory | Counts stop at 1,000,000 and prompts at 4096 bytes |
 
