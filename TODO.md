@@ -14,6 +14,11 @@ clean room.
       3-minute timeout so one that hangs is named
 - [x] CI tests for aarch64 under qemu on Linux, to catch aarch64-only
       bugs without waiting for a macOS runner
+- [ ] Find why the macOS Debug test job once hung for 20 minutes without
+      `--test-timeout` firing (so outside any test body: compiling, the
+      build runner, or a test binary's start or exit), and give each test
+      step its own `timeout-minutes` so such a hang fails in minutes, not
+      at the job's 45
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
 - [x] SIMD kernels (count, find, control bytes, printable-ASCII runs) with scalar references
 - [x] Command line parsing, help and version
