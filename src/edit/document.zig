@@ -115,30 +115,32 @@ pub const Document = struct {
     }
 
     /// Reverts the newest group of revisions; false when there is none.
+    /// On any error the document is unchanged.
     pub fn undo(self: *Document) Error!bool {
         const revs = self.history.undoGroup();
         if (revs.len == 0) return false;
         try self.selections.list.ensureTotalCapacity(self.gpa, revs[0].before.len);
-        var i = revs.len;
-        while (i > 0) {
-            i -= 1;
-            try self.buffer.apply(revs[i].inverse);
-            self.history.done -= 1;
-        }
+        const sets = try self.gpa.alloc([]const Change, revs.len);
+        defer self.gpa.free(sets);
+        for (sets, 0..) |*set, i| set.* = revs[revs.len - 1 - i].inverse;
+        try self.buffer.applySets(sets);
+        self.history.done -= revs.len;
         self.selections.setAssumeCapacity(self.text(), revs[0].before, revs[0].before_main);
         return true;
     }
 
     /// Reapplies the next group of undone revisions; false when there is none.
+    /// On any error the document is unchanged.
     pub fn redo(self: *Document) Error!bool {
         const revs = self.history.redoGroup();
         if (revs.len == 0) return false;
         const last = revs[revs.len - 1];
         try self.selections.list.ensureTotalCapacity(self.gpa, last.after.len);
-        for (revs) |r| {
-            try self.buffer.apply(r.changes);
-            self.history.done += 1;
-        }
+        const sets = try self.gpa.alloc([]const Change, revs.len);
+        defer self.gpa.free(sets);
+        for (sets, revs) |*set, r| set.* = r.changes;
+        try self.buffer.applySets(sets);
+        self.history.done += revs.len;
         self.selections.setAssumeCapacity(self.text(), last.after, last.after_main);
         return true;
     }
