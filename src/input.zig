@@ -27,5 +27,6 @@ test {
     _ = action;
     _ = keymap;
     _ = @import("input/keymap_test.zig");
+    _ = @import("input/keymap_verb_test.zig");
     _ = @import("input/decode_test.zig");
 }

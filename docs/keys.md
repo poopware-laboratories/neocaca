@@ -3,8 +3,8 @@
 The reference for neocaca's modal keybindings. The model (selection first,
 verb second, multiple selections) is described in `AGENTS.md`; the code is
 `src/input/keymap.zig`, and every binding here has a test in
-`src/input/keymap_test.zig`. Bindings still to come are on the roadmap in
-`TODO.md`.
+`src/input/keymap_test.zig` (the verbs in `keymap_verb_test.zig`).
+Bindings still to come are on the roadmap in `TODO.md`.
 
 Notation: `Alt-x` is Alt (or Esc then x), `Ctrl-x` is Control. A *selection*
 spans from its *anchor* to its *cursor*, both inclusive, and always holds at

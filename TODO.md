@@ -29,8 +29,9 @@ pieces when you reach it.
   - [x] S: `edit/selecting.zig` (its moves went to `edit/moving.zig`)
   - [x] S: `edit/verbs_test.zig` (paste went to `paste_test.zig`) and
         `edit/selecting_test.zig` (moves went to `moving_test.zig`)
-  - [ ] S: `input/keymap_test.zig`, `regex/regex_test.zig` and
-        `tests/editing_test.zig`
+  - [x] S: `input/keymap_test.zig` (verbs went to `keymap_verb_test.zig`),
+        `regex/regex_test.zig` (`escape` to `escape_test.zig`) and
+        `tests/editing_test.zig` (the `:` commands to `commands_test.zig`)
 - **PR: a hang outside any test fails in minutes**
   - [ ] S: give each test step its own `timeout-minutes`. The macOS Debug
         job once hung for 20 minutes without `--test-timeout` firing, so

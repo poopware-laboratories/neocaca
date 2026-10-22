@@ -1,8 +1,9 @@
-//! Tests for `keymap.zig`, one per row group of `docs/keys.md`. Keys are
-//! written as text, with `<a-x>` for Alt, `<c-x>` for Control, `<s-left>`
-//! for Shift with an arrow, `<lt>` for `<`, and `<esc>`, `<ret>`, `<tab>`,
-//! `<bs>`, `<del>`, `<up>`, `<down>`, `<left>`, `<right>`, `<pgup>`,
-//! `<pgdn>`, `<home>`, `<end>` for the named keys.
+//! Tests for `keymap.zig`, one per row group of `docs/keys.md` (the verbs
+//! are in `keymap_verb_test.zig`). Keys are written as text, with `<a-x>`
+//! for Alt, `<c-x>` for Control, `<s-left>` for Shift with an arrow, `<lt>`
+//! for `<`, and `<esc>`, `<ret>`, `<tab>`, `<bs>`, `<del>`, `<up>`,
+//! `<down>`, `<left>`, `<right>`, `<pgup>`, `<pgdn>`, `<home>`, `<end>` for
+//! the named keys.
 
 const std = @import("std");
 const keymap = @import("keymap.zig");
@@ -58,7 +59,7 @@ fn keys(text: []const u8, out: *[32]Key) []Key {
 
 /// Feeds `text` in normal mode: every key but the last is a prefix that
 /// gives nothing, and the last gives `want` (null: nothing at all).
-fn expectNormal(text: []const u8, want: ?Action) !void {
+pub fn expectNormal(text: []const u8, want: ?Action) !void {
     var buf: [32]Key = undefined;
     const list = keys(text, &buf);
     var map: Keymap = .{};
@@ -289,70 +290,6 @@ test "keymap: search keys" {
     try expectNormal("N", .{ .search_next = .{ .dir = .forward, .add = true } });
     try expectNormal("<a-n>", .{ .search_next = .{ .dir = .backward } });
     try expectNormal("*", .search_selection);
-}
-
-test "keymap: delete, change and yank use the register" {
-    try expectNormal("d", .{ .delete = .{} });
-    try expectNormal("<a-d>", .{ .delete = .{ .yank = false } });
-    try expectNormal("c", .{ .delete = .{ .change = true } });
-    try expectNormal("<a-c>", .{ .delete = .{ .yank = false, .change = true } });
-    try expectNormal("\"ad", .{ .delete = .{ .reg = 'a' } });
-    try expectNormal("\"zc", .{ .delete = .{ .reg = 'z', .change = true } });
-    try expectNormal("y", .{ .yank = '"' });
-    try expectNormal("\"by", .{ .yank = 'b' });
-}
-
-test "keymap: paste and replace use the register" {
-    try expectNormal("p", .{ .paste = .{ .before = false } });
-    try expectNormal("P", .{ .paste = .{ .before = true } });
-    try expectNormal("\"qp", .{ .paste = .{ .reg = 'q', .before = false } });
-    try expectNormal("R", .{ .replace = '"' });
-    try expectNormal("\"xR", .{ .replace = 'x' });
-}
-
-test "keymap: a register that is no ASCII character is refused" {
-    try expectNormal("\"中", null);
-    try expectNormal("\"<up>", null);
-    var map: Keymap = .{};
-    _ = map.normal(.char('"'));
-    _ = map.normal(.char(0x4e2d));
-    try std.testing.expectEqualDeep(Action{ .yank = '"' }, map.normal(.char('y')).?);
-}
-
-test "keymap: a count and a register combine in either order" {
-    var map: Keymap = .{};
-    _ = map.normal(.char('2'));
-    _ = map.normal(.char('"'));
-    _ = map.normal(.char('a'));
-    try std.testing.expectEqualDeep(Action{ .paste = .{ .reg = 'a', .before = false } }, map.normal(.char('p')).?);
-    try std.testing.expectEqualDeep(Action{ .yank = '"' }, map.normal(.char('y')).?);
-}
-
-test "keymap: r takes the replacement character" {
-    try expectNormal("rx", .{ .replace_char = 'x' });
-    try expectNormal("r中", .{ .replace_char = '中' });
-    try expectNormal("r<tab>", .{ .replace_char = '\t' });
-    try expectNormal("r<up>", null);
-}
-
-test "keymap: the other verbs" {
-    try expectNormal("~", .{ .case = .upper });
-    try expectNormal("`", .{ .case = .lower });
-    try expectNormal("<a-`>", .{ .case = .swap });
-    try expectNormal(">", .indent);
-    try expectNormal("<lt>", .dedent);
-    try expectNormal("<a-j>", .join);
-    try expectNormal("u", .undo);
-    try expectNormal("U", .redo);
-}
-
-test "keymap: entering insert mode" {
-    try expectNormal("i", .{ .insert = .before });
-    try expectNormal("a", .{ .insert = .after });
-    try expectNormal("I", .{ .insert = .line_start });
-    try expectNormal("A", .{ .insert = .line_end });
-    try expectNormal("o", .{ .insert = .below });
-    try expectNormal("O", .{ .insert = .above });
 }
 
 test "keymap: unbound keys do nothing and clear the count" {
