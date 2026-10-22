@@ -329,9 +329,9 @@ the keymap and its tests.
   over a file holding two subsystems. Each file starts with a `//!` doc
   comment saying what it is for. The limit holds for test files too:
   tests that outgrow their file move to a sibling `name_test.zig`, and a
-  test file that outgrows itself splits by topic (`keymap_test.zig`,
-  `keymap_prefix_test.zig`), each referenced from the namespace file so
-  `zig build test` reaches it.
+  test file that outgrows itself splits by topic (as the count tests of
+  `selecting_test.zig` went to `selecting_count_test.zig`), each
+  referenced from the namespace file so `zig build test` reaches it.
 - **Functional core, imperative shell.** Encoding, decoding, layout, editing
   and diffing are pure functions over plain data (`input.decode.parse(bytes,
   final)`, `app.layout.draw(editor, screen)`, `render.diff(old, new,
