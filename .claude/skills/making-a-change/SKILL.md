@@ -46,6 +46,8 @@ unasked:
 
 - tick or add the `TODO.md` item; change `docs/keys.md` with any binding
   or `:` command, checked against the keymap and `app/commands.zig`;
+- add a scenario to `docs/dogfooding.md` for anything new that users do
+  (a command, a mode, a file type, a protocol);
 - `git grep -n` the `*.md` files for each name the diff touches (file,
   function, key, command, flag, `max_*` limit, CI job) and fix every
   sentence it makes wrong: AGENTS.md's table and rules, README,
@@ -84,6 +86,7 @@ on the same branch. Never merge or start the next piece unasked.
 | Anything users see: rendering, layout, colors, cursor | checking-screen-output |
 | A SIMD kernel, or anything claimed to be faster | AGENTS.md "Performance and security"; `zig build bench` in fast and safe |
 | Driving an open PR to green | steward |
+| A dogfood pass, or trying the editor on real work | dogfooding |
 
 ## Common mistakes
 
