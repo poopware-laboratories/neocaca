@@ -11,6 +11,67 @@ Open work is cut into **pieces**: **S** is about 20 minutes, **M** about
 pieces" in `AGENTS.md`. Take the first unticked piece. Cut a phase into
 pieces when you reach it.
 
+## The yardstick: a step up from flow
+
+[flow](https://flow-control.dev) (Flow Control) is the Zig terminal editor
+neocaca is measured against. A step up means two things: whatever a flow
+user relies on works in neocaca too, and wherever both do something,
+neocaca does it measurably better (faster, safer, or on more terminals).
+What flow does comes from its README, its manual
+(<https://flow-control.dev/docs/help/>) and its devlog, as of release
+0.7.2 and the October 2026 devlog, and from running it. As everywhere,
+the clean-room policy holds: its user-facing documentation and its
+behavior, never its source.
+
+**Already ahead.**
+
+- **Ships with safety checks on.** flow's README builds it with
+  `-Doptimize=fast`; neocaca ships ReleaseSafe, with bounds and overflow
+  checks in the build users run.
+- **Runs on any terminal as it is.** flow asks for 24-bit color and a Nerd
+  Font; neocaca's default theme uses the sixteen basic colors and draws no
+  icon glyphs.
+- **Selections are the editing model.** flow's manual says its Helix mode
+  lacks selection operations, registers and macros, and its Vim mode lacks
+  macros and registers. neocaca splits, filters, rotates and narrows
+  selections, with registers.
+
+**Still behind.** Each gap is a roadmap item below:
+
+| flow has | neocaca's item |
+|----------|----------------|
+| Tree-sitter highlighting for more than 95 languages, a forced language | Phase 3: syntax highlighting |
+| LSP: completion, hover, definitions, references, symbols, diagnostics, formatting | Phase 3: language server client |
+| Tabs, vertical splits, a centered view | Phase 2: multiple buffers; Phase 4: splits |
+| Mouse on every element, scrollbars, animated scrolling | Phase 2: mouse; Phase 4: scrollbars |
+| Command palette and key hints | Phase 2: key hints; Phase 4: command palette |
+| Clipboard history | Phase 2: system clipboard |
+| Very large files, thousands of cursors | Phase 2: large files, selection cap |
+| Smart-case search | Phase 2: smart-case search |
+| Paragraph reflow | Phase 2: reflow |
+| `file:line` and `+line` on the command line | Phase 2: command line |
+| Git change markers and blame | Phase 3: git |
+| Session save every two minutes, restore after a crash | Phase 4: session restore |
+| Restart under sudo to save root-owned files | Phase 4: saving files you cannot write |
+| Many themes, VS Code themes imported | Phase 4: themes |
+| The kitty text sizing protocol | Phase 4: kitty text sizing |
+| Windows and Android (termux) | Phase 4: more platforms |
+| Vim, Helix, Emacs and VS Code key modes | Not planned: one modal model done well, with `:map` |
+| An integrated terminal, remote control over a socket | Phase 4: decide whether neocaca wants them |
+
+**Ahead on paper only, until it ships.** Persistent undo is still in
+development in flow (its README roadmap); neocaca's undo tree and
+persistent undo would beat it once they land (Phase 2 and Phase 4).
+
+- **PR: measured against flow.** flow claims frame times of 6 ms or
+  less. Running flow's release binary in a session needs the
+  maintainer's permission.
+  - [ ] M: `zig build compare -Dflow=<path>` runs both editors on a
+        pseudo-terminal with the same files and reports, for each: startup
+        to the first frame, keypress to frame, open time and peak memory on
+        1 MB, 100 MB and 1 GB files, a 10 MB single line, and 10,000
+        selections. The numbers go in the PR and in this section.
+
 ## Phase 0: foundations
 
 - [x] Build, test, fmt and bench steps
@@ -115,6 +176,15 @@ Safety first, then the biggest daily gains.
   - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line
 - **PR: system clipboard through OSC 52 (write only)**
   - [ ] S: yank also copies to the system clipboard
+  - [ ] S: a history of the last yanks, to paste an older one
+- **PR: command line**
+  - [ ] S: `neocaca file:12` and `neocaca +12 file` open at line 12
+- **PR: smart-case search**
+  - [ ] S: a pattern without capitals matches either case, one with
+        capitals matches exactly
+- **PR: reflow**
+  - [ ] S: rewrap the selected paragraphs to a width, keeping their line
+        prefix (indentation, `//`, `#`, `>`)
 - **PR: mouse**
   - [ ] M: click to place a selection, drag to extend
   - [ ] S: wheel to scroll
@@ -170,18 +240,31 @@ Safety first, then the biggest daily gains.
   - [ ] highlight queries mapped to theme faces, off the event loop for
         large files, bounded parse time
   - [ ] grammars compiled in per language, tests on malformed input
+  - [ ] the language picked from the file name, or forced by `--language`
 - [ ] Indentation per language
-- [ ] Language server client (diagnostics, go to definition), off the loop
+- [ ] Language server client, off the loop: diagnostics, go to definition
+      and references, hover, completion, document symbols, formatting
+- [ ] Git: change markers in the gutter against `HEAD`, and blame for the
+      current line, off the loop
 - [ ] Auto-pairing of brackets and quotes
 
 ## Phase 4: polish
 
-- [ ] Splits and windows
-- [ ] Themes (light and dark), true color with 256-color fallback
+- [ ] Splits and windows, and a centered view on wide screens
+- [ ] Scrollbars and smooth scrolling
+- [ ] Themes (light and dark), true color with 256-color fallback, and
+      VS Code themes imported
+- [ ] The kitty text sizing protocol
 - [ ] Accessibility (see `ACCESSIBILITY.md`): honor `NO_COLOR`, show
       which text is selected without relying on color, and a screen
       reader mode that announces changes instead of redrawing the grid
-- [ ] Session restore
+- [ ] Session restore, with the unsaved buffers backed up every few
+      minutes so a crash, not only a hang-up, loses nothing
+- [ ] Saving a file you cannot write (owned by root) without restarting
+      the editor
+- [ ] More platforms: Windows (its console API) and Android under termux
+- [ ] An integrated terminal and remote control over a socket (flow has
+      both): decide whether neocaca wants them
 - [ ] Persistent undo: history saved beside the file (bounded, checked
       against the file's contents before use, never trusted blindly)
 - [ ] Command palette: every `:` command and key action, searchable by
