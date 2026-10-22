@@ -68,6 +68,47 @@ test "verbs: the newline before the last line is not taken twice" {
     try expectDelete("«a»b\n‹c\n›", "«b»‹\n›", &.{ "a", "c\n" });
 }
 
+test "verbs: whole last lines in several selections take the newline before them all" {
+    try expectDelete("a\n«b\n»‹c\n›", "a«\n»", &.{ "b\n", "c\n" });
+    try expectDelete("a\n«b\n»‹c\n›‹d\n›", "a«\n»", &.{ "b\n", "c\n", "d\n" });
+    // An empty last line after them.
+    try expectDelete("a\n«b\n»‹\n›", "a«\n»", &.{ "b\n", "\n" });
+    // A gap between them: only the last run takes the newline before it.
+    try expectDelete("«a\n»b\n‹c\n›", "«b»‹\n›", &.{ "a\n", "c\n" });
+}
+
+test "verbs: the last lines deleted one selection each, or as one, leave the same" {
+    // Lines of different lengths, an empty one among them.
+    const text = "one\n\nthree\nfour\nx\n";
+    const starts = [_]usize{ 0, 4, 5, 11, 16 };
+    for (1..starts.len + 1) |k| {
+        const from = starts.len - k;
+        var whole: Document = try .init(gpa, text);
+        defer whole.deinit();
+        try whole.select(&.{.span(starts[from], text.len - 1)}, 0);
+        try verbs.delete(&whole, null, '"');
+        var split: Document = try .init(gpa, text);
+        defer split.deinit();
+        var sels: [starts.len]@import("selection.zig").Selection = undefined;
+        for (sels[0..k], starts[from..], from..) |*sel, start, i| {
+            const end = if (i + 1 < starts.len) starts[i + 1] else text.len;
+            sel.* = .span(start, end - 1);
+        }
+        try split.select(sels[0..k], 0);
+        try verbs.delete(&split, null, '"');
+        try std.testing.expectEqualStrings(whole.text(), split.text());
+        try expectEqual(1, split.sels().len);
+        try expectEqual(whole.primary(), split.primary());
+    }
+}
+
+test "verbs: deleting to change several last lines keeps one empty line" {
+    var d = try fx.doc("a\n«b\n»‹c\n›");
+    defer d.deinit();
+    try verbs.deleteToChange(&d, null, '"');
+    try fx.expectDoc(&d, "a\n«\n»");
+}
+
 test "verbs: deleting to change keeps the last line to type into" {
     var d = try fx.doc("a\n«b\n»");
     defer d.deinit();

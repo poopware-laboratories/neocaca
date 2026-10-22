@@ -61,20 +61,28 @@ fn remove(doc: *Document, regs: ?*Registers, reg: u8, last_lines: bool) Error!vo
     defer new.deinit(doc.gpa);
     try changes.ensureTotalCapacity(doc.gpa, doc.sels().len);
     try new.ensureTotalCapacity(doc.gpa, doc.sels().len);
-    var removed: usize = 0;
-    var last_end: usize = 0;
     for (doc.sels()) |s| {
         const r = s.range(text);
         var start = r.start;
-        // Unless an earlier selection already took that newline.
-        if (last_lines and r.end == text.len and start > last_end and text[start - 1] == '\n') start -= 1;
+        if (last_lines and r.end == text.len) {
+            // The newline before the deletions that end here, run
+            // together, unless one of them already takes it.
+            var k = changes.items.len;
+            var first = start;
+            while (k > 0 and changes.items[k - 1].end == first) {
+                k -= 1;
+                first = changes.items[k].start;
+            }
+            if (first > 0 and text[first - 1] == '\n') {
+                if (k < changes.items.len) changes.items[k].start -= 1 else start -= 1;
+            }
+        }
         const end = @min(r.end, text.len - 1);
-        new.appendAssumeCapacity(.at(start - removed));
+        new.appendAssumeCapacity(.at(r.start));
         if (end <= start) continue;
         changes.appendAssumeCapacity(.{ .start = start, .end = end, .text = "" });
-        removed += end - start;
-        last_end = end;
     }
+    for (new.items) |*n| n.* = .at(buffer.change.mapPos(changes.items, n.cursor, .before));
     try doc.edit(changes.items, new.items, doc.selections.main);
 }
 

@@ -234,6 +234,20 @@ test "editing: a write that fails keeps the changes and says why" {
     try h.expectText("x\n");
 }
 
+test "editing: deleting the last lines split into selections leaves no empty line" {
+    var h: Harness = undefined;
+    try h.init("t", "a\nb\nc\n", 30, 5);
+    defer h.deinit();
+    try h.typeKeys("jxX");
+    try h.send("\x1bs"); // Alt-s: a selection on each line
+    try expectEqual(2, h.session.ed.doc.sels().len);
+    try h.typeKeys("d");
+    try h.expectText("a\n");
+    try expectEqual(1, h.session.ed.doc.sels().len);
+    try h.typeKeys("u");
+    try h.expectText("a\nb\nc\n");
+}
+
 test "editing: counts repeat moves and verbs" {
     var h: Harness = undefined;
     try h.init("t", "1\n2\n3\n4\n5\n", 30, 7);
