@@ -1,14 +1,13 @@
 //! `Editor`: the whole editing state (the document, registers, keymap,
 //! mode, prompt, view, message) and the routing of keys and pastes to the
 //! pure modules. It does no I/O: saving and loading are handed to the
-//! shell as a `Request`, which reports back with `finishSave` and
-//! `finishLoad`. Prompts are run by `prompting.zig`, drawing is
-//! `layout.zig`.
+//! shell as a `Request` (`requesting.zig`), which reports back with
+//! `finishSave` and `finishLoad`. Prompts are run by `prompting.zig`,
+//! drawing is `layout.zig`.
 
 const std = @import("std");
 const edit = @import("../edit.zig");
 const unicode = @import("../unicode.zig");
-const fs = @import("../fs.zig");
 const input = @import("../input.zig");
 const regex = @import("../regex.zig");
 const render = @import("../render.zig");
@@ -16,6 +15,7 @@ const ui = @import("../ui.zig");
 const layout = @import("layout.zig");
 const prompting = @import("prompting.zig");
 const viewing = @import("viewing.zig");
+const requesting = @import("requesting.zig");
 
 const Action = input.Action;
 const Document = edit.Document;
@@ -184,14 +184,8 @@ pub const Editor = struct {
         };
     }
 
-    fn outOfMemory(self: *Editor) void {
+    pub fn outOfMemory(self: *Editor) void {
         self.message.set(true, "out of memory", .{});
-    }
-
-    /// The pending request, which the shell now carries out.
-    pub fn takeRequest(self: *Editor) ?Request {
-        defer self.request = null;
-        return self.request;
     }
 
     /// Whether the shell should stop the process (Ctrl-z), once.
@@ -200,83 +194,12 @@ pub const Editor = struct {
         return self.suspending;
     }
 
-    /// Asks the shell for `r`, with its path copied.
-    pub fn ask(self: *Editor, r: Request) error{OutOfMemory}!void {
-        const path = switch (r) {
-            .save => |s| s.path,
-            .load => |p| p,
-        };
-        self.request_path.clearRetainingCapacity();
-        try self.request_path.appendSlice(self.gpa, path);
-        const own = self.request_path.items;
-        self.request = switch (r) {
-            .save => |s| .{ .save = .{ .path = own, .quit = s.quit, .lines = self.doc.buffer.lineCount() } },
-            .load => .{ .load = own },
-        };
-        if (r == .save) {
-            // The text as it is now is what the shell writes.
-            self.doc.beginSave();
-            self.quitting = r.save.quit;
-        }
-    }
-
-    /// The shell could not start the save it was asked for.
-    pub fn abandonSave(self: *Editor) void {
-        self.doc.endSave(false);
-        self.quitting = false;
-        self.outOfMemory();
-    }
-
-    /// Reports how the save of `s` went.
-    pub fn finishSave(self: *Editor, s: Request.Save, result: fs.file.SaveError!void) void {
-        self.saved(s, result) catch self.outOfMemory();
-    }
-
-    fn saved(self: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{OutOfMemory}!void {
-        self.quitting = false;
-        result catch |e| {
-            self.doc.endSave(false);
-            self.message.set(true, "cannot write \"{s}\": {s}", .{ s.path, @errorName(e) });
-            return;
-        };
-        if (self.path == null) self.path = self.gpa.dupe(u8, s.path) catch |e| {
-            self.doc.endSave(false);
-            return e;
-        };
-        self.doc.endSave(std.mem.eql(u8, self.path.?, s.path));
-        self.message.set(false, "\"{s}\" written, {d} line{s}", .{ s.path, s.lines, plural(s.lines) });
-        if (s.quit) self.quit = true;
-    }
-
-    /// Reports how the load of `path` went: the file's contents (owned by
-    /// the editor from here), null for a missing file, or the error.
-    pub fn finishLoad(self: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) void {
-        self.loaded(path, result) catch self.outOfMemory();
-    }
-
-    /// As `finishLoad`, but out of memory is returned, with the editor
-    /// unchanged.
-    pub fn loaded(self: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) error{OutOfMemory}!void {
-        const contents = result catch |e| {
-            self.message.set(true, "cannot open \"{s}\": {s}", .{ path, @errorName(e) });
-            return;
-        };
-        defer if (contents) |t| self.gpa.free(t);
-        var doc: Document = try .init(self.gpa, contents orelse "");
-        errdefer doc.deinit();
-        const owned = try self.gpa.dupe(u8, path);
-        self.doc.deinit();
-        self.doc = doc;
-        if (self.path) |p| self.gpa.free(p);
-        self.path = owned;
-        self.view = .{};
-        if (contents == null) {
-            self.message.set(false, "\"{s}\" new file", .{path});
-        } else {
-            const lines = self.doc.buffer.lineCount();
-            self.message.set(false, "\"{s}\" {d} line{s}", .{ path, lines, plural(lines) });
-        }
-    }
+    pub const takeRequest = requesting.takeRequest;
+    pub const ask = requesting.ask;
+    pub const abandonSave = requesting.abandonSave;
+    pub const finishSave = requesting.finishSave;
+    pub const finishLoad = requesting.finishLoad;
+    pub const loaded = requesting.loaded;
 
     /// Types `k`, or the keys it is mapped to, which are not mapped again.
     fn typed(self: *Editor, k: Key) Error!void {
@@ -407,7 +330,3 @@ pub const Editor = struct {
         self.message.set(true, "register {c} is empty", .{reg});
     }
 };
-
-fn plural(n: usize) []const u8 {
-    return if (n == 1) "" else "s";
-}
