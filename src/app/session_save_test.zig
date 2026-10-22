@@ -50,12 +50,12 @@ test "session: collect reports a finished save and does nothing without one" {
     defer tmp.cleanup();
     var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 5);
     defer s.deinit();
-    s.collect();
+    try s.collect();
     try expectEqual(null, s.saving);
     try feedKeys(&s, "ix\x1b:w\r");
     const job = s.saving.?;
     while (!job.isFinished()) try std.Io.sleep(io, .fromMilliseconds(1), .awake);
-    s.collect();
+    try s.collect();
     try expectEqual(null, s.saving);
     try expectEqualStrings("\"f\" written, 1 line", s.ed.message.text());
     try expect(!s.ed.doc.isModified());
@@ -74,7 +74,7 @@ test "session: a finished save wakes the loop through the notify pipe" {
     try feedKeys(&s, ":w\r");
     var fds = [_]std.posix.pollfd{.{ .fd = p[0], .events = std.posix.POLL.IN, .revents = 0 }};
     try expectEqual(1, try std.posix.poll(&fds, 10_000));
-    s.collect();
+    try s.collect();
     try expectEqual(null, s.saving);
     try expectEqualStrings("\"f\" written, 1 line", s.ed.message.text());
 }
@@ -129,8 +129,9 @@ test "session: :e and :q during a save say so; :e! waits for it, then loads" {
     try expectEqualStrings("a save is still being written", s.ed.message.text());
     try expect(!s.done());
     try feedKeys(&s, ":e! g\r");
-    // The save was reported before the load.
+    // The save was reported before the load began.
     try expectEqual(null, s.saving);
+    s.settle();
     try expectEqualStrings("g\n", s.ed.doc.text());
     try expectEqualStrings("\"g\" 1 line", s.ed.message.text());
     var buf: [16]u8 = undefined;

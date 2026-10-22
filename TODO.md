@@ -53,7 +53,8 @@ clean room.
       end to end on a pseudo-terminal
 - [x] Saves off the event loop: `:w` writes a copy of the text on its own
       thread and wakes the loop when done
-- [ ] Loads off the event loop (today `:e` blocks typing while it reads)
+- [x] Loads off the event loop: `:e` reads on its own thread, and the keys
+      typed meanwhile edit the file once it is in
 - [x] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
       stops itself and restores the terminal first)
 - [x] A hang-up (closed terminal window) writes the unsaved buffer to a

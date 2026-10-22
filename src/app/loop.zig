@@ -26,7 +26,7 @@ pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
         if (session.done()) return;
         const timeout: i32 = if (session.waiting()) escape_timeout_ms else -1;
         const ready = try terminal.wait(timeout);
-        session.collect();
+        try session.collect();
         if (ready.hung_up) return;
         if (ready.woken) {
             if (terminal.size()) |s| session.resize(s.width, s.height);

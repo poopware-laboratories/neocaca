@@ -2,9 +2,10 @@
 //! codes in `exit.zig`); the editor state (`editor.zig`) with its `:`
 //! commands (`commands.zig`), prompts (`prompting.zig`), view keys
 //! (`viewing.zig`) and screen layout (`layout.zig`); a session joining it
-//! to bytes, files and frames (`session.zig`), saving off the loop
-//! (`saving.zig`); the event loop (`loop.zig`); and editing in the real
-//! terminal (`edit.zig`).
+//! to bytes, files and frames (`session.zig`), saving and loading off the
+//! loop (`saving.zig`, `loading.zig`) and recovering unsaved changes on a
+//! hang-up (`recovery.zig`); the event loop (`loop.zig`); and editing in
+//! the real terminal (`edit.zig`).
 
 pub const exit = @import("app/exit.zig");
 pub const run = @import("app/run.zig").run;
@@ -34,7 +35,9 @@ test {
     _ = session;
     _ = @import("app/session_test.zig");
     _ = @import("app/session_save_test.zig");
+    _ = @import("app/session_load_test.zig");
     _ = @import("app/saving_test.zig");
+    _ = @import("app/loading_test.zig");
     _ = @import("app/recovery_test.zig");
     _ = loop;
     _ = @import("app/loop_test.zig");

@@ -195,6 +195,17 @@ test "editing: :e opens another file, refused over changes until written" {
     try expectEqualStrings("irst\n", try h.file("a", &buf));
 }
 
+test "editing: keys sent with :e edit the file it opens" {
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 30, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
+    // One read: the keys after Enter wait for `b`, not edit `a`.
+    try h.send(":e b\rd");
+    try h.expectText("econd\n");
+    try h.expectRow(2, " NORMAL  b [+]            1:1 ");
+}
+
 test "editing: a write that fails keeps the changes and says why" {
     var h: Harness = undefined;
     try h.init("dir/a", null, 40, 4);
