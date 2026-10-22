@@ -31,7 +31,7 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 | `b` / `B` | select back to the start of the word / extend |
 | `Alt-w` `Alt-e` `Alt-b` | the same over WORDs (runs of non-blanks); add Shift to extend |
 | `x` | select the whole line (again: the next line too) |
-| `X` | extend to the whole line |
+| `X` | select every line the selection touches (again: the next line too) |
 | `%` | select the whole buffer |
 | `f<c>` / `F<c>` | select to the next `c`, inclusive / extend |
 | `t<c>` / `T<c>` | select up to the next `c`, exclusive / extend |
@@ -128,12 +128,13 @@ paragraph.
 
 | Command | Action |
 |---------|--------|
-| `:w [file]` | write the buffer (atomically), optionally to `file` |
-| `:q` | quit; refused while there are unsaved changes |
+| `:w [file]`, `:write` | write the buffer (atomically), optionally to `file` |
+| `:q`, `:quit` | quit; refused while there are unsaved changes |
 | `:q!` | quit, discarding changes |
-| `:wq`, `:x` | write, then quit |
-| `:e <file>` | edit another file; refused while there are unsaved changes |
-| `:e!` | reload the file from disk, discarding changes |
+| `:wq [file]` | write, optionally to `file`, then quit |
+| `:x` | write only if there are unsaved changes, then quit |
+| `:e <file>`, `:edit` | edit another file; refused while there are unsaved changes |
+| `:e! [file]` | reload the file from disk, or edit `file`, discarding changes |
 | `:<n>` | go to line `n` |
 | `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
 | `:unmap <mode> <key>` | forget the mapping of `key` in that mode |

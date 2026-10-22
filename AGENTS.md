@@ -55,25 +55,16 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 - **`build.zig` contract:** `zig build test` must run every test in the project
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
-- **CI** (`.github/workflows/ci.yml`) runs, all with the pinned Zig:
-  - `zig build fmt-check`;
-  - the tests in Debug and ReleaseSafe (and ReleaseSafe again with
-    `-Dmimalloc-secure=off`) on Ubuntu (glibc), macOS on Apple Silicon and
-    Alpine (musl, in a container, where `.github/scripts/install-zig.sh`
-    installs Zig and checks its SHA-256), each uploading its ReleaseSafe
-    binary; the Alpine binary must be statically linked;
-  - the tests in Debug and ReleaseSafe for `aarch64-linux-musl` under
-    qemu on Ubuntu, the CPU of the macOS runners without their queue;
-  - a ReleaseSafe build and artifact for every supported target
-    (`x86_64`/`aarch64` Linux with glibc and musl, both macOS, FreeBSD);
-  - a benchmark smoke run.
-
-  Every test run passes `--test-timeout 3m`, so a hung test fails naming
-  itself while the rest still run, and the test jobs stop at 45 minutes
-  (`timeout-minutes`). All must pass; run them before pushing (`-Dtarget=x86_64-linux-musl` runs
-  the musl tests on any x86_64 Linux, and `-Dtarget=aarch64-linux-musl
-  -fqemu` the aarch64 ones once `qemu-user` is installed). A non-blocking `zig-latest` job
-  builds with the newest stable Zig to warn before an upgrade.
+- **CI** (`.github/workflows/ci.yml`, all with the pinned Zig) runs
+  `fmt-check`; the tests in Debug and ReleaseSafe on Ubuntu, macOS (Apple
+  Silicon), Alpine (musl, whose binary must be static) and
+  `aarch64-linux-musl` under qemu, with ReleaseSafe again at
+  `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target;
+  and a benchmark smoke run. Test runs pass `--test-timeout 3m` and test
+  jobs stop at 45 minutes. All must pass; run them before pushing
+  (`-Dtarget=x86_64-linux-musl` for musl, `-Dtarget=aarch64-linux-musl
+  -fqemu` with `qemu-user` for aarch64). The `zig-latest` job tries the
+  newest stable Zig without blocking.
 - **Platform-gated code** (`switch (builtin.target.os.tag)` and other
   `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with
@@ -133,10 +124,9 @@ no "I'll add the tests after".
 4. Run the full checks (`zig build fmt-check`, `zig build test` with
    `-Doptimize=debug` and `-Doptimize=safe`) before pushing.
 
-A test that passes the first time you run it proves nothing; adjust it until
-you have seen it fail. When fixing a bug, the first commit may be the
-failing regression test alone. Pure refactors keep existing tests green and
-add characterization tests first for code that had none.
+A test that passes the first time proves nothing; adjust it until you have
+seen it fail. Pure refactors keep the tests green, adding characterization
+tests first for code that had none.
 
 **The 3:1 rule.** Every pull request adds at least **three lines of tests
 for each line of production code**. Test lines are those inside `test "…"
@@ -146,14 +136,10 @@ reviewers count it from the diff.
 
 - Pull requests without production code (docs, CI, build tweaks) pass.
 - **Build scripts and benchmarks are not counted** (`build.zig`,
-  everything under `src/bench/`), provided they are written
-  with deep testing in mind: `build.zig` keeps every test reachable from
-  `zig build test`, honors `-Dtest-filter`, and builds the tests in every
-  mode and option the product ships with; a benchmark checks that each fast
-  path returns the same result as its reference on the measured input and
-  fails if not, and reports the build mode it ran in. Logic either of them
-  needs beyond that (parsing, layout, data generation the tests reuse)
-  lives in `src/` and is counted and tested like any other code.
+  `src/bench/`), provided `build.zig` keeps every test reachable and
+  honors `-Dtest-filter`, and each benchmark fails when a fast path
+  disagrees with its reference. Logic they need beyond that lives in
+  `src/` and is counted like any other code.
 - Meet the ratio with tests that pin real behavior: edge cases, bounds,
   allocation failures, malformed input, regressions, differential cases.
   Never pad (duplicate assertions, filler, loops that only add lines);
@@ -186,12 +172,10 @@ and SIMD, never from turning safety off.
   than a vector goes to the scalar reference. Never read past the end of
   the input, not even within the same page, and never `@ptrCast` a pointer
   to a wider type to load.
-- **Make checks free instead of removing them.** Shape loops so the
-  optimizer can prove a bounds check redundant (the pattern above runs as
-  fast in ReleaseSafe as in ReleaseFast). `@setRuntimeSafety(false)`
-  needs a benchmark showing a gain in ReleaseSafe, a comment stating the
-  invariant that makes it safe, a `std.debug.assert` of that invariant,
-  and a test at its boundary; prefer it never.
+- **Make checks free instead of removing them**: shape loops so the
+  optimizer proves a bounds check redundant, as the pattern above does.
+  `@setRuntimeSafety(false)` needs a ReleaseSafe benchmark gain, a comment
+  and `std.debug.assert` of the invariant, and a test at its boundary.
 - **Bounds on untrusted sizes** hold on fast paths too: a fast path takes
   the same `max_*` limits as the slow path.
 - **Hardened allocator.** mimalloc runs with `-Dmimalloc-secure=on` by
@@ -210,22 +194,14 @@ Zig makes every allocation explicit; keep it that way.
   (leaks, double frees and use after free reported),
   [mimalloc](https://github.com/microsoft/mimalloc) in ReleaseSafe,
   ReleaseFast and ReleaseSmall.
-- **mimalloc is the release allocator.** It is Microsoft's C library (MIT),
-  v3.5.3, pinned by URL and hash in `build.zig.zon`, compiled by
-  `build.zig` from its single-file `src/static.c` with its `include/`
-  directory (no CMake, the defines its CMakeLists.txt would set), and
-  linked with libc. `src/alloc/mimalloc.zig` wraps it as a
-  `std.mem.Allocator` (`mi_malloc_aligned`, `mi_expand` to grow in place,
-  `mi_realloc_aligned` for remap, `mi_free`); no other file calls `mi_*`
-  functions, and they are declared there as `extern fn`, not through
-  `@cImport`. Shrinking always succeeds in place (`mi_free` needs no
-  length); growing in place fails under hardening, whose overflow-detection
-  padding `mi_expand` refuses to touch. Requests over `max_request` fail
-  before reaching mimalloc. The wrapper's tests (alignment for every power
-  of two up to a page, resize and remap keep contents, huge requests fail
-  with `error.OutOfMemory`, the std allocator conformance tests) run in
-  every build mode and hardening level. Debug builds and tests keep the
-  leak-checking std allocators; never make mimalloc the test allocator.
+- **mimalloc is the release allocator:** Microsoft's C library (MIT),
+  v3.5.3, pinned in `build.zig.zon` and compiled by `build.zig` from its
+  single-file `src/static.c` (no CMake). `src/alloc/mimalloc.zig` wraps it
+  as a `std.mem.Allocator` and is the only file that calls `mi_*`
+  (declared as `extern fn`); its comments say how each call maps, and its
+  tests run in every build mode and hardening level. Debug builds and
+  tests keep the leak-checking std allocators; never make mimalloc the
+  test allocator.
 - **Ownership is written down.** A doc comment says who frees what:
   "Caller owns the returned slice", "Borrowed; valid until the next edit".
   Types with resources have `init`/`deinit`; `deinit` frees everything and
@@ -256,11 +232,9 @@ has a `test { _ = @import(...); }` block referencing every file in the
 folder, so `zig build test` reaches them. `src/root.zig` re-exports the
 namespaces. Inside a folder, files import siblings directly
 (`@import("command.zig")`) and other subsystems through their namespace
-file (`@import("../cli.zig")`), never another folder's files. A file holds
-one concern; when it outgrows that, split it (`parse.zig`, `usage.zig`),
-and tests that outgrow their file move to a sibling `name_test.zig`.
-Every row below exists; keep this table and the diagram in step with the
-code in the same pull request that changes it.
+file (`@import("../cli.zig")`), never another folder's files. Every row
+below exists; keep the table and the diagram in step with the code in the
+pull request that changes it.
 
 ```
 terminal bytes ──► term::Tty ──► app::loop ──► app::Session ──► input::Decoder ──► input::Key
@@ -335,11 +309,10 @@ the keymap and its tests.
 - **Functional core, imperative shell.** Encoding, decoding, layout, editing
   and diffing are pure functions over plain data (`input.decode.parse(bytes,
   final)`, `app.layout.draw(editor, screen)`, `render.diff(old, new,
-  writer)`). Only `term/`, `fs/` and `main.zig` do I/O, with the shell files
-  of `app/` that wire them in (`edit.zig`, `session.zig`, `saving.zig`,
-  `loading.zig`, `recovery.zig`); the rest of `app/` is pure, and `Editor`
-  mostly routes keys. If a test needs a
-  real terminal, the logic is in the wrong place.
+  writer)`). Only `term/`, `fs/`, `main.zig` and the shell files of `app/`
+  (`edit.zig`, `session.zig`, `saving.zig`, `loading.zig`, `recovery.zig`)
+  do I/O; the rest of `app/` is pure. If a test needs a real terminal, the
+  logic is in the wrong place.
 - **Never block the event loop.** Reading the terminal, saving files and
   running external tools must not freeze typing. Long work goes off the
   loop and reports back as an event.
@@ -371,13 +344,11 @@ the keymap and its tests.
 - **No new dependencies; write our own.** Use the Zig standard library only.
   Implement features in-house from their specifications (clean room: never
   read or copy another implementation's source), so we keep control over
-  speed, limits and security. The one deliberate exception is mimalloc, the
-  release allocator (see "Memory and allocators"). Adding any other package
-  to `build.zig.zon` needs an issue where the maintainers agree to it first;
-  bumping mimalloc's version is a `build(deps)` pull request with benchmark
-  numbers. Tree-sitter (planned for syntax highlighting, see `TODO.md`)
-  would be the second exception and waits for that agreement; until then
-  highlighting is out of scope.
+  speed, limits and security. The one exception is mimalloc (see "Memory
+  and allocators"); bumping it is a `build(deps)` pull request with
+  benchmark numbers. Any other package, Tree-sitter for highlighting
+  included (see `TODO.md`), needs an issue where the maintainers agree
+  first.
 - **Standards compliance.** Emit escape sequences as their specifications
   define them (ECMA-48, xterm ctlseqs, kitty keyboard protocol), probe for
   optional features instead of assuming them, and fall back cleanly on
@@ -385,6 +356,10 @@ the keymap and its tests.
 - **Errors are values.** Use specific error sets for library code, handle
   every error explicitly, and never discard one with `catch {}` without a
   comment saying why that is safe.
+- **Docs follow the code, in the same commit.** Every Markdown file
+  describes the code as it is: a change that makes a sentence wrong fixes
+  it, new behavior is documented and removed behavior deleted, without
+  being asked. A pull request that leaves a doc stale is not finished.
 - **Config compatibility.** User-facing configuration keys and keybindings,
   once released, keep working under their old names.
 - Match surrounding style: comment density, naming (`camelCase` functions,
@@ -396,22 +371,17 @@ the keymap and its tests.
 `main` takes no direct pushes or force-pushes. Every change, however small,
 goes through a branch and a pull request.
 
-1. **Branch from an up-to-date `main`:**
-   `git switch main && git pull --rebase && git switch -c fix/undo-merge`.
-   Name branches `type/short-topic` after the Conventional Commits type.
-2. **Commit in small steps** on the branch; the red and green steps may be
-   separate commits. To pick up new work from `main` on your own branch,
-   rebase: `git pull --rebase origin main`, then `git push --force-with-lease`.
-   Force-push only to your own branch.
-3. **Open a pull request.** One concern per pull request; keep it small.
-   The **title is a Conventional Commit** (see below): it becomes the
-   squashed commit on `main`. The body explains *why*, links the issue, and
-   carries the evidence: benchmark numbers for performance work, screen
-   captures for rendering changes. Fill in `.github/pull_request_template.md`.
-4. **All checks must pass** before merging. Ask for review when a second
-   pair of eyes helps.
-5. **Merge by squashing** once green. History on `main` stays linear, one
-   commit per pull request.
+1. **Branch from an up-to-date `main`**, named `type/short-topic` after
+   the Conventional Commits type (`fix/undo-merge`).
+2. **Commit in small steps**; the red and green steps may be separate
+   commits. Pick up `main` by rebasing (`git pull --rebase origin main`,
+   then `git push --force-with-lease`), and force-push only your own branch.
+3. **Open a pull request** with one concern, filling in
+   `.github/pull_request_template.md`. Its **title is a Conventional
+   Commit** and becomes the squashed commit on `main`; the body explains
+   *why*, links the issue, and carries the evidence (benchmarks, screen
+   captures).
+4. **Merge by squashing** once every check passes, so `main` stays linear.
 
 **Titles and commits follow [Conventional Commits 1.0](https://www.conventionalcommits.org/en/v1.0.0/):**
 `type(scope)!: summary`, with the scope optional, and the summary in lower
@@ -426,8 +396,6 @@ fine.
 ## Verifying UI changes
 
 Unit tests see `Screen` cells, not the terminal. For anything users see,
-also run the editor and look: in a real terminal, or headless in tmux
-(`tmux new-session -d -x 80 -y 24 'zig-out/bin/neocaca file'`, then
-`tmux send-keys` and `tmux capture-pane -p -e`). Check a narrow size, a
-resize, wide and combining characters, and a light and a dark terminal
-theme. The `checking-screen-output` skill has the full process.
+also run the editor and look, in a terminal or headless in tmux, at a
+narrow size, after a resize, with wide and combining characters, in a
+light and a dark theme. The `checking-screen-output` skill has the steps.
