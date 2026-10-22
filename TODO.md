@@ -27,7 +27,8 @@ pieces when you reach it.
 - [x] Clean-room policy, Kakoune-inspired keybinding model documented
 - **PR: split the files past about 400 lines, by topic**
   - [x] S: `edit/selecting.zig` (its moves went to `edit/moving.zig`)
-  - [ ] S: `edit/verbs_test.zig` and `edit/selecting_test.zig`
+  - [x] S: `edit/verbs_test.zig` (paste went to `paste_test.zig`) and
+        `edit/selecting_test.zig` (moves went to `moving_test.zig`)
   - [ ] S: `input/keymap_test.zig`, `regex/regex_test.zig` and
         `tests/editing_test.zig`
 - **PR: a hang outside any test fails in minutes**

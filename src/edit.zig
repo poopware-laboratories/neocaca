@@ -31,11 +31,13 @@ test {
     _ = object;
     _ = selecting;
     _ = @import("edit/moving.zig");
+    _ = @import("edit/moving_test.zig");
     _ = @import("edit/selecting_test.zig");
     _ = @import("edit/selecting_count_test.zig");
     _ = @import("edit/stopped_test.zig");
     _ = verbs;
     _ = @import("edit/verbs_test.zig");
+    _ = @import("edit/paste_test.zig");
     _ = @import("edit/mapped_test.zig");
     _ = insert;
     _ = @import("edit/insert_test.zig");
