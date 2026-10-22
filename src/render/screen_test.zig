@@ -210,6 +210,45 @@ test "screen: resize fails cleanly when allocation fails" {
     try expectRow(&s, 0, "ab");
 }
 
+test "screen: fitWithin takes the largest size its cells allow, without memory" {
+    var failing: std.testing.FailingAllocator = .init(gpa, .{ .fail_index = 1 });
+    var s: Screen = try .init(failing.allocator(), 4, 3);
+    defer s.deinit();
+    _ = s.text(0, 0, "abcd", .{});
+    _ = s.text(0, 2, "wxyz", .{});
+    s.cursor = .{ .x = 1, .y = 1 };
+    // Smaller: exactly that size, blank.
+    s.fitWithin(3, 2);
+    try expectEqual(3, s.width);
+    try expectEqual(2, s.height);
+    try expectRow(&s, 0, "   ");
+    try expectRow(&s, 1, "   ");
+    try expectEqual(null, s.cursor);
+    _ = s.text(0, 1, "xyz", .{});
+    try expectRow(&s, 1, "xyz");
+    // Narrower and taller than the 12 cells: every column, then the rows.
+    s.fitWithin(2, 20);
+    try expectEqual(2, s.width);
+    try expectEqual(6, s.height);
+    try expectRow(&s, 5, "  ");
+    // Wider: no more columns than cells, one row.
+    s.fitWithin(50, 3);
+    try expectEqual(12, s.width);
+    try expectEqual(1, s.height);
+    // Each side stays within what was asked.
+    s.fitWithin(5, 5);
+    try expectEqual(5, s.width);
+    try expectEqual(2, s.height);
+    s.fitWithin(0, 7);
+    try expectEqual(0, s.width);
+    try expectEqual(0, s.cells.len);
+    // Its cells are still all there for a later resize.
+    s.fitWithin(4, 3);
+    try expectRow(&s, 2, "    ");
+    try std.testing.expectError(error.OutOfMemory, s.resize(5, 3));
+    try expectEqual(4, s.width);
+}
+
 test "screen: a huge size is refused" {
     try std.testing.expectError(error.OutOfMemory, Screen.init(gpa, screen_mod.max_side + 1, 1));
     // Each side within bounds, but too many cells in all.

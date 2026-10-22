@@ -105,3 +105,84 @@ test "random keys: the editor stays consistent and every edit undoes" {
         };
     }
 }
+
+/// An allocator over `std.testing.allocator` that, while `failing`, refuses
+/// about one request in `period`; safe to share with save and load threads.
+const Flaky = struct {
+    seed: u64,
+    period: u64 = 4,
+    count: std.atomic.Value(u64) = .init(0),
+    failing: std.atomic.Value(bool) = .init(false),
+
+    fn allocator(self: *Flaky) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
+    }
+
+    fn refuses(self: *Flaky) bool {
+        if (!self.failing.load(.monotonic)) return false;
+        const n = self.count.fetchAdd(1, .monotonic);
+        return std.hash.int(n ^ self.seed) % self.period == 0;
+    }
+
+    fn alloc(ctx: *anyopaque, len: usize, a: std.mem.Alignment, ra: usize) ?[*]u8 {
+        const self: *Flaky = @ptrCast(@alignCast(ctx));
+        if (self.refuses()) return null;
+        return std.testing.allocator.rawAlloc(len, a, ra);
+    }
+
+    fn resize(ctx: *anyopaque, m: []u8, a: std.mem.Alignment, len: usize, ra: usize) bool {
+        const self: *Flaky = @ptrCast(@alignCast(ctx));
+        if (len > m.len and self.refuses()) return false;
+        return std.testing.allocator.rawResize(m, a, len, ra);
+    }
+
+    fn remap(ctx: *anyopaque, m: []u8, a: std.mem.Alignment, len: usize, ra: usize) ?[*]u8 {
+        const self: *Flaky = @ptrCast(@alignCast(ctx));
+        if (len > m.len and self.refuses()) return null;
+        return std.testing.allocator.rawRemap(m, a, len, ra);
+    }
+
+    fn free(_: *anyopaque, m: []u8, a: std.mem.Alignment, ra: usize) void {
+        std.testing.allocator.rawFree(m, a, ra);
+    }
+};
+
+fn runStarved(seed: u64, actions: usize) !void {
+    var prng = std.Random.DefaultPrng.init(seed);
+    const rand = prng.random();
+    var flaky: Flaky = .{ .seed = seed, .period = rand.intRangeAtMost(u64, 2, 12) };
+    const original = texts[rand.uintLessThan(usize, texts.len)];
+    var h: Harness = undefined;
+    try h.initWith(flaky.allocator(), "f", original, rand.intRangeAtMost(usize, 1, 40), rand.intRangeAtMost(usize, 1, 10));
+    defer h.deinit();
+    const start = try std.testing.allocator.dupe(u8, h.session.ed.doc.text());
+    defer std.testing.allocator.free(start);
+    for (0..actions) |_| {
+        // Memory runs short for a while, then comes back.
+        if (rand.uintLessThan(u8, 8) == 0) flaky.failing.store(!flaky.failing.load(.monotonic), .monotonic);
+        const k = keys[rand.uintLessThan(usize, keys.len)];
+        if (rand.boolean()) try h.typeKeys(k) else try h.send(k);
+        if (rand.uintLessThan(u8, 6) == 0) {
+            h.session.resize(rand.intRangeAtMost(usize, 0, 50), rand.intRangeAtMost(usize, 0, 12));
+            try h.frame();
+        }
+        try expectValid(&h);
+    }
+    flaky.failing.store(false, .monotonic);
+    try h.typeKeys("\x1b");
+    // With memory back, the editor draws at the terminal's size again.
+    try std.testing.expectEqual(h.session.ed.width, h.session.front.width);
+    const doc = &h.session.ed.doc;
+    while (try doc.undo()) {}
+    try std.testing.expectEqualStrings(start, doc.text());
+}
+
+test "random keys: running out of memory at any point stops nothing and loses nothing" {
+    for (0..150) |round| {
+        const seed = 0x0_0e_0000 + round;
+        runStarved(seed, 120) catch |e| {
+            std.debug.print("seed 0x{x}\n", .{seed});
+            return e;
+        };
+    }
+}

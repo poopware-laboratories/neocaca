@@ -323,6 +323,43 @@ test "session: a terminal too large to draw whole still gets frames" {
     try expect(std.mem.indexOf(u8, try frame(&s, &buf), "bc") != null);
 }
 
+test "session: a frame short of memory draws what its cells allow, then grows" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "abc\n" });
+    var failing: std.testing.FailingAllocator = .init(gpa, .{});
+    var s: Session = try .init(failing.allocator(), io, tmp.dir, "f", 12, 3);
+    defer s.deinit();
+    var buf: [4096]u8 = undefined;
+    _ = try frame(&s, &buf);
+    failing.fail_index = failing.alloc_index;
+    // Taller and narrower than the 12 by 3 screens: each draws as much of
+    // the terminal as its cells allow, never wider than it.
+    s.resize(4, 20);
+    const short = try frame(&s, &buf);
+    try expectEqual(4, s.front.width);
+    try expectEqual(9, s.front.height);
+    try expectEqual(4, s.ed.width);
+    try expectEqual(9, s.ed.height);
+    try expect(std.mem.indexOf(u8, short, "out ") != null); // cut to 4 columns
+    _ = try frame(&s, &buf);
+    try expectEqual(4, s.front.width);
+    // Wider: all 30 columns, in the one row the 36 cells allow.
+    s.resize(30, 6);
+    _ = try frame(&s, &buf);
+    _ = try frame(&s, &buf); // both screens now at the size they fell back to
+    try expectEqual(30, s.front.width);
+    try expectEqual(1, s.front.height);
+    try expectEqual(1, s.back.height);
+    // Memory is back: the next frames take the terminal's size, unasked.
+    failing.fail_index = std.math.maxInt(usize);
+    _ = try frame(&s, &buf);
+    _ = try frame(&s, &buf);
+    try expectEqual(30, s.front.width);
+    try expectEqual(30, s.back.width);
+    try expectEqual(6, s.ed.height);
+}
+
 test "session: after a failed write the next frame redraws everything" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
