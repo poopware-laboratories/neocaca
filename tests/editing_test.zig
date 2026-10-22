@@ -3,6 +3,8 @@
 //! each typed as a person types it.
 
 const std = @import("std");
+const builtin = @import("builtin");
+const neocaca = @import("neocaca");
 const Harness = @import("harness.zig").Harness;
 
 const expect = std.testing.expect;
@@ -223,6 +225,20 @@ test "editing: keys sent with :e edit the file it opens" {
     try h.expectRow(2, " NORMAL  b [+]            1:1 ");
 }
 
+test "editing: :e on a named pipe is refused instead of waiting for a writer" {
+    if (builtin.target.os.tag != .linux) return error.SkipZigTest;
+    var h: Harness = undefined;
+    try h.init("a", "first\n", 40, 4);
+    defer h.deinit();
+    const linux = std.os.linux;
+    try expectEqual(.SUCCESS, linux.errno(linux.mknodat(h.tmp.dir.handle, "p", linux.S.IFIFO | 0o600, 0)));
+    try h.typeKeys(":e p\r");
+    try h.expectText("first\n");
+    try h.expectRow(3, "cannot open \"p\": NotAFile               ");
+    try h.typeKeys(":q\r");
+    try expect(h.session.done());
+}
+
 test "editing: a write that fails keeps the changes and says why" {
     var h: Harness = undefined;
     try h.init("dir/a", null, 40, 4);
@@ -246,6 +262,47 @@ test "editing: deleting the last lines split into selections leaves no empty lin
     try expectEqual(1, h.session.ed.doc.sels().len);
     try h.typeKeys("u");
     try h.expectText("a\nb\nc\n");
+}
+
+test "editing: s on a combining mark selects and deletes the whole character" {
+    var h: Harness = undefined;
+    try h.init("t", "ae\u{301}b e\u{301}\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%s");
+    try h.send("\u{301}"); // a character arrives in one read
+    try h.typeKeys("\r");
+    try h.expectSelections(&.{ "e\u{301}", "e\u{301}" });
+    try h.typeKeys("d");
+    try h.expectText("ab \n");
+    try h.typeKeys("u%S");
+    try h.send("\u{301}");
+    try h.typeKeys("\r");
+    try h.expectSelections(&.{ "a", "b ", "\n" });
+}
+
+test "editing: inserting at an inner object's cursor keeps its last character whole" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "(é) \"中\"\n", 30, 4);
+    defer h.deinit();
+    try h.send("\x1bi");
+    try h.typeKeys("(;ix\x1b"); // reduced to the cursor: before é
+    try h.expectText("(xé) \"中\"\n");
+    try h.typeKeys("glh"); // onto 中
+    try h.send("\x1bi");
+    try h.typeKeys("\"cy\x1b");
+    try h.expectText("(xé) \"y\"\n");
+}
+
+test "editing: pasting a line and a word on the last line puts each where it belongs" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "a\nb c\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%sa\\n|c\ry");
+    try h.expectSelections(&.{ "a\n", "c" });
+    try h.typeKeys("%sb|c\rp");
+    try h.expectText("a\nb cc\na\n");
+    try h.typeKeys("u");
+    try h.expectText("a\nb c\n");
 }
 
 test "editing: counts repeat moves and verbs" {
@@ -333,4 +390,65 @@ test "editing: an insert mode mapping leaves insert mode and moves" {
     try h.send("\x1bj"); // Alt-j
     try h.expectRow(2, " NORMAL  b.txt [+]                  2:2 ");
     try h.expectText(">one\ntwo\n");
+}
+
+test "editing: indenting a line that starts with a mark keeps the selection on a character" {
+    var h: Harness = undefined;
+    try h.init("t", "\u{301}a\n", 30, 4);
+    defer h.deinit();
+    // The lone mark is selected; the indent gives it a base to join.
+    try h.typeKeys(">");
+    const sel = h.session.ed.doc.sels()[0];
+    const text = h.text();
+    try expectEqual(neocaca.unicode.chars.holding(text, sel.anchor), sel.anchor);
+    try expectEqual(neocaca.unicode.chars.holding(text, sel.cursor), sel.cursor);
+    // Deleting it takes whole characters, never half of one.
+    try h.typeKeys("d");
+    try h.expectText("   a\n");
+    try h.typeKeys("uu");
+    try h.expectText("\u{301}a\n");
+}
+
+test "editing: a control sequence too long to read is never typed" {
+    var h: Harness = undefined;
+    try h.init("t", "abc\n", 30, 4);
+    defer h.deinit();
+    var long: [80]u8 = @splat('1');
+    long[0] = 0x1b;
+    long[1] = '[';
+    // Its tail comes in a later read, before the Escape timeout.
+    try h.session.feed(&long);
+    try h.send(";2~");
+    try h.expectText("abc\n");
+    try h.typeKeys("i");
+    try h.session.feed("ab\x1b[1;");
+    try h.send("1R"); // a short one split across reads is skipped too
+    try h.expectText("ababc\n");
+    try h.expectSelections(&.{"a"});
+}
+
+test "editing: ? and Alt-n step back through overlapping matches" {
+    var h: Harness = undefined;
+    try h.init("t", "aaa\nb\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("j?a+\r");
+    // Each match ends before the selection: the one starting last is one
+    // character, and each step back starts one earlier.
+    for ([_]usize{ 2, 1, 0 }) |at| {
+        try h.expectSelections(&.{"a"});
+        try expectEqual(at, h.session.ed.doc.primary().anchor);
+        try h.send("\x1bn");
+    }
+    try h.expectMessage("search wrapped");
+    try expectEqual(2, h.session.ed.doc.primary().anchor);
+}
+
+test "editing: s with a lazy pattern selects and deletes each match" {
+    var h: Harness = undefined;
+    try h.init("t", "aa b\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%sa*?\r");
+    try h.expectSelections(&.{ "a", "a" });
+    try h.typeKeys("d");
+    try h.expectText(" b\n");
 }

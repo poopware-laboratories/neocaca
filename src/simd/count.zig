@@ -23,13 +23,17 @@ pub fn countWidth(comptime n: comptime_int, haystack: []const u8, needle: u8) us
     var total: usize = 0;
     var rest = haystack;
     while (rest.len >= n) {
-        // Lanes count in u8, so flush them every 255 chunks.
+        // Lanes count in u8, so flush them every 255 chunks: each round
+        // adds at most 1, so a lane never passes 255 and `+%` never wraps.
+        // It is `+%` rather than `+` because the checked add of vectors
+        // wider than 16 bytes panics on aarch64 in ReleaseSafe even when
+        // nothing overflows (Zig 0.17).
         var lanes = zeros;
         var rounds: usize = 0;
         while (rounds < 255 and rest.len >= n) : (rounds += 1) {
             const chunk: V = rest[0..n].*;
             rest = rest[n..];
-            lanes += @select(u8, chunk == target, ones, zeros);
+            lanes +%= @select(u8, chunk == target, ones, zeros);
         }
         total += @reduce(.Add, @as(@Vector(n, u16), lanes));
     }

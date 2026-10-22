@@ -1,6 +1,7 @@
 //! Tests for `file.zig`, in a temporary directory.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const file = @import("file.zig");
 
 const gpa = std.testing.allocator;
@@ -48,6 +49,31 @@ test "file: load refuses a directory" {
     defer tmp.cleanup();
     try tmp.dir.createDir(io, "d", .default_dir);
     try expectError(error.IsDir, file.load(io, gpa, tmp.dir, "d", file.max_file));
+}
+
+test "file: load refuses a named pipe instead of waiting for a writer" {
+    if (builtin.target.os.tag != .linux) return error.SkipZigTest;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const linux = std.os.linux;
+    const rc = linux.mknodat(tmp.dir.handle, "p", linux.S.IFIFO | 0o600, 0);
+    try std.testing.expectEqual(.SUCCESS, linux.errno(rc));
+    try expectError(error.NotAFile, file.load(io, gpa, tmp.dir, "p", file.max_file));
+}
+
+test "file: load refuses a device, whose reads may never end" {
+    try expectError(error.NotAFile, file.load(io, gpa, std.Io.Dir.cwd(), "/dev/null", file.max_file));
+    try expectError(error.NotAFile, file.load(io, gpa, std.Io.Dir.cwd(), "/dev/zero", 1));
+}
+
+test "file: load follows a link to a regular file" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "real", .data = "x\n" });
+    try tmp.dir.symLink(io, "real", "l", .{});
+    const got = (try file.load(io, gpa, tmp.dir, "l", file.max_file)).?;
+    defer gpa.free(got);
+    try expectEqualStrings("x\n", got);
 }
 
 test "file: save creates a new file" {

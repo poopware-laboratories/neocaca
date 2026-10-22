@@ -13,8 +13,8 @@ const Key = key_mod.Key;
 const Code = key_mod.Code;
 const Mods = key_mod.Mods;
 
-/// The longest control sequence read; longer ones are skipped in pieces
-/// of this size.
+/// The longest control sequence read; the decoder skips longer ones whole
+/// (`overlong`, then `tail`).
 pub const max_csi = 32;
 
 pub const Parsed = union(enum) {
@@ -24,6 +24,9 @@ pub const Parsed = union(enum) {
     key: struct { key: Key, len: usize },
     /// A sequence of this many bytes that means nothing to the editor.
     ignored: usize,
+    /// The first `max_csi` bytes of a longer sequence, whose rest `tail`
+    /// finds.
+    overlong: usize,
     /// `CSI 200 ~` and `CSI 201 ~`, of this many bytes.
     paste_start: usize,
     paste_end: usize,
@@ -93,6 +96,20 @@ fn inSequence(b: u8) bool {
     return b >= 0x20 and b <= 0x7e;
 }
 
+pub const Tail = struct { len: usize, ended: bool };
+
+/// How much of `bytes` continues an overlong sequence: parameter and
+/// intermediate bytes, then its final byte (ECMA-48 5.4). It has `ended`
+/// at a final byte, which it includes, or at a byte no sequence holds,
+/// which it does not.
+pub fn tail(bytes: []const u8) Tail {
+    for (bytes, 0..) |b, i| {
+        if (!inSequence(b)) return .{ .len = i, .ended = true };
+        if (b >= 0x40) return .{ .len = i + 1, .ended = true };
+    }
+    return .{ .len = bytes.len, .ended = false };
+}
+
 fn ss3(bytes: []const u8, final: bool) Parsed {
     if (bytes.len == 2) return if (final) found(.alt('O'), 2) else .incomplete;
     if (!inSequence(bytes[2])) return found(.alt('O'), 2);
@@ -143,7 +160,7 @@ fn csi(bytes: []const u8, final: bool) Parsed {
     if (bytes.len == 2) return if (final) found(.alt('['), 2) else .incomplete;
     var i: usize = 2;
     while (true) : (i += 1) {
-        if (i == max_csi) return .{ .ignored = max_csi };
+        if (i == max_csi) return .{ .overlong = max_csi };
         if (i == bytes.len) return if (final) .{ .ignored = bytes.len } else .incomplete;
         if (!inSequence(bytes[i])) return found(.alt('['), 2);
         if (bytes[i] >= 0x40 and bytes[i] <= 0x7e) break;

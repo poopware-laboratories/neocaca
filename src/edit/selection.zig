@@ -87,10 +87,16 @@ pub const Selections = struct {
         self.normalize(text);
     }
 
-    /// Sorts the selections and merges those whose ranges overlap; the main
-    /// selection stays main (or the one it merged into).
+    /// Moves every anchor and cursor to the start of the character holding
+    /// it (an edit can join a base to the marks after it), then sorts the
+    /// selections and merges those whose ranges overlap; the main selection
+    /// stays main (or the one it merged into).
     pub fn normalize(self: *Selections, text: []const u8) void {
         const list = self.list.items;
+        for (list) |*sel| {
+            sel.anchor = charStart(text, sel.anchor);
+            sel.cursor = charStart(text, sel.cursor);
+        }
         // Insertion sort: the lists are short and usually sorted already.
         var i: usize = 1;
         while (i < list.len) : (i += 1) {
@@ -120,3 +126,8 @@ pub const Selections = struct {
         self.list.shrinkRetainingCapacity(out);
     }
 };
+
+/// The start of the character holding byte `pos`; `pos` itself at the end.
+fn charStart(text: []const u8, pos: usize) usize {
+    return if (pos < text.len) unicode.chars.holding(text, pos) else pos;
+}

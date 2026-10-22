@@ -21,17 +21,19 @@ const is_linux = builtin.target.os.tag == .linux;
 
 /// The settings of the terminal on `fd`.
 pub fn get(fd: posix.fd_t) GetError!Termios {
-    if (!is_linux) return posix.tcgetattr(fd);
-    // The kernel leaves the speeds, past the end of its struct, alone.
+    // The Linux kernel leaves the speeds, past the end of its struct, alone.
     var t = std.mem.zeroes(Termios);
     try readInto(fd, &t);
     return t;
 }
 
-/// Reads the Linux settings of `fd` into `t`, writing nothing past it.
+/// Reads the settings of `fd` into `t`, writing nothing past it. Errors
+/// are mapped here rather than by std's wrappers, which treat a closed
+/// descriptor as unreachable.
 fn readInto(fd: posix.fd_t, t: *Termios) GetError!void {
     while (true) {
-        switch (linux.errno(linux.tcgetattr(fd, t))) {
+        const rc = if (is_linux) linux.tcgetattr(fd, t) else std.c.tcgetattr(fd, t);
+        switch (errnoOf(rc)) {
             .SUCCESS => return,
             .INTR => continue,
             .NOTTY, .BADF => return error.NotATerminal,
@@ -43,9 +45,9 @@ fn readInto(fd: posix.fd_t, t: *Termios) GetError!void {
 /// Sets the terminal on `fd` to `t`, after the output written so far is
 /// sent and with the input not yet read discarded.
 pub fn set(fd: posix.fd_t, t: Termios) SetError!void {
-    if (!is_linux) return posix.tcsetattr(fd, .FLUSH, t);
     while (true) {
-        switch (linux.errno(linux.tcsetattr(fd, .FLUSH, &t))) {
+        const rc = if (is_linux) linux.tcsetattr(fd, .FLUSH, &t) else std.c.tcsetattr(fd, .FLUSH, &t);
+        switch (errnoOf(rc)) {
             .SUCCESS => return,
             .INTR => continue,
             .NOTTY, .BADF => return error.NotATerminal,
@@ -53,6 +55,11 @@ pub fn set(fd: posix.fd_t, t: Termios) SetError!void {
             else => |e| return posix.unexpectedErrno(e),
         }
     }
+}
+
+/// The error of a raw system call on Linux, or of a libc call elsewhere.
+fn errnoOf(rc: anytype) posix.E {
+    return if (is_linux) linux.errno(rc) else std.c.errno(rc);
 }
 
 test "attr: reading the settings writes nothing past them" {

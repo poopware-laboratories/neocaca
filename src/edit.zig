@@ -26,13 +26,17 @@ test {
     _ = object;
     _ = selecting;
     _ = @import("edit/selecting_test.zig");
+    _ = @import("edit/selecting_count_test.zig");
+    _ = @import("edit/stopped_test.zig");
     _ = verbs;
     _ = @import("edit/verbs_test.zig");
+    _ = @import("edit/mapped_test.zig");
     _ = insert;
     _ = @import("edit/insert_test.zig");
     _ = search;
     _ = @import("edit/search_test.zig");
     _ = @import("edit/motion_test.zig");
+    _ = @import("edit/repeat_test.zig");
     _ = @import("edit/object_test.zig");
     _ = @import("edit/fixture_test.zig");
     _ = document;

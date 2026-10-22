@@ -129,22 +129,25 @@ pub fn firstNonBlank(buf: *const Buffer, pos: usize) usize {
 /// Where the `count`th `needle` after (or before) `pos` is; `till` stops
 /// one character short of it. Null when there are not that many.
 pub fn findChar(text: []const u8, pos: usize, needle: u21, count: usize, till: bool, backward: bool) ?usize {
+    var at = pos;
+    for (0..@max(count, 1)) |k| at = findNext(text, at, needle, till, backward, k > 0) orelse return null;
+    return at;
+}
+
+/// One step of `findChar` from `at`; `again` for every step after the
+/// first.
+pub fn findNext(text: []const u8, at: usize, needle: u21, till: bool, backward: bool, again: bool) ?usize {
     var buf: [4]u8 = undefined;
     const pattern = unicode.utf8.encode(needle, &buf);
-    var at = pos;
-    for (0..@max(count, 1)) |k| {
-        // A repeated `t` would find the same character again; step past it.
-        const from = if (till and k > 0) (if (backward) before(text, at) orelse return null else after(text, at) orelse return null) else at;
-        if (backward) {
-            const i = std.mem.lastIndexOf(u8, text[0..from], pattern) orelse return null;
-            at = if (till) chars.next(text, i) else i;
-        } else {
-            const start = chars.next(text, from);
-            const i = std.mem.indexOfPos(u8, text, start, pattern) orelse return null;
-            at = if (till) chars.prev(text, i) else i;
-        }
+    // A repeated `t` would find the same character again; step past it.
+    const from = if (till and again) (if (backward) before(text, at) orelse return null else after(text, at) orelse return null) else at;
+    if (backward) {
+        const i = std.mem.lastIndexOf(u8, text[0..from], pattern) orelse return null;
+        return if (till) chars.next(text, i) else i;
     }
-    return at;
+    const start = chars.next(text, from);
+    const i = std.mem.indexOfPos(u8, text, start, pattern) orelse return null;
+    return if (till) chars.prev(text, i) else i;
 }
 
 fn partner(c: u8) ?struct { u8, bool } {

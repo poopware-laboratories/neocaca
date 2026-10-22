@@ -62,6 +62,9 @@ cloud machine):
 ReleaseFast runs at about the same speed: the kernels' loops let the
 compiler prove their bounds checks redundant, so it removes them itself.
 
+What is treated as untrusted, the limits on it, and how to report a
+vulnerability are in [`SECURITY.md`](SECURITY.md).
+
 ## Getting started
 
 You need [Zig 0.17.0](https://ziglang.org/download/). mimalloc is fetched
@@ -138,6 +141,11 @@ coding agents alike. In short:
    in Debug and ReleaseSafe.
 4. Open a pull request with a [Conventional Commit](https://www.conventionalcommits.org/)
    title and at least three lines of tests per line of code.
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) walks through it step by step. Report
+security problems privately, as [`SECURITY.md`](SECURITY.md) describes;
+[`ACCESSIBILITY.md`](ACCESSIBILITY.md) says what works with assistive
+technology today and what does not yet.
 
 ## License
 

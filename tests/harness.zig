@@ -17,10 +17,15 @@ pub const Harness = struct {
     /// A session on `path` in a fresh directory where `path` holds `contents`
     /// (null: the file does not exist), on a `width` by `height` terminal.
     pub fn init(self: *Harness, path: ?[]const u8, contents: ?[]const u8, width: usize, height: usize) !void {
+        return self.initWith(std.testing.allocator, path, contents, width, height);
+    }
+
+    /// As `init`, with the session allocating from `gpa`.
+    pub fn initWith(self: *Harness, gpa: std.mem.Allocator, path: ?[]const u8, contents: ?[]const u8, width: usize, height: usize) !void {
         self.tmp = std.testing.tmpDir(.{});
         errdefer self.tmp.cleanup();
         if (contents) |t| try self.tmp.dir.writeFile(io, .{ .sub_path = path.?, .data = t });
-        self.session = try .init(std.testing.allocator, io, self.tmp.dir, path, width, height);
+        self.session = try .init(gpa, io, self.tmp.dir, path, width, height);
         try self.frame();
     }
 

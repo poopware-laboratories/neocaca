@@ -12,7 +12,7 @@ clean room.
       release artifacts for every target, and an early-warning job on the
       newest stable Zig
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
-- [x] SIMD kernels (count, find, control bytes) with scalar references
+- [x] SIMD kernels (count, find, control bytes, printable-ASCII runs) with scalar references
 - [x] Command line parsing, help and version
 - [x] Folder-per-subsystem layout
 - [x] Clean-room policy, Kakoune-inspired keybinding model documented
@@ -23,7 +23,8 @@ clean room.
       width (wide, zero width, combining), character boundaries
 - [x] `buffer/`: text storage with a line index; byte offset ⇄ line/column
 - [x] `regex/`: a linear-time, bounded regex engine (Pike VM) for search,
-      select and split
+      select and split; each command bounded in steps (`max_steps`), and
+      the search skipped ahead to the pattern's first byte (SIMD)
 - [x] `edit/`: selections (anchor + cursor, multiple, a main one), change
       sets mapped through edits, undo and redo history
 - [x] `edit/`: motions (characters, words, WORDs, lines, find character,
@@ -78,6 +79,8 @@ clean room.
 - [ ] Large files: a piece table or rope once the contiguous buffer is
       measured to be the bottleneck
 - [ ] Configuration file (keys, tab width, scroll-off, colors)
+- [ ] Searches and `s`/`S`/`Alt-k` off the event loop, cancelled by
+      `Esc`, so the step bound can grow past what one key may freeze
 - [ ] Undo tree browsing and selection history (`Alt-u`, `Alt-U`)
 
 ## Phase 3: code awareness
@@ -101,5 +104,8 @@ clean room.
 
 - [ ] Splits and windows
 - [ ] Themes (light and dark), true color with 256-color fallback
+- [ ] Accessibility (see `ACCESSIBILITY.md`): honor `NO_COLOR`, show
+      which text is selected without relying on color, and a screen
+      reader mode that announces changes instead of redrawing the grid
 - [ ] Session restore
 - [ ] Packaging and releases

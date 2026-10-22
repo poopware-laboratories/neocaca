@@ -16,6 +16,18 @@ pub const max_cell_bytes = 32;
 /// The largest width or height; larger screens are refused.
 pub const max_side = 4096;
 
+/// The most cells a screen holds (about 40 MB); larger screens are refused.
+pub const max_cells = 1 << 20;
+
+pub const Size = struct { width: usize, height: usize };
+
+/// The largest screen a terminal of `width` by `height` can draw into:
+/// every column up to `max_side`, then the rows that fit in `max_cells`.
+pub fn fit(width: usize, height: usize) Size {
+    const w: usize = @min(width, max_side);
+    return .{ .width = w, .height = @min(height, max_side, max_cells / @max(w, 1)) };
+}
+
 pub const Cell = struct {
     bytes: [max_cell_bytes]u8 = @splat(' '),
     len: u8 = 1,
@@ -43,22 +55,26 @@ pub const Screen = struct {
     gpa: std.mem.Allocator,
     width: usize,
     height: usize,
+    /// The first `width * height` of `storage`.
     cells: []Cell,
+    /// Every cell allocated; more than `cells` after `fitWithin`.
+    storage: []Cell,
     /// Where the terminal shows its cursor; null hides it.
     cursor: ?Pos = null,
 
-    /// A blank screen. Sizes above `max_side` fail with OutOfMemory.
+    /// A blank screen. Sizes `fit` would cut fail with OutOfMemory.
     pub fn init(gpa: std.mem.Allocator, width: usize, height: usize) error{OutOfMemory}!Screen {
-        return .{ .gpa = gpa, .width = width, .height = height, .cells = try allocCells(gpa, width, height) };
+        const cells = try allocCells(gpa, width, height);
+        return .{ .gpa = gpa, .width = width, .height = height, .cells = cells, .storage = cells };
     }
 
     pub fn deinit(self: *Screen) void {
-        self.gpa.free(self.cells);
+        self.gpa.free(self.storage);
         self.* = undefined;
     }
 
     fn allocCells(gpa: std.mem.Allocator, width: usize, height: usize) error{OutOfMemory}![]Cell {
-        if (width > max_side or height > max_side) return error.OutOfMemory;
+        if (width > max_side or height > max_side or width * height > max_cells) return error.OutOfMemory;
         const cells = try gpa.alloc(Cell, width * height);
         @memset(cells, .{});
         return cells;
@@ -68,8 +84,19 @@ pub const Screen = struct {
     /// unchanged.
     pub fn resize(self: *Screen, width: usize, height: usize) error{OutOfMemory}!void {
         const cells = try allocCells(self.gpa, width, height);
-        self.gpa.free(self.cells);
-        self.* = .{ .gpa = self.gpa, .width = width, .height = height, .cells = cells };
+        self.gpa.free(self.storage);
+        self.* = .{ .gpa = self.gpa, .width = width, .height = height, .cells = cells, .storage = cells };
+    }
+
+    /// Without allocating, takes the largest size up to `width` by
+    /// `height` the cells already held allow: every column they can, then
+    /// the rows that fit. Blanks every cell.
+    pub fn fitWithin(self: *Screen, width: usize, height: usize) void {
+        const room = self.storage.len;
+        self.width = @min(width, room);
+        self.height = @min(height, room / @max(self.width, 1));
+        self.cells = self.storage[0 .. self.width * self.height];
+        self.clear();
     }
 
     pub fn clear(self: *Screen) void {

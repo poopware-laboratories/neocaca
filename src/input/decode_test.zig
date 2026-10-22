@@ -130,7 +130,25 @@ test "decode: unknown, mouse and overlong sequences are skipped whole" {
     var many: [decode.max_csi + 8]u8 = @splat('1');
     many[0] = 0x1b;
     many[1] = '[';
+    try std.testing.expectEqual(decode.Parsed{ .overlong = decode.max_csi }, decode.parse(&many, false));
+    // One byte short of the limit, the final byte still ends it.
+    many[decode.max_csi - 1] = '~';
     try std.testing.expectEqual(decode.Parsed{ .ignored = decode.max_csi }, decode.parse(&many, false));
+}
+
+test "decode: the tail of an overlong sequence runs to its final byte" {
+    // Parameters and intermediates belong to it; a final byte ends it.
+    try std.testing.expectEqual(decode.Tail{ .len = 5, .ended = true }, decode.tail("1;2 ~x"[0..]));
+    try std.testing.expectEqual(decode.Tail{ .len = 1, .ended = true }, decode.tail("Rab"));
+    try std.testing.expectEqual(decode.Tail{ .len = 2, .ended = true }, decode.tail("?@a")); // the lowest final byte
+    try std.testing.expectEqual(decode.Tail{ .len = 1, .ended = true }, decode.tail("~a")); // the highest
+    // A byte no sequence holds ends it too, and is not part of it.
+    try std.testing.expectEqual(decode.Tail{ .len = 2, .ended = true }, decode.tail("12\x1b[A"));
+    try std.testing.expectEqual(decode.Tail{ .len = 0, .ended = true }, decode.tail("\r"));
+    try std.testing.expectEqual(decode.Tail{ .len = 1, .ended = true }, decode.tail("9\xc3\xa9"));
+    // Out of bytes before its end: all of them, and more may follow.
+    try std.testing.expectEqual(decode.Tail{ .len = 4, .ended = false }, decode.tail("1;2;"));
+    try std.testing.expectEqual(decode.Tail{ .len = 0, .ended = false }, decode.tail(""));
 }
 
 test "decode: a sequence cut by a control byte is Alt with its first byte" {

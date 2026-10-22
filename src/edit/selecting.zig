@@ -13,9 +13,12 @@ const motion = @import("motion.zig");
 const object = @import("object.zig");
 const Selection = @import("selection.zig").Selection;
 const search = @import("search.zig");
+const repeat = @import("repeat.zig");
 
 const chars = unicode.chars;
 const Error = error{OutOfMemory};
+/// `TooCostly`: the regex ran out of steps, and nothing changed.
+pub const SearchError = Error || error{TooCostly};
 
 pub const Motion = union(enum) {
     left,
@@ -46,8 +49,81 @@ pub fn move(doc: *Document, m: Motion, count: usize, extend: bool, tab_width: us
     const old = doc.sels();
     const new = try doc.gpa.alloc(Selection, old.len);
     defer doc.gpa.free(new);
-    for (old, new) |s, *n| n.* = moveOne(&doc.buffer, s, m, @max(count, 1), extend, tab_width);
+    switch (m) {
+        .left, .right, .word_start, .word_end, .word_back, .find => try moveRepeated(doc.gpa, &doc.buffer, old, new, m, @max(count, 1), extend),
+        else => for (old, new) |s, *n| {
+            n.* = moveOne(&doc.buffer, s, m, @max(count, 1), extend, tab_width);
+        },
+    }
     try doc.select(new, doc.selections.main);
+}
+
+/// One step of a motion that `move` repeats.
+const Step = struct {
+    buf: *const Buffer,
+    m: Motion,
+
+    pub fn step(self: *const Step, cursor: usize) ?Selection {
+        const text = self.buf.bytes();
+        return switch (self.m) {
+            .left => .at(motion.left(self.buf, cursor)),
+            .right => .at(motion.right(self.buf, cursor)),
+            .word_start => |big| motion.wordStart(text, cursor, big),
+            .word_end => |big| motion.wordEnd(text, cursor, big),
+            .word_back => |big| motion.wordBack(text, cursor, big),
+            .find => |f| .at(motion.findNext(text, cursor, f.needle, f.till, f.backward, true) orelse return null),
+            else => unreachable,
+        };
+    }
+};
+
+/// Whether the motion's steps lower the cursor.
+pub fn backwards(m: Motion) bool {
+    return switch (m) {
+        .left, .word_back => true,
+        .find => |f| f.backward,
+        else => false,
+    };
+}
+
+/// The motions whose steps go one at a time, repeated through `repeat`
+/// so a count costs about the text's length, not count × selections.
+fn moveRepeated(gpa: std.mem.Allocator, buf: *const Buffer, old: []const Selection, new: []Selection, m: Motion, count: usize, extend: bool) Error!void {
+    // For each selection still moving: where its walk starts, and which it is.
+    const scratch = try gpa.alloc(usize, 2 * old.len);
+    defer gpa.free(scratch);
+    const starts = scratch[0..old.len];
+    const which = scratch[old.len..];
+    const out = try gpa.alloc(?Selection, old.len);
+    defer gpa.free(out);
+    var moving: usize = 0;
+    for (old, 0..) |s, i| {
+        new[i] = s;
+        // The first `f` or `t` is found from the cursor itself: a later
+        // `t` steps past the character it stopped before.
+        starts[moving] = switch (m) {
+            .find => |f| motion.findNext(buf.bytes(), s.cursor, f.needle, f.till, f.backward, false) orelse continue,
+            else => s.cursor,
+        };
+        which[moving] = i;
+        moving += 1;
+    }
+    const steps = if (m == .find) count - 1 else count;
+    if (steps == 0) {
+        for (starts[0..moving], out[0..moving]) |p, *o| o.* = .at(p);
+    } else {
+        try repeat.repeat(gpa, &Step{ .buf = buf, .m = m }, !backwards(m), starts[0..moving], steps, out[0..moving]);
+    }
+    for (which[0..moving], out[0..moving]) |i, o| {
+        // A find with too few matches leaves its selection as it was.
+        const r = o orelse continue;
+        const s = old[i];
+        new[i] = switch (m) {
+            .left, .right => to(s, r.cursor, extend),
+            .find => .span(if (extend) s.anchor else s.cursor, r.cursor),
+            else => if (extend) .span(s.anchor, r.cursor) else r,
+        };
+    }
 }
 
 fn to(s: Selection, pos: usize, extend: bool) Selection {
@@ -57,28 +133,11 @@ fn to(s: Selection, pos: usize, extend: bool) Selection {
 fn moveOne(buf: *const Buffer, s: Selection, m: Motion, count: usize, extend: bool, tab_width: usize) Selection {
     const text = buf.bytes();
     switch (m) {
-        .left, .right => {
-            var p = s.cursor;
-            for (0..count) |_| p = if (m == .left) motion.left(buf, p) else motion.right(buf, p);
-            return to(s, p, extend);
-        },
         .up, .down => {
             const goal = s.goal orelse motion.column(buf, s.cursor, tab_width);
             const n: isize = @intCast(count);
             var r = to(s, motion.vertical(buf, s.cursor, if (m == .up) -n else n, goal, tab_width), extend);
             r.goal = goal;
-            return r;
-        },
-        .word_start, .word_end, .word_back => |big| {
-            var r = s;
-            for (0..count) |_| {
-                const w = switch (m) {
-                    .word_start => motion.wordStart(text, r.cursor, big),
-                    .word_end => motion.wordEnd(text, r.cursor, big),
-                    else => motion.wordBack(text, r.cursor, big),
-                };
-                r = if (extend) .span(s.anchor, w.cursor) else w;
-            }
             return r;
         },
         .line_start => return to(s, motion.lineStart(buf, s.cursor), extend),
@@ -91,14 +150,11 @@ fn moveOne(buf: *const Buffer, s: Selection, m: Motion, count: usize, extend: bo
         .buffer_start => return to(s, 0, extend),
         .buffer_end => return to(s, buf.lineStart(buf.lineCount() - 1), extend),
         .line => |n| return to(s, buf.lineStart(@min(@max(n, 1), buf.lineCount()) - 1), extend),
-        .find => |f| {
-            const p = motion.findChar(text, s.cursor, f.needle, count, f.till, f.backward) orelse return s;
-            return .span(if (extend) s.anchor else s.cursor, p);
-        },
         .matching => {
             const w = motion.matchingBracket(buf, s.cursor) orelse return s;
             return if (extend) .span(s.anchor, w.cursor) else w;
         },
+        .left, .right, .word_start, .word_end, .word_back, .find => unreachable, // moveRepeated
     }
 }
 
@@ -153,22 +209,29 @@ fn coversLines(buf: *const Buffer, s: Selection) bool {
 pub fn selectLines(doc: *Document, count: usize, every_line: bool) void {
     const buf = &doc.buffer;
     for (doc.selections.list.items) |*s| {
-        for (0..@max(count, 1)) |_| {
-            var first = buf.lineOf(s.cursor);
-            var last = first;
-            if (coversLines(buf, s.*)) {
-                first = buf.lineOf(s.min());
-                last = @min(buf.lineOf(s.max()) + 1, buf.lineCount() - 1);
-            } else if (every_line) {
-                first = buf.lineOf(s.min());
-                last = buf.lineOf(s.max());
-            }
-            const start = buf.lineStart(first);
-            const end = buf.lineEnd(last);
-            s.* = if (every_line and s.cursor < s.anchor) .span(end, start) else .span(start, end);
-        }
+        s.* = wholeLines(buf, s.*, every_line, 1);
+        // Then it covers whole lines: each repeat grows it by one more.
+        if (count > 1) s.* = wholeLines(buf, s.*, every_line, count - 1);
     }
     doc.selections.normalize(buf.bytes());
+}
+
+/// `s` over the cursor's whole line (`every_line`: every line it
+/// touches), or, when it covers whole lines, over `more` lines more, as
+/// far as the buffer goes.
+fn wholeLines(buf: *const Buffer, s: Selection, every_line: bool, more: usize) Selection {
+    var first = buf.lineOf(s.cursor);
+    var last = first;
+    if (coversLines(buf, s)) {
+        first = buf.lineOf(s.min());
+        last = @min(buf.lineOf(s.max()) +| more, buf.lineCount() - 1);
+    } else if (every_line) {
+        first = buf.lineOf(s.min());
+        last = buf.lineOf(s.max());
+    }
+    const start = buf.lineStart(first);
+    const end = buf.lineEnd(last);
+    return if (every_line and s.cursor < s.anchor) .span(end, start) else .span(start, end);
 }
 
 /// `Alt-x`: trims each selection to the whole lines inside it, dropping
@@ -213,17 +276,20 @@ fn atColumn(buf: *const Buffer, n: usize, col: usize, tab_width: usize) ?usize {
 /// and makes it main. Repeated `count` times; false when no copy fits.
 pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) Error!bool {
     const buf = &doc.buffer;
-    var added = false;
+    var copies: std.ArrayList(Selection) = .empty;
+    defer copies.deinit(doc.gpa);
+    // Each copy lies past every selection, so it is the next one's main
+    // selection and edge; the selections are sorted once at the end.
+    var m = doc.primary();
+    const list = doc.sels();
+    var edge: usize = if (down) buf.lineOf(list[list.len - 1].max()) else buf.lineOf(list[0].min());
     for (0..@max(count, 1)) |_| {
-        const m = doc.primary();
         const a_line = buf.lineOf(m.anchor);
         const c_line = buf.lineOf(m.cursor);
         const top = @min(a_line, c_line);
         const height = @max(a_line, c_line) - top;
         const a_col = motion.column(buf, m.anchor, tab_width);
         const c_col = motion.column(buf, m.cursor, tab_width);
-        const list = doc.sels();
-        var edge: usize = if (down) buf.lineOf(list[list.len - 1].max()) else buf.lineOf(list[0].min());
         const found: ?Selection = while (true) {
             // `edge` walks to the next candidate top line for the copy.
             if (down) {
@@ -238,14 +304,15 @@ pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) Er
             const cursor = atColumn(buf, t + c_line - top, c_col, tab_width) orelse continue;
             break .span(anchor, cursor);
         };
-        const copy = found orelse break;
-        try doc.selections.list.ensureUnusedCapacity(doc.gpa, 1);
-        doc.selections.list.appendAssumeCapacity(copy);
-        doc.selections.main = doc.sels().len - 1;
-        doc.selections.normalize(buf.bytes());
-        added = true;
+        m = found orelse break;
+        try copies.append(doc.gpa, m);
+        edge = if (down) buf.lineOf(m.max()) else buf.lineOf(m.min());
     }
-    return added;
+    if (copies.items.len == 0) return false;
+    try doc.selections.list.appendSlice(doc.gpa, copies.items);
+    doc.selections.main = doc.sels().len - 1;
+    doc.selections.normalize(buf.bytes());
+    return true;
 }
 
 /// `Alt-i` (`inner`) and `Alt-a`: selects object `kind` around each
@@ -275,7 +342,8 @@ fn replaceWith(doc: *Document, out: []const Selection, main: usize) Error!bool {
 }
 
 /// `s`: selects every non-empty match of `re` inside the selections.
-pub fn selectMatches(doc: *Document, re: *Regex) Error!bool {
+pub fn selectMatches(doc: *Document, re: *Regex) SearchError!bool {
+    re.refill();
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
     defer out.deinit(doc.gpa);
@@ -283,18 +351,21 @@ pub fn selectMatches(doc: *Document, re: *Regex) Error!bool {
     for (doc.sels(), 0..) |s, k| {
         if (k == doc.selections.main) main = out.items.len;
         const r = s.range(text);
+        var walk: chars.Walk = .{ .text = text, .at = r.start };
         var from = r.start;
         while (search.nonEmpty(re, text, from, r.end)) |m| {
-            try out.append(doc.gpa, .span(m.start, chars.prev(text, m.end)));
+            try out.append(doc.gpa, search.over(&walk, m));
             from = m.end;
         }
     }
+    if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }
 
 /// `S`: splits the selections at the non-empty matches of `re`, keeping
 /// the non-empty pieces between them.
-pub fn split(doc: *Document, re: *Regex) Error!bool {
+pub fn split(doc: *Document, re: *Regex) SearchError!bool {
+    re.refill();
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
     defer out.deinit(doc.gpa);
@@ -302,15 +373,19 @@ pub fn split(doc: *Document, re: *Regex) Error!bool {
     for (doc.sels(), 0..) |s, k| {
         if (k == doc.selections.main) main = out.items.len;
         const r = s.range(text);
+        var walk: chars.Walk = .{ .text = text, .at = r.start };
         var start = r.start;
         var from = r.start;
         while (search.nonEmpty(re, text, from, r.end)) |m| {
-            if (m.start > start) try out.append(doc.gpa, .span(start, chars.prev(text, m.start)));
-            start = m.end;
+            // The pieces keep out every character a match touches.
+            const cut = search.over(&walk, m);
+            if (cut.anchor > start) try out.append(doc.gpa, .span(start, chars.prev(text, cut.anchor)));
+            start = chars.next(text, cut.cursor);
             from = m.end;
         }
         if (r.end > start) try out.append(doc.gpa, .span(start, chars.prev(text, r.end)));
     }
+    if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }
 
@@ -335,7 +410,8 @@ pub fn splitLines(doc: *Document) Error!void {
 
 /// `Alt-k` (`keep`) and `Alt-K`: keeps the selections that contain a match
 /// of `re`, or those that do not.
-pub fn keepMatching(doc: *Document, re: *Regex, keep: bool) Error!bool {
+pub fn keepMatching(doc: *Document, re: *Regex, keep: bool) SearchError!bool {
+    re.refill();
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
     defer out.deinit(doc.gpa);
@@ -345,5 +421,6 @@ pub fn keepMatching(doc: *Document, re: *Regex, keep: bool) Error!bool {
         const r = s.range(text);
         if (re.matchesIn(text, r.start, r.end) == keep) try out.append(doc.gpa, s);
     }
+    if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }

@@ -62,8 +62,10 @@ const Script = struct {
             .idle => return .{},
             .hangup => return .{ .woken = true, .hung_up = true },
             .saved => {
-                const job = self.session.?.saving.?;
-                while (!job.isFinished()) try std.Io.sleep(io, .fromMilliseconds(1), .awake);
+                // The loop may have collected a save that finished early.
+                if (self.session.?.saving) |job| {
+                    while (!job.isFinished()) try std.Io.sleep(io, .fromMilliseconds(1), .awake);
+                }
                 return .{ .woken = true };
             },
         }
@@ -142,6 +144,18 @@ test "loop: typing goes on while a save is written, until it wakes the loop" {
     try expectEqualStrings("xb\n", f.session.ed.doc.text());
     var buf: [16]u8 = undefined;
     try expectEqualStrings("b\n", try f.tmp.dir.readFile(io, "a", &buf));
+    // A save that ends before `ix` is typed has its report cleared by the
+    // typing; the test below checks the report.
+}
+
+test "loop: a save step after the save was collected only wakes the loop" {
+    // A fast disk finishes the save before the script waits for it.
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{ .{ .input = ":w\r" }, .saved, .saved } };
+    try f.run(&script);
+    try expectEqual(null, f.session.saving);
     try expectEqualStrings("\"a\" written, 1 line", f.session.ed.message.text());
     // The report is drawn before the terminal goes away.
     try expect(std.mem.indexOf(u8, f.out.buffered(), "written") != null);

@@ -32,6 +32,26 @@ pub fn next(text: []const u8, i: usize) usize {
     return end;
 }
 
+/// A walk forward over the characters of `text`, for the characters that
+/// hold bytes asked for in increasing order (the ends of regex matches,
+/// which may cut a character). Each walk is linear in what it passes.
+pub const Walk = struct {
+    text: []const u8,
+    /// A character start at or before the next byte asked for.
+    at: usize,
+
+    /// The start of the character holding byte `i`, which is below
+    /// `text.len` and not before the last byte asked for.
+    pub fn start(self: *Walk, i: usize) usize {
+        std.debug.assert(i < self.text.len and self.at <= i);
+        while (true) {
+            const end = next(self.text, self.at);
+            if (end > i) return self.at;
+            self.at = end;
+        }
+    }
+};
+
 /// Start of the character ending at `end`; `end` must be above zero.
 pub fn prev(text: []const u8, end: usize) usize {
     var start = utf8.prevStart(text, end);
@@ -46,6 +66,23 @@ pub fn prev(text: []const u8, end: usize) usize {
     // stands alone, as `next` sees them.
     if (markAt(text, start)) return utf8.prevStart(text, end);
     return start;
+}
+
+/// The start of the character holding byte `i`, which is below
+/// `text.len`, found from the bytes around it alone.
+pub fn holding(text: []const u8, i: usize) usize {
+    std.debug.assert(i < text.len);
+    // A codepoint that holds `i` and goes on past it starts at most two
+    // bytes before it; one that ends right after `i` is `prev`'s to find.
+    var end = i + 1;
+    for (0..@as(usize, @min(i, 2)) + 1) |back| {
+        const d = utf8.decode(text[i - back ..]);
+        if (d.cp != null and i - back + d.len > i) {
+            end = i - back + d.len;
+            break;
+        }
+    }
+    return prev(text, end);
 }
 
 /// The first codepoint of the character at `i`, or null for an invalid byte.

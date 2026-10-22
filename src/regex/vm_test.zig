@@ -180,3 +180,62 @@ test "vm: \\d \\w \\s agree with unicode.class on every ascii byte and beyond" {
         try std.testing.expectEqual(unicode.class.isSpace(cp), s.find(bytes, 0) != null);
     }
 }
+
+test "vm: skipping to the first byte finds what a walk finds" {
+    // A lone lead byte, then the same byte starting a whole character.
+    try expectFind("中x", "\xe4\xe4\xb8\xadx", .{ 1, 5 });
+    try expectFind("中", "\xb8\xad中", .{ 2, 5 });
+    // A run running on keeps its match against a later start.
+    try expectFind("a(?:bc)*", "xabcbcx a", .{ 1, 6 });
+    try expectFind("ab\\b", "abc ab", .{ 4, 6 });
+    try expectFind("zz", "zazzz", .{ 2, 4 });
+    try expectFind("z$", "z\nz", .{ 0, 1 });
+    var re = try Regex.compile(gpa, "zz");
+    defer re.deinit();
+    // The slice's end bounds the skip as it bounds matches.
+    try expectMatch(&re, "aazzz", 0, 3, null);
+    try expectMatch(&re, "aazzz", 3, 5, .{ 3, 5 });
+    try std.testing.expectEqual(null, re.findNonEmpty("zaz", 0, 3));
+}
+
+test "vm: the first byte at and around every vector boundary" {
+    var re = try Regex.compile(gpa, "z+y");
+    defer re.deinit();
+    var buf: [200]u8 = undefined;
+    for ([_]usize{ 0, 1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 190 }) |at| {
+        @memset(&buf, 'a');
+        buf[at] = 'z';
+        try expectMatch(&re, &buf, 0, buf.len, null);
+        buf[at + 1] = 'y';
+        try expectMatch(&re, &buf, 0, buf.len, .{ at, at + 2 });
+        for ([_]usize{ 0, at / 2, at }) |from| try expectMatch(&re, &buf, from, buf.len, .{ at, at + 2 });
+        try expectMatch(&re, &buf, at + 1, buf.len, null);
+        try expectMatch(&re, &buf, 0, at + 1, null);
+    }
+}
+
+test "vm: text that cannot start a match costs no steps" {
+    var re = try Regex.compile(gpa, "zz");
+    defer re.deinit();
+    const text = @as([4096]u8, @splat('a')) ++ "zz".*;
+    try expectMatch(&re, &text, 0, text.len, .{ 4096, 4098 });
+    try std.testing.expect(re.scratch.spent < 16);
+    // Without a first byte, every position is a step.
+    var any = try Regex.compile(gpa, "[z]z");
+    defer any.deinit();
+    try expectMatch(&any, &text, 0, text.len, .{ 4096, 4098 });
+    try std.testing.expect(any.scratch.spent > 4096);
+}
+
+test "vm: text without the first byte costs nothing at all" {
+    var re = try Regex.compile(gpa, "zz");
+    defer re.deinit();
+    const text: [100]u8 = @splat('a');
+    try expectMatch(&re, &text, 0, text.len, null);
+    try expectMatch(&re, &text, 50, text.len, null);
+    try std.testing.expectEqual(@as(u64, 0), re.scratch.spent);
+    // A first byte at the very end still matches nothing, cheaply.
+    const tail = @as([99]u8, @splat('a')) ++ "z".*;
+    try expectMatch(&re, &tail, 0, tail.len, null);
+    try std.testing.expect(re.scratch.spent <= 8);
+}

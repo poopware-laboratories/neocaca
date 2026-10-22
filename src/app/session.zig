@@ -27,6 +27,9 @@ pub const Session = struct {
     front: Screen,
     /// The frame being drawn.
     back: Screen,
+    /// The terminal's size as `fit` cuts it; the screens take it when
+    /// memory allows.
+    size: rendering.screen.Size,
     shown: bool = false,
     /// The save being written, off the event loop; owned.
     saving: ?*Saving = null,
@@ -56,7 +59,8 @@ pub const Session = struct {
     ) error{OutOfMemory}!Session {
         var ed: Editor = try .init(gpa, path, "");
         errdefer ed.deinit();
-        ed.resize(width, height);
+        const size = rendering.screen.fit(width, height);
+        ed.resize(size.width, size.height);
         if (path) |p| {
             const result = fs.load(io, gpa, dir, p, fs.max_file) catch |e| switch (e) {
                 error.OutOfMemory => return error.OutOfMemory,
@@ -64,10 +68,10 @@ pub const Session = struct {
             };
             try ed.loaded(p, result);
         }
-        var front: Screen = try .init(gpa, width, height);
+        var front: Screen = try .init(gpa, size.width, size.height);
         errdefer front.deinit();
-        const back: Screen = try .init(gpa, width, height);
-        return .{ .gpa = gpa, .io = io, .dir = dir, .ed = ed, .decoder = .init(gpa), .front = front, .back = back };
+        const back: Screen = try .init(gpa, size.width, size.height);
+        return .{ .gpa = gpa, .io = io, .dir = dir, .ed = ed, .decoder = .init(gpa), .front = front, .back = back, .size = size };
     }
 
     /// Waits for a save or load in flight first: closing never drops a
@@ -218,20 +222,28 @@ pub const Session = struct {
         self.ed.finishSave(job.save, job.result);
     }
 
-    /// The terminal is now `width` by `height` cells.
+    /// The terminal is now `width` by `height` cells; one too large to
+    /// draw whole is drawn in its top left corner.
     pub fn resize(self: *Session, width: usize, height: usize) void {
-        self.ed.resize(width, height);
+        self.size = rendering.screen.fit(width, height);
+        self.ed.resize(self.size.width, self.size.height);
     }
 
-    pub const RenderError = std.Io.Writer.Error || error{OutOfMemory};
+    pub const RenderError = std.Io.Writer.Error;
 
     /// Draws the editor and writes what changed since the last frame. After
     /// a failed write the terminal is in an unknown state, so the next
     /// frame is written whole.
     pub fn render(self: *Session, w: *std.Io.Writer) RenderError!void {
-        if (self.back.width != self.ed.width or self.back.height != self.ed.height) {
-            try self.back.resize(self.ed.width, self.ed.height);
+        if (self.back.width != self.size.width or self.back.height != self.size.height) {
+            self.back.resize(self.size.width, self.size.height) catch {
+                // Drawn as large as its cells allow, in the top left
+                // corner; the next frame tries again.
+                self.back.fitWithin(self.size.width, self.size.height);
+                self.ed.outOfMemory();
+            };
         }
+        self.ed.resize(self.back.width, self.back.height);
         self.back.clear();
         self.ed.draw(&self.back);
         const old: ?*const Screen = if (self.shown) &self.front else null;

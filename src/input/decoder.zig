@@ -25,6 +25,8 @@ pub const Decoder = struct {
     /// The paste collected so far.
     paste: std.ArrayList(u8) = .empty,
     in_paste: bool = false,
+    /// Inside a sequence longer than `decode.max_csi`, skipped to its end.
+    in_overlong: bool = false,
     /// The last paste returned is cleared on the next call.
     paste_returned: bool = false,
     /// Whether the current or last paste went past `max_paste`.
@@ -66,6 +68,14 @@ pub const Decoder = struct {
         while (true) {
             const rest = self.pending.items[self.head..];
             if (self.in_paste) return self.collect(rest);
+            if (self.in_overlong) {
+                const t = decode.tail(rest);
+                self.head += t.len;
+                // A timeout ends it too, so a key typed later is a key.
+                self.in_overlong = !t.ended and !final;
+                if (self.in_overlong) return null;
+                continue;
+            }
             switch (decode.parse(rest, final)) {
                 .incomplete => return null,
                 .key => |k| {
@@ -73,6 +83,10 @@ pub const Decoder = struct {
                     return .{ .key = k.key };
                 },
                 .ignored, .paste_end => |n| self.head += n,
+                .overlong => |n| {
+                    self.head += n;
+                    self.in_overlong = true;
+                },
                 .paste_start => |n| {
                     self.head += n;
                     self.in_paste = true;

@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const ast = @import("ast.zig");
+const utf8 = @import("../unicode.zig").utf8;
 
 pub const Inst = union(enum) {
     char: u21,
@@ -28,6 +29,9 @@ pub const max_insts = 20_000;
 pub const Program = struct {
     insts: []Inst,
     ranges: []ast.Range,
+    /// The byte every match starts with, when there is one: text before
+    /// it cannot start a match, so a search skips to it.
+    first: ?u8 = null,
 
     pub fn deinit(self: *Program, gpa: std.mem.Allocator) void {
         gpa.free(self.insts);
@@ -38,19 +42,61 @@ pub const Program = struct {
 
 /// Compiles `tree`. Caller owns the result (`Program.deinit`).
 pub fn compile(gpa: std.mem.Allocator, tree: ast.Tree) Error!Program {
-    var c: Compiler = .{ .gpa = gpa, .tree = tree };
+    return compileWith(gpa, tree, false);
+}
+
+/// Compiles `tree` to match its pattern backwards: every concatenation in
+/// reverse, so a run from right to left over a text finds where matches
+/// start (`vm.lastStart`). Caller owns the result.
+pub fn compileReversed(gpa: std.mem.Allocator, tree: ast.Tree) Error!Program {
+    return compileWith(gpa, tree, true);
+}
+
+fn compileWith(gpa: std.mem.Allocator, tree: ast.Tree, reversed: bool) Error!Program {
+    var c: Compiler = .{ .gpa = gpa, .tree = tree, .reversed = reversed };
     defer c.insts.deinit(gpa);
     try c.emitNode(tree.root);
     _ = try c.emit(.match);
     const ranges = try gpa.dupe(ast.Range, tree.ranges);
     errdefer gpa.free(ranges);
-    return .{ .insts = try c.insts.toOwnedSlice(gpa), .ranges = ranges };
+    const first = if (reversed) null else try firstByte(gpa, c.insts.items);
+    return .{ .insts = try c.insts.toOwnedSlice(gpa), .ranges = ranges, .first = first };
+}
+
+/// The lead byte of every character a match can start with, when they
+/// all share one. Null when a match can be empty, or start at an
+/// assertion (which looks at the text before it), a class, `.` or a byte
+/// escape (whose byte can sit inside a character a walk steps over).
+fn firstByte(gpa: std.mem.Allocator, insts: []const Inst) error{OutOfMemory}!?u8 {
+    var seen = try std.DynamicBitSetUnmanaged.initEmpty(gpa, insts.len);
+    defer seen.deinit(gpa);
+    var stack: std.ArrayList(u32) = .empty;
+    defer stack.deinit(gpa);
+    try stack.append(gpa, 0);
+    var first: ?u8 = null;
+    while (stack.pop()) |pc| {
+        if (seen.isSet(pc)) continue;
+        seen.set(pc);
+        switch (insts[pc]) {
+            .jump => |to| try stack.append(gpa, to),
+            .split => |s| try stack.appendSlice(gpa, &.{ s.x, s.y }),
+            .char => |cp| {
+                var buf: [4]u8 = undefined;
+                const lead = utf8.encode(cp, &buf)[0];
+                if (first != null and first != lead) return null;
+                first = lead;
+            },
+            else => return null,
+        }
+    }
+    return first;
 }
 
 const Compiler = struct {
     gpa: std.mem.Allocator,
     tree: ast.Tree,
     insts: std.ArrayList(Inst) = .empty,
+    reversed: bool,
     /// Nodes visited; nested counts over empty bodies emit nothing but
     /// would still loop, so they are bounded too.
     visits: usize = 0,
@@ -78,7 +124,10 @@ const Compiler = struct {
             .line_end => _ = try self.emit(.line_end),
             .word_boundary => _ = try self.emit(.word_boundary),
             .not_word_boundary => _ = try self.emit(.not_word_boundary),
-            .concat => |r| for (self.tree.children[r.start..][0..r.len]) |child| try self.emitNode(child),
+            .concat => |r| {
+                const children = self.tree.children[r.start..][0..r.len];
+                for (0..children.len) |k| try self.emitNode(children[if (self.reversed) children.len - 1 - k else k]);
+            },
             .alt => |r| try self.emitAlt(self.tree.children[r.start..][0..r.len]),
             .repeat => |r| try self.emitRepeat(r.child, r.min, r.max, r.greedy),
         }

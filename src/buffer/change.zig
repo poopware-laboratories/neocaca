@@ -38,21 +38,53 @@ pub const Assoc = enum { before, after };
 /// Where `pos` in the old text lands in the new text. A position inside a
 /// replaced range lands at the start of its replacement.
 pub fn mapPos(changes: []const Change, pos: usize, assoc: Assoc) usize {
-    var delta: isize = 0;
-    for (changes) |c| {
-        if (pos < c.start) break;
-        const removed: isize = @intCast(c.end - c.start);
-        const added: isize = @intCast(c.text.len);
-        if (pos == c.start and c.start == c.end) {
-            if (assoc == .before) break;
-            delta += added;
-            continue;
-        }
-        if (pos < c.end) return @intCast(@as(isize, @intCast(c.start)) + delta);
-        delta += added - removed;
-    }
-    return @intCast(@as(isize, @intCast(pos)) + delta);
+    var m: Mapper = .init(changes);
+    return m.map(pos, assoc);
 }
+
+/// Maps many positions through one change set, as `mapPos` does. It keeps
+/// its place in `changes`, so positions in increasing order cost the
+/// changes they pass, not the whole set each time; any order is correct.
+pub const Mapper = struct {
+    /// Borrowed.
+    changes: []const Change,
+    /// `changes[0..next]` lie wholly before the last position mapped.
+    next: usize = 0,
+    /// Their total change in length.
+    delta: isize = 0,
+
+    pub fn init(changes: []const Change) Mapper {
+        return .{ .changes = changes };
+    }
+
+    pub fn map(self: *Mapper, pos: usize, assoc: Assoc) usize {
+        while (self.next > 0 and !before(self.changes[self.next - 1], pos, assoc)) {
+            self.next -= 1;
+            self.delta -= growth(self.changes[self.next]);
+        }
+        while (self.next < self.changes.len and before(self.changes[self.next], pos, assoc)) {
+            self.delta += growth(self.changes[self.next]);
+            self.next += 1;
+        }
+        var at = pos;
+        if (self.next < self.changes.len) {
+            const c = self.changes[self.next];
+            if (pos >= c.start and pos < c.end) at = c.start;
+        }
+        return @intCast(@as(isize, @intCast(at)) + self.delta);
+    }
+
+    /// Whether `c` lies wholly before `pos`; an insertion at `pos` does
+    /// when `pos` goes after it.
+    fn before(c: Change, pos: usize, assoc: Assoc) bool {
+        if (c.start == c.end and pos == c.start) return assoc == .after;
+        return pos >= c.end;
+    }
+
+    fn growth(c: Change) isize {
+        return @as(isize, @intCast(c.text.len)) - @as(isize, @intCast(c.end - c.start));
+    }
+};
 
 /// Writes `old` with `changes` applied into `out`, which must hold exactly
 /// `newLen(changes, old.len)` bytes.

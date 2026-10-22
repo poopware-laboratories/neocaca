@@ -102,7 +102,7 @@ fn pair(text: []const u8, pos: usize, open: u8, close: u8, inner: bool) ?Selecti
     }
     if (!inner) return .span(start, end);
     if (start + 1 == end) return null;
-    return .span(start + 1, end - 1);
+    return .span(start + 1, chars.prev(text, end));
 }
 
 fn quote(buf: *const Buffer, pos: usize, q: u8, inner: bool) ?Selection {
@@ -121,7 +121,7 @@ fn quote(buf: *const Buffer, pos: usize, q: u8, inner: bool) ?Selection {
         if (pos < start or pos > i) continue;
         if (!inner) return .span(start, i);
         if (start + 1 == i) return null;
-        return .span(start + 1, i - 1);
+        return .span(start + 1, chars.prev(text, i));
     }
     return null;
 }

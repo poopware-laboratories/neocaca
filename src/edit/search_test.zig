@@ -23,6 +23,12 @@ test "search: the next match after the main selection" {
     try expectSearch("«a»\nb\n", "^b", .forward, false, .found, "a\n«b»\n");
 }
 
+test "search: a match that cuts a character selects all of it" {
+    try expectSearch("«a»\nxe\u{301}\n", "\u{301}", .forward, false, .found, "a\nx«e\u{301}»\n");
+    try expectSearch("xe\u{301}y\n«a»\n", "e", .backward, false, .found, "x«e\u{301}»y\na\n");
+    try expectSearch("«a»e\u{301}\u{302}\n", "\u{302}", .forward, true, .found, "‹a›«e\u{301}\u{302}»\n");
+}
+
 test "search: wraps around the buffer end" {
     try expectSearch("ab «ab»\n", "ab", .forward, false, .wrapped, "«ab» ab\n");
     try expectSearch("«ab»\n", "ab", .forward, false, .wrapped, "«ab»\n");
@@ -74,4 +80,29 @@ test "search: nonEmpty stays inside its range" {
     try std.testing.expectEqual(null, search.nonEmpty(&re, text, 2, 2));
     try std.testing.expectEqual(null, search.nonEmpty(&re, text, 3, text.len));
     try std.testing.expectEqual(null, search.nonEmpty(&re, text, 0, 1));
+}
+
+test "search: backward on a long line where every position matches" {
+    // Before, each start was tried in turn and rescanned the line.
+    const n = 100_000;
+    const text = try gpa.alloc(u8, n + 3);
+    defer gpa.free(text);
+    @memset(text[0..n], 'a');
+    @memcpy(text[n..], "\nb\n");
+    const Document = @import("document.zig").Document;
+    var d: Document = try .init(gpa, text);
+    defer d.deinit();
+    try d.select(&.{.at(n + 1)}, 0); // on the b
+    var re: Regex = try .compile(gpa, ".+");
+    defer re.deinit();
+    try std.testing.expectEqual(search.Result.found, try search.next(&d, &re, .backward, false));
+    try std.testing.expectEqual(n - 1, d.primary().anchor);
+    try std.testing.expectEqual(n - 1, d.primary().cursor);
+}
+
+test "search: backward wraps to the last match in the buffer" {
+    try expectSearch("«a» b a\n", "a", .backward, false, .wrapped, "a b «a»\n");
+    try expectSearch("«ab»\n", "ab", .backward, false, .wrapped, "«ab»\n");
+    // The last match starts last, even inside a longer one.
+    try expectSearch("«x» aab\n", "a+b|b", .backward, false, .wrapped, "x aa«b»\n");
 }

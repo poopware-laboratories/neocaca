@@ -74,8 +74,9 @@ fn drawLine(screen: *Screen, doc: *const Document, n: usize, x0: usize, y: usize
     const line = buf.line(n);
     const left = o.view.left;
     const width = right - x0;
-    var col: usize = 0;
-    var i: usize = 0;
+    // From the character the view's left edge cuts or starts.
+    var i = display.offsetAt(line, left, o.tab_width);
+    var col = display.columnOf(line, i, o.tab_width);
     while (col < left + width) {
         if (i == line.len) {
             // The newline: drawn as a space when selected.

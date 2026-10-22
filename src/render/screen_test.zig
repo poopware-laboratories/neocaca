@@ -210,8 +210,74 @@ test "screen: resize fails cleanly when allocation fails" {
     try expectRow(&s, 0, "ab");
 }
 
+test "screen: fitWithin takes the largest size its cells allow, without memory" {
+    var failing: std.testing.FailingAllocator = .init(gpa, .{ .fail_index = 1 });
+    var s: Screen = try .init(failing.allocator(), 4, 3);
+    defer s.deinit();
+    _ = s.text(0, 0, "abcd", .{});
+    _ = s.text(0, 2, "wxyz", .{});
+    s.cursor = .{ .x = 1, .y = 1 };
+    // Smaller: exactly that size, blank.
+    s.fitWithin(3, 2);
+    try expectEqual(3, s.width);
+    try expectEqual(2, s.height);
+    try expectRow(&s, 0, "   ");
+    try expectRow(&s, 1, "   ");
+    try expectEqual(null, s.cursor);
+    _ = s.text(0, 1, "xyz", .{});
+    try expectRow(&s, 1, "xyz");
+    // Narrower and taller than the 12 cells: every column, then the rows.
+    s.fitWithin(2, 20);
+    try expectEqual(2, s.width);
+    try expectEqual(6, s.height);
+    try expectRow(&s, 5, "  ");
+    // Wider: no more columns than cells, one row.
+    s.fitWithin(50, 3);
+    try expectEqual(12, s.width);
+    try expectEqual(1, s.height);
+    // Each side stays within what was asked.
+    s.fitWithin(5, 5);
+    try expectEqual(5, s.width);
+    try expectEqual(2, s.height);
+    s.fitWithin(0, 7);
+    try expectEqual(0, s.width);
+    try expectEqual(0, s.cells.len);
+    // Its cells are still all there for a later resize.
+    s.fitWithin(4, 3);
+    try expectRow(&s, 2, "    ");
+    try std.testing.expectError(error.OutOfMemory, s.resize(5, 3));
+    try expectEqual(4, s.width);
+}
+
 test "screen: a huge size is refused" {
     try std.testing.expectError(error.OutOfMemory, Screen.init(gpa, screen_mod.max_side + 1, 1));
+    // Each side within bounds, but too many cells in all.
+    try std.testing.expectError(error.OutOfMemory, Screen.init(gpa, screen_mod.max_side, screen_mod.max_side));
+    const tall = screen_mod.max_cells / screen_mod.max_side;
+    try std.testing.expectError(error.OutOfMemory, Screen.init(gpa, screen_mod.max_side, tall + 1));
+}
+
+test "screen: fit keeps a size that is allowed" {
+    try expectEqual(screen_mod.Size{ .width = 80, .height = 24 }, screen_mod.fit(80, 24));
+    try expectEqual(screen_mod.Size{ .width = 0, .height = 0 }, screen_mod.fit(0, 0));
+    try expectEqual(screen_mod.Size{ .width = 0, .height = 50 }, screen_mod.fit(0, 50));
+    const tall = screen_mod.max_cells / screen_mod.max_side;
+    try expectEqual(screen_mod.Size{ .width = screen_mod.max_side, .height = tall }, screen_mod.fit(screen_mod.max_side, tall));
+}
+
+test "screen: fit cuts a huge size to every column it may and the rows that fit" {
+    const max = screen_mod.max_side;
+    try expectEqual(screen_mod.Size{ .width = max, .height = 1 }, screen_mod.fit(max + 1, 1));
+    try expectEqual(screen_mod.Size{ .width = 1, .height = max }, screen_mod.fit(1, max + 1));
+    try expectEqual(screen_mod.Size{ .width = max, .height = screen_mod.max_cells / max }, screen_mod.fit(100_000, 100_000));
+    try expectEqual(screen_mod.Size{ .width = 1000, .height = screen_mod.max_cells / 1000 }, screen_mod.fit(1000, 4000));
+    try expectEqual(screen_mod.Size{ .width = 1, .height = max }, screen_mod.fit(1, std.math.maxInt(usize)));
+    // Whatever comes in, the screen it gives can be made.
+    for ([_][2]usize{ .{ max, max }, .{ 3000, 3000 }, .{ 1, std.math.maxInt(usize) }, .{ 999, 1050 } }) |wh| {
+        const f = screen_mod.fit(wh[0], wh[1]);
+        try std.testing.expect(f.width <= wh[0] and f.height <= wh[1]);
+        try std.testing.expect(f.width * f.height <= screen_mod.max_cells);
+    }
 }
 
 test "screen: a caret pair cut at the edge keeps its caret" {

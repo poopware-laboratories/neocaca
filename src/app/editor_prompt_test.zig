@@ -348,6 +348,28 @@ test "editor: S splits the selections at the matches" {
     try expectEqual(3, ed.doc.sels().len);
 }
 
+test "editor: S drops the selections its matches cover and keeps the rest" {
+    var ed: Editor = try .init(gpa, null, "aa\nab\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "%S[a\\n]\r");
+    // Only the `b` is left between the matches.
+    try expectEqual(1, ed.doc.sels().len);
+    try expectMain(&ed, 4, 4);
+    try std.testing.expectEqualStrings("", ed.message.text());
+}
+
+test "editor: S whose matches cover every selection keeps them and says so" {
+    var ed: Editor = try .init(gpa, null, "aaa\nbbb\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "xS[a\\n]\r");
+    try expectMessage(&ed, "nothing left between the matches", true);
+    try expectMain(&ed, 0, 3);
+    // Without a match it is one piece, the selection as it was.
+    try typeKeys(&ed, "Szz\r");
+    try expectMain(&ed, 0, 3);
+    try std.testing.expectEqualStrings("", ed.message.text());
+}
+
 test "editor: Alt-k keeps and Alt-K drops the matching selections" {
     var ed: Editor = try .init(gpa, null, "a1\nb\nc2\n");
     defer ed.deinit();

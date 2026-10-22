@@ -12,12 +12,18 @@ const File = Io.File;
 /// The largest file `load` takes by default, in bytes.
 pub const max_file = 256 << 20;
 
-pub const LoadError = Dir.ReadFileAllocError || error{FileTooBig};
+pub const LoadError = Dir.ReadFileAllocError || Dir.StatFileError || error{ FileTooBig, NotAFile };
 
 /// The contents of `path`, or null when it does not exist (a new file).
-/// Files over `limit` bytes fail with `error.FileTooBig`. Caller owns the
-/// returned slice.
+/// Files over `limit` bytes fail with `error.FileTooBig`; pipes, devices
+/// and sockets, whose reads may wait or never end, with `error.NotAFile`.
+/// Caller owns the returned slice.
 pub fn load(io: Io, gpa: std.mem.Allocator, dir: Dir, path: []const u8, limit: usize) LoadError!?[]u8 {
+    const st = dir.statFile(io, path, .{}) catch |e| switch (e) {
+        error.FileNotFound => return null,
+        else => return e,
+    };
+    if (st.kind != .file and st.kind != .directory) return error.NotAFile;
     return dir.readFileAlloc(io, path, gpa, .limited(limit +| 1)) catch |e| switch (e) {
         error.FileNotFound => null,
         error.StreamTooLong => error.FileTooBig,

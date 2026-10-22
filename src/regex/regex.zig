@@ -12,6 +12,8 @@ pub const Error = parse_mod.Error || program.Error;
 pub const Regex = struct {
     gpa: std.mem.Allocator,
     prog: program.Program,
+    /// The pattern compiled backwards, for `lastStart`.
+    rev: program.Program,
     scratch: vm.Scratch,
 
     /// Compiles `pattern`; `deinit` frees it.
@@ -20,24 +22,53 @@ pub const Regex = struct {
         defer parsed.deinit(gpa);
         var prog = try program.compile(gpa, parsed.tree());
         errdefer prog.deinit(gpa);
-        return .{ .gpa = gpa, .prog = prog, .scratch = try .init(gpa, prog.insts.len) };
+        var rev = try program.compileReversed(gpa, parsed.tree());
+        errdefer rev.deinit(gpa);
+        // Both have the same instructions in another order: one scratch.
+        std.debug.assert(rev.insts.len == prog.insts.len);
+        return .{ .gpa = gpa, .prog = prog, .rev = rev, .scratch = try .init(gpa, prog.insts.len) };
     }
 
     pub fn deinit(self: *Regex) void {
         self.prog.deinit(self.gpa);
+        self.rev.deinit(self.gpa);
         self.scratch.deinit(self.gpa);
         self.* = undefined;
     }
 
+    /// Gives back the whole step budget (`vm.max_steps`); one command
+    /// calls it once, before its searches.
+    pub fn refill(self: *Regex) void {
+        self.scratch.spent = 0;
+    }
+
+    /// Whether the searches since `refill` ran out of steps. They then
+    /// found nothing, whatever the text holds.
+    pub fn exhausted(self: *const Regex) bool {
+        return self.scratch.exhausted();
+    }
+
     /// The first match starting at or after `from`, in all of `text`.
     pub fn find(self: *Regex, text: []const u8, from: usize) ?Match {
-        return vm.find(&self.prog, &self.scratch, text, from, text.len);
+        return vm.find(&self.prog, &self.scratch, text, from, text.len, false);
     }
 
     /// The first match inside `text[from..to]`; assertions still see the
     /// text around it.
     pub fn findIn(self: *Regex, text: []const u8, from: usize, to: usize) ?Match {
-        return vm.find(&self.prog, &self.scratch, text, from, to);
+        return vm.find(&self.prog, &self.scratch, text, from, to, false);
+    }
+
+    /// The first non-empty match inside `text[from..to]`, preferred as
+    /// `findIn` prefers among those.
+    pub fn findNonEmpty(self: *Regex, text: []const u8, from: usize, to: usize) ?Match {
+        return vm.find(&self.prog, &self.scratch, text, from, to, true);
+    }
+
+    /// Where the non-empty match inside `text[from..to]` that starts last
+    /// starts, in time linear in the slice.
+    pub fn lastStart(self: *Regex, text: []const u8, from: usize, to: usize) ?usize {
+        return vm.lastStart(&self.rev, &self.scratch, text, from, to);
     }
 
     /// Whether `text[from..to]` contains a match.

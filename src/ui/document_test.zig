@@ -209,6 +209,50 @@ test "document: a tab cut at the left edge keeps its remaining columns" {
     try f.expectRow(0, " 1   x  ");
 }
 
+test "document: scrolled past a long run, a mark still joins its letter" {
+    var f: Fixture = try .init(@as([40]u8, @splat('a')) ++ "e\u{301}\txyz\n", 9, 1);
+    defer f.deinit();
+    f.draw(.{ .left = 40 });
+    // The tab at column 41 reaches the stop at 44.
+    try f.expectRow(0, " 1 e\u{301}   xy");
+    f.draw(.{ .left = 39 });
+    try f.expectRow(0, " 1 ae\u{301}   x");
+}
+
+test "document: a caret pair after a long run, cut by the left edge" {
+    var f: Fixture = try .init(@as([40]u8, @splat('a')) ++ "\x1bb\n", 8, 1);
+    defer f.deinit();
+    f.draw(.{ .left = 41 });
+    // Only the `[` of `^[` would show: a space in the special style.
+    try f.expectRow(0, " 1  b   ");
+    try expectStyle(theme.special, f.style(3, 0));
+    try expectStyle(theme.text, f.style(4, 0));
+}
+
+test "document: a selection begun left of the view keeps its style" {
+    var f: Fixture = try .init("abcdefghij\n", 8, 1);
+    defer f.deinit();
+    try f.doc.select(&.{.span(1, 6)}, 0);
+    f.draw(.{ .left = 4 });
+    try f.expectRow(0, " 1 efghi");
+    try expectStyle(theme.main_selection, f.style(3, 0));
+    try expectStyle(theme.main_selection, f.style(4, 0));
+    try expectStyle(theme.main_cursor, f.style(5, 0));
+    try expectStyle(theme.text, f.style(6, 0));
+}
+
+test "document: a view right of a line's end shows none of it" {
+    var f: Fixture = try .init("abc\n", 8, 1);
+    defer f.deinit();
+    try f.doc.select(&.{.at(3)}, 0);
+    f.draw(.{ .left = 3 });
+    try f.expectRow(0, " 1      ");
+    try expectStyle(theme.main_cursor, f.style(3, 0));
+    f.draw(.{ .left = 4 });
+    try f.expectRow(0, " 1      ");
+    try expectStyle(theme.text, f.style(3, 0));
+}
+
 test "document: the view's top line comes first" {
     var f: Fixture = try .init("1\n2\n3\n", 5, 2);
     defer f.deinit();

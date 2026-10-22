@@ -172,3 +172,90 @@ test "change: mapped positions keep their character and their order" {
         try expectEqual(new.len, change.mapPos(cs, old.len, .after));
     }
 }
+
+/// The simplest correct mapping: every change before `pos`, one by one.
+fn mapReference(changes: []const Change, pos: usize, assoc: change.Assoc) usize {
+    var delta: isize = 0;
+    for (changes) |c| {
+        if (pos < c.start) break;
+        if (pos == c.start and c.start == c.end and assoc == .before) break;
+        if (pos < c.end) return @intCast(@as(isize, @intCast(c.start)) + delta);
+        delta += @as(isize, @intCast(c.text.len)) - @as(isize, @intCast(c.end - c.start));
+    }
+    return @intCast(@as(isize, @intCast(pos)) + delta);
+}
+
+/// Up to `max` random changes over `len` bytes, insertions at one offset
+/// and adjacent replacements included.
+fn randomChanges(random: std.Random, len: usize, out: []Change) []Change {
+    const texts = [_][]const u8{ "", "X", "YZ", "VWXYZ" };
+    const n = random.uintAtMost(usize, out.len);
+    var points: [32]usize = undefined;
+    for (points[0 .. 2 * n]) |*p| p.* = random.uintAtMost(usize, len);
+    std.mem.sort(usize, points[0 .. 2 * n], {}, std.sort.asc(usize));
+    for (out[0..n], 0..) |*c, i| {
+        // Every third one an insertion, so offsets repeat.
+        const end = if (random.uintLessThan(u8, 3) == 0) points[2 * i] else points[2 * i + 1];
+        c.* = .{ .start = points[2 * i], .end = end, .text = texts[random.uintLessThan(usize, texts.len)] };
+    }
+    return out[0..n];
+}
+
+test "change: a mapper agrees with the reference, positions in order" {
+    const seed: u64 = 0x6d6170706572;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    for (0..2000) |_| {
+        var buf: [16]Change = undefined;
+        const cs = randomChanges(random, 40, &buf);
+        try change.validate(cs, 40);
+        var m: change.Mapper = .init(cs);
+        var pos: usize = 0;
+        while (pos <= 40) : (pos += random.uintAtMost(usize, 3)) {
+            const assoc = random.enumValue(change.Assoc);
+            errdefer std.debug.print("seed {x}: {any} at {d} {t}\n", .{ seed, cs, pos, assoc });
+            try expectEqual(mapReference(cs, pos, assoc), m.map(pos, assoc));
+        }
+    }
+}
+
+test "change: a mapper agrees with the reference in any order" {
+    const seed: u64 = 0x72616e646f6d;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    for (0..2000) |_| {
+        var buf: [16]Change = undefined;
+        const cs = randomChanges(random, 40, &buf);
+        var m: change.Mapper = .init(cs);
+        for (0..30) |_| {
+            const pos = random.uintAtMost(usize, 40);
+            const assoc = random.enumValue(change.Assoc);
+            errdefer std.debug.print("seed {x}: {any} at {d} {t}\n", .{ seed, cs, pos, assoc });
+            try expectEqual(mapReference(cs, pos, assoc), m.map(pos, assoc));
+        }
+    }
+}
+
+test "change: a mapper steps back over insertions at the same position" {
+    const cs = [_]Change{
+        .{ .start = 2, .end = 4, .text = "" },
+        .{ .start = 5, .end = 5, .text = "ab" },
+        .{ .start = 5, .end = 5, .text = "cde" },
+        .{ .start = 5, .end = 7, .text = "f" },
+    };
+    var m: change.Mapper = .init(&cs);
+    try expectEqual(@as(usize, 8), m.map(5, .after));
+    try expectEqual(@as(usize, 3), m.map(5, .before));
+    try expectEqual(@as(usize, 8), m.map(6, .before));
+    try expectEqual(@as(usize, 9), m.map(7, .before));
+    try expectEqual(@as(usize, 1), m.map(1, .after));
+    try expectEqual(@as(usize, 10), m.map(8, .before));
+}
+
+test "change: a mapper over no changes is the identity" {
+    var m: change.Mapper = .init(&.{});
+    for ([_]usize{ 0, 7, 3, 3, 100 }) |p| {
+        try expectEqual(p, m.map(p, .before));
+        try expectEqual(p, m.map(p, .after));
+    }
+}
