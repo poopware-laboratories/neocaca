@@ -1,7 +1,7 @@
 //! The event loop: draw a frame, wait for the terminal, hand what it sent
 //! to the session, until the editor quits or the terminal goes away.
-//! Generic over the terminal (`wait`, `read`, `size`, as `term.Tty` has
-//! them), so tests drive it with a script.
+//! Generic over the terminal (`wait`, `read`, `size`, `suspendProcess`, as
+//! `term.Tty` has them), so tests drive it with a script.
 
 const std = @import("std");
 const Session = @import("session.zig").Session;
@@ -34,6 +34,11 @@ pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
             const n = try terminal.read(&buf);
             if (n == 0) return;
             try session.feed(buf[0..n]);
+            if (session.takeSuspend()) {
+                terminal.suspendProcess();
+                session.redrawAll();
+                if (terminal.size()) |s| session.resize(s.width, s.height);
+            }
         } else if (!ready.woken and session.waiting()) {
             try session.timeout();
         }

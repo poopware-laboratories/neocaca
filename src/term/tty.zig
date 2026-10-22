@@ -64,6 +64,26 @@ pub const Tty = struct {
         closePipe(self.wake);
     }
 
+    /// Stops the process (Ctrl-z) with the terminal as `open` found it,
+    /// and takes it again once the shell continues it.
+    pub fn suspendProcess(self: *Tty) void {
+        self.suspendWith(&ProcessStopper{});
+    }
+
+    /// As `suspendProcess`, with `stopper.stop()` stopping and returning
+    /// on continue; tests play the shell there.
+    pub fn suspendWith(self: *Tty, stopper: anytype) void {
+        writeAll(self.out, modes.leave);
+        // A terminal that refuses its settings back is left as it is; the
+        // shell resets it in any case.
+        attr.set(self.in, self.original) catch {};
+        stopper.stop();
+        // A terminal refusing raw mode after resuming is as good as gone;
+        // the next read reports it.
+        attr.set(self.in, raw.makeRaw(self.original)) catch {};
+        writeAll(self.out, modes.enter);
+    }
+
     /// The size in cells, or null if the terminal does not say.
     pub fn size(self: *const Tty) ?Size {
         return sizeOf(self.out) orelse sizeOf(self.in);
@@ -97,6 +117,14 @@ pub const Tty = struct {
     /// Reads what the terminal sent; 0 when it has gone.
     pub fn read(self: *Tty, buf: []u8) ReadError!usize {
         return posix.read(self.in, buf);
+    }
+};
+
+const ProcessStopper = struct {
+    fn stop(_: *const ProcessStopper) void {
+        // Raw mode turned off ISIG, so the terminal sends no SIGTSTP; send
+        // it ourselves. Its default action stops the process until SIGCONT.
+        posix.raise(.TSTP) catch {};
     }
 };
 

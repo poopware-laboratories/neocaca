@@ -124,6 +124,25 @@ test "editor: insert mode Backspace, Delete and arrows" {
     try expectText(&ed, "a\n");
 }
 
+test "editor: Ctrl-z asks the shell to suspend, once, and changes nothing else" {
+    var ed: Editor = try .init(gpa, null, "abc");
+    defer ed.deinit();
+    try expect(!ed.takeSuspend());
+    try typeKeys(&ed, "l");
+    try ed.key(.ctrl('z'));
+    try expect(ed.takeSuspend());
+    try expect(!ed.takeSuspend());
+    try expectEqual(.normal, ed.mode);
+    try expectMain(&ed, 1, 1);
+    try expectText(&ed, "abc\n");
+    try expectEqual(null, ed.takeRequest());
+    // In insert mode it is not a key.
+    try typeKeys(&ed, "i");
+    try ed.key(.ctrl('z'));
+    try expect(!ed.takeSuspend());
+    try expectEqual(.insert, ed.mode);
+}
+
 test "editor: undo with nothing to undo says so" {
     var ed: Editor = try .init(gpa, null, "a\n");
     defer ed.deinit();

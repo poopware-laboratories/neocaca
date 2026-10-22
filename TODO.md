@@ -54,8 +54,8 @@ clean room.
 - [x] Saves off the event loop: `:w` writes a copy of the text on its own
       thread and wakes the loop when done
 - [ ] Loads off the event loop (today `:e` blocks typing while it reads)
-- [ ] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
-      must stop itself and restore the terminal first)
+- [x] Ctrl-Z suspends and resumes (raw mode turns off ISIG, so the editor
+      stops itself and restores the terminal first)
 - [ ] A hang-up (closed terminal window) writes the unsaved buffer to a
       recovery file instead of dropping it
 - [x] `xd` on the last line leaves an empty line, because the final

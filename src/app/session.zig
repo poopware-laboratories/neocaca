@@ -72,6 +72,17 @@ pub const Session = struct {
         return self.ed.quit;
     }
 
+    /// Whether the editor asked to be suspended, once.
+    pub fn takeSuspend(self: *Session) bool {
+        return self.ed.takeSuspend();
+    }
+
+    /// The terminal shows something else now: the next frame is drawn
+    /// whole.
+    pub fn redrawAll(self: *Session) void {
+        self.shown = false;
+    }
+
     /// Whether bytes wait for more input, so `timeout` is due if none come.
     pub fn waiting(self: *const Session) bool {
         return self.decoder.pendingLen() > 0;

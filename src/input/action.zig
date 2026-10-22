@@ -72,6 +72,8 @@ pub const Action = union(enum) {
     insert: edit.insert.Where,
     scroll: Scroll,
     view: View,
+    /// `Ctrl-z`: stop the editor and give the terminal back to the shell.
+    @"suspend",
 
     // Insert mode.
     /// A character typed at every cursor.

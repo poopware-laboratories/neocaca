@@ -232,6 +232,18 @@ test "keymap: scrolling by pages" {
     try expectNormal("<pgup>", .{ .scroll = .page_up });
 }
 
+test "keymap: Ctrl-z suspends, dropping a count or register" {
+    try expectNormal("<c-z>", .@"suspend");
+    try expectNormal("3<c-z>", .@"suspend");
+    try expectNormal("\"a<c-z>", .@"suspend");
+    var map: Keymap = .{};
+    _ = map.normal(.char('5'));
+    try std.testing.expectEqual(Action.@"suspend", map.normal(.ctrl('z')).?);
+    try std.testing.expect(!map.isPending());
+    // Insert mode types no Control chords, Ctrl-z included.
+    try expectInsert("<c-z>", null);
+}
+
 test "keymap: shaping the selections" {
     try expectNormal(";", .reduce);
     try expectNormal("<a-;>", .flip);
@@ -341,7 +353,7 @@ test "keymap: entering insert mode" {
 
 test "keymap: unbound keys do nothing and clear the count" {
     try expectNormal("Z", null);
-    try expectNormal("<c-z>", null);
+    try expectNormal("<c-x>", null);
     try expectNormal("<a-Z>", null);
     try expectNormal("<del>", null);
     var map: Keymap = .{};

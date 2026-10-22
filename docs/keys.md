@@ -101,6 +101,7 @@ paragraph.
 | `I` / `A` | insert at the line start (first non-blank) / line end |
 | `o` / `O` | open a new line below / above and insert |
 | `:` | command prompt |
+| `Ctrl-z` | suspend: give the terminal back to the shell until `fg` |
 
 ## Insert mode
 

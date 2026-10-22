@@ -185,6 +185,7 @@ pub const Keymap = struct {
             'u' => .{ .scroll = .half_up },
             'f' => .{ .scroll = .page_down },
             'b' => .{ .scroll = .page_up },
+            'z' => .@"suspend",
             else => null,
         };
         if (k.mods.alt) return self.bindAlt(c);

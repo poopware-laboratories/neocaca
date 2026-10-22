@@ -36,6 +36,9 @@ const Script = struct {
     written: [64]usize = undefined,
     out: ?*std.Io.Writer = null,
     session: ?*Session = null,
+    /// How often the editor stopped itself, and the size it came back to.
+    suspends: usize = 0,
+    resumed_size: ?term.Size = null,
 
     pub fn wait(self: *Script, timeout_ms: i32) !term.tty.Ready {
         self.timeouts[self.waits] = timeout_ms;
@@ -68,6 +71,11 @@ const Script = struct {
         @memcpy(buf[0..n], self.pending[0..n]);
         self.pending = self.pending[n..];
         return n;
+    }
+
+    pub fn suspendProcess(self: *Script) void {
+        self.suspends += 1;
+        if (self.resumed_size) |s| self.current_size = s;
     }
 
     pub fn size(self: *const Script) ?term.Size {
@@ -146,6 +154,47 @@ test "loop: a terminal that goes away during a save still finishes it" {
     try expect(f.session.done());
     var buf: [16]u8 = undefined;
     try expectEqualStrings("xb\n", try f.tmp.dir.readFile(io, "a", &buf));
+}
+
+test "loop: Ctrl-z suspends, then the whole screen is drawn at the new size" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{
+        .steps = &.{ .{ .input = "\x1a" }, .{ .input = "ix" } },
+        .resumed_size = .{ .width = 30, .height = 6 },
+    };
+    try f.run(&script);
+    try expectEqual(1, script.suspends);
+    try expectEqual(30, f.session.ed.width);
+    try expectEqual(6, f.session.ed.height);
+    // The frame after the suspend clears the screen; the one after typing
+    // does not.
+    const out = f.out.buffered();
+    try expect(std.mem.indexOf(u8, out[script.written[0]..script.written[1]], "\x1b[2J") != null);
+    try expect(std.mem.indexOf(u8, out[script.written[1]..], "\x1b[2J") == null);
+    try expectEqualStrings("xb\n", f.session.ed.doc.text());
+}
+
+test "loop: after a suspend at the same size the screen is still drawn whole" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{.{ .input = "\x1a" }} };
+    try f.run(&script);
+    try expectEqual(1, script.suspends);
+    try expectEqual(20, f.session.ed.width);
+    const out = f.out.buffered();
+    try expect(std.mem.indexOf(u8, out[script.written[0]..script.written[1]], "\x1b[2J") != null);
+}
+
+test "loop: no suspend without Ctrl-z" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{.{ .input = "z\x1bz" }} };
+    try f.run(&script);
+    try expectEqual(0, script.suspends);
 }
 
 test "loop: each frame is written before the next wait" {

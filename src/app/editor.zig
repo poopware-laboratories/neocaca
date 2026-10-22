@@ -100,6 +100,8 @@ pub const Editor = struct {
     quit: bool = false,
     /// A save that quits after it is being written: keys wait.
     quitting: bool = false,
+    /// Ctrl-z was typed; see `takeSuspend`.
+    suspending: bool = false,
     /// The screen size, for page scrolling.
     width: usize = 80,
     height: usize = 24,
@@ -167,6 +169,12 @@ pub const Editor = struct {
     pub fn takeRequest(self: *Editor) ?Request {
         defer self.request = null;
         return self.request;
+    }
+
+    /// Whether the shell should stop the process (Ctrl-z), once.
+    pub fn takeSuspend(self: *Editor) bool {
+        defer self.suspending = false;
+        return self.suspending;
     }
 
     /// Asks the shell for `r`, with its path copied.
@@ -341,6 +349,7 @@ pub const Editor = struct {
             },
             .scroll => |s| try viewing.scroll(self, s),
             .view => |v| try viewing.moveView(self, v),
+            .@"suspend" => self.suspending = true,
             .text => |cp| {
                 var bytes: [4]u8 = undefined;
                 // The keymap only makes text of valid code points.

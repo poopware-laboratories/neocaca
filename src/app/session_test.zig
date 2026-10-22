@@ -89,6 +89,24 @@ test "session: a file that cannot be read keeps its name and says why" {
     try expect(!s.done());
 }
 
+test "session: Ctrl-z is taken once, and the next frame is drawn whole" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, null, 20, 4);
+    defer s.deinit();
+    var buf: [4096]u8 = undefined;
+    _ = try frame(&s, &buf);
+    try expect(!s.takeSuspend());
+    try s.feed("\x1a");
+    try expect(s.takeSuspend());
+    try expect(!s.takeSuspend());
+    // Nothing changed, so an ordinary frame writes no clear.
+    try expect(std.mem.indexOf(u8, try frame(&s, &buf), "\x1b[2J") == null);
+    // After a suspend the terminal holds the shell's output.
+    s.redrawAll();
+    try expect(std.mem.indexOf(u8, try frame(&s, &buf), "\x1b[2J") != null);
+}
+
 test "session: typed keys edit, and :w writes the file" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();

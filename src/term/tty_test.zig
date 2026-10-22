@@ -44,6 +44,58 @@ test "tty: restoring puts the settings back and leaves the modes, once" {
     try expectEqual(0, (try pty.output(&buf)).len);
 }
 
+/// Plays the shell while the editor is stopped: records the terminal as
+/// it was left.
+const Stopper = struct {
+    pty: *const Pty,
+    canonical: bool = false,
+    out_len: usize = 0,
+    out: [256]u8 = undefined,
+    stops: usize = 0,
+
+    pub fn stop(self: *Stopper) void {
+        self.stops += 1;
+        self.canonical = (attr.get(self.pty.slave) catch return).lflag.ICANON;
+        self.out_len = (self.pty.output(&self.out) catch return).len;
+    }
+};
+
+test "tty: suspending gives the terminal back while stopped, then takes it again" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    var buf: [256]u8 = undefined;
+    _ = try pty.output(&buf);
+    var stopper: Stopper = .{ .pty = &pty };
+    t.suspendWith(&stopper);
+    try expectEqual(1, stopper.stops);
+    try expect(stopper.canonical);
+    try expectEqualStrings(modes.leave, stopper.out[0..stopper.out_len]);
+    // Raw again, the modes entered again.
+    try expect(!(try attr.get(pty.slave)).lflag.ICANON);
+    try expectEqualStrings(modes.enter, try pty.output(&buf));
+    // Still the open terminal: restoring works once.
+    t.restore();
+    try expect((try attr.get(pty.slave)).lflag.ICANON);
+    try expectEqualStrings(modes.leave, try pty.output(&buf));
+}
+
+test "tty: a resize while stopped wakes the first wait after" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    const Resizer = struct {
+        pub fn stop(_: *@This()) void {
+            posix.raise(.WINCH) catch {};
+        }
+    };
+    var r: Resizer = .{};
+    t.suspendWith(&r);
+    try expect((try t.wait(1000)).woken);
+}
+
 test "tty: the panic path restores the open terminal" {
     const pty: Pty = try .open();
     defer pty.close();
