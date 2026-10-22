@@ -59,6 +59,9 @@ the [quick reference](AGENTS.md#quick-reference).
 
 For anything that changes what the screen shows, also run the editor and
 look, as [Verifying UI changes](AGENTS.md#verifying-ui-changes) describes.
+If you add something users do (a command, a mode, a file type), add its
+scenario to [`docs/dogfooding.md`](docs/dogfooding.md), so the next
+dogfood pass tries it on real work.
 
 ## Open the pull request
 

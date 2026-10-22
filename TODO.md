@@ -149,7 +149,8 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
       tmux (a Zig source file, the README, CRLF, BOM, control bytes, wide
       and combining characters, a 50 MB file, a 48 MB single line, a
       directory, a missing directory), resizes down to one cell, Ctrl-Z
-      and `fg`. What it found is below or already in Phase 2.
+      and `fg`. What it found is below or already in Phase 2; how a pass
+      is run from now on is in `docs/dogfooding.md`.
 - **PR: fixes from the dogfood pass**
   - [ ] S: the view keeps its old scroll when the window grows, hiding
         lines above while the rows below stay empty (a 4-line file,
@@ -167,6 +168,10 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
   - [ ] S: `Alt-i` or `Alt-a` with no such object around the cursor
         (`Alt-i"` outside quotes) changes nothing and says nothing, so the
         next verb acts on the old selection; say "no object here".
+- **PR: the dogfood pass that closes Phase 1**
+  - [ ] M: every scenario of `docs/dogfooding.md` on its corpus, once the
+        fixes above are in; its findings become pieces, and Phase 1 is done
+        when none of them is a crash, lost data or raw terminal bytes.
 
 ## Phase 2: everyday comfort
 
@@ -252,6 +257,8 @@ Safety first, then the biggest daily gains.
 - **PR: latency in CI**
   - [ ] S: a benchmark of keypress-to-frame time and startup on a large
         file, in ReleaseSafe, reported on every run
+- **PR: the dogfood pass that closes Phase 2**
+  - [ ] M: every scenario of `docs/dogfooding.md`, with those Phase 2 added
 
 ## Phase 3: code awareness
 
@@ -273,6 +280,7 @@ Safety first, then the biggest daily gains.
 - [ ] Git: change markers in the gutter against `HEAD`, and blame for the
       current line, off the loop
 - [ ] Auto-pairing of brackets and quotes
+- [ ] The dogfood pass that closes Phase 3 (`docs/dogfooding.md`)
 
 ## Phase 4: polish
 
@@ -300,4 +308,6 @@ Safety first, then the biggest daily gains.
       against the file's contents before use, never trusted blindly)
 - [ ] Command palette: every `:` command and key action, searchable by
       name, showing its binding
-- [ ] Packaging and releases
+- [ ] Packaging and releases, each release after a dogfood pass with the
+      1 GB log (`BIG=1`)
+- [ ] The dogfood pass that closes Phase 4 (`docs/dogfooding.md`)
