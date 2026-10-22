@@ -170,6 +170,28 @@ test "editor: :wq quits once the save succeeds" {
     try expect(ed.quit);
 }
 
+test "editor: :x quits an unmodified buffer without a file name" {
+    var ed: Editor = try .init(gpa, null, "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, ":x\r");
+    try expect(ed.quit);
+    try expectEqual(null, ed.takeRequest());
+}
+
+test "editor: :x on a modified buffer without a file name asks for one" {
+    var ed: Editor = try .init(gpa, null, "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, "d:x\r");
+    try expect(!ed.quit);
+    try expectEqual(null, ed.takeRequest());
+    try expectMessage(&ed, "no file name; :w <file>", true);
+    // `:wq` with a name writes and quits once written.
+    try typeKeys(&ed, ":wq f\r");
+    const r = ed.takeRequest().?;
+    try expectEqualStrings("f", r.save.path);
+    try expect(r.save.quit);
+}
+
 test "editor: :x writes only when there are changes" {
     var ed: Editor = try .init(gpa, "f", "a\n");
     defer ed.deinit();

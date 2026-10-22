@@ -98,11 +98,11 @@ fn command(ed: *Editor, line: []const u8) Error!void {
             ed.quit = true;
         },
         .write => |w| {
-            const path = w.path orelse ed.path orelse return noFileName(ed);
             if (w.only_if_modified and !ed.doc.isModified()) {
                 ed.quit = w.quit;
                 return;
             }
+            const path = w.path orelse ed.path orelse return noFileName(ed);
             try ed.ask(.{ .save = .{ .path = path, .quit = w.quit } });
         },
         .edit => |e| {
