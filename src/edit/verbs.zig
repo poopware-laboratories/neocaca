@@ -134,6 +134,30 @@ pub fn paste(doc: *Document, regs: *const Registers, reg: u8, before: bool) Erro
 pub fn replace(doc: *Document, regs: *const Registers, reg: u8) Error!bool {
     const values = regs.get(reg);
     if (values.len == 0) return false;
+    try replaceWith(doc, values);
+    return true;
+}
+
+/// `Alt-)` (`delta` 1) and `Alt-(` (-1): each selection takes the text of
+/// the selection `delta` places before it, wrapping around.
+pub fn rotateContents(doc: *Document, delta: isize) Error!void {
+    const list = doc.sels();
+    const n: isize = @intCast(list.len);
+    if (@mod(delta, n) == 0) return;
+    const text = doc.text();
+    const values = try doc.gpa.alloc([]const u8, list.len);
+    defer doc.gpa.free(values);
+    for (values, 0..) |*v, i| {
+        const from: usize = @intCast(@mod(@as(isize, @intCast(i)) - delta, n));
+        const r = list[from].range(text);
+        v.* = text[r.start..r.end];
+    }
+    try replaceWith(doc, values);
+}
+
+/// Replaces each selection with its value in `values` (the last value for
+/// the rest) and selects it.
+fn replaceWith(doc: *Document, values: []const []const u8) Error!void {
     const text = doc.text();
     const list = doc.sels();
     var changes: std.ArrayList(Change) = .empty;
@@ -154,7 +178,6 @@ pub fn replace(doc: *Document, regs: *const Registers, reg: u8) Error!bool {
         delta += @as(isize, @intCast(v.len)) - @as(isize, @intCast(end - r.start));
     }
     try doc.edit(changes.items, new, doc.selections.main);
-    return true;
 }
 
 /// `r<c>`: replaces every character of the selections, newlines aside,

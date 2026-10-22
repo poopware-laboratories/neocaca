@@ -67,6 +67,38 @@ test "editing: keep and drop selections by pattern" {
     try expectEqual(2, h.session.ed.doc.sels().len);
 }
 
+test "editing: swap two words by rotating their contents, then undo" {
+    var h: Harness = undefined;
+    try h.init("t", "one two three\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%s\\w+\r");
+    try h.send("\x1b)");
+    try h.expectText("three one two\n");
+    try h.expectSelections(&.{ "three", "one", "two" });
+    try h.send("\x1b(");
+    try h.expectText("one two three\n");
+    try h.typeKeys("2");
+    try h.send("\x1b(");
+    try h.expectText("three one two\n");
+    try h.typeKeys("uu");
+    try h.expectText("three one two\n");
+    try h.typeKeys("u");
+    try h.expectText("one two three\n");
+}
+
+test "editing: trim a selection to its whole lines, or say there are none" {
+    var h: Harness = undefined;
+    try h.init("t", "ab\ncd\nef\n", 30, 5);
+    defer h.deinit();
+    try h.typeKeys("lJJ");
+    try h.send("\x1bx");
+    try h.expectSelections(&.{"cd\n"});
+    try h.typeKeys(";");
+    try h.send("\x1bx");
+    try h.expectMessage("no selection holds a whole line");
+    try h.expectSelections(&.{"\n"});
+}
+
 test "editing: search forwards, repeat, and add the next match" {
     var h: Harness = undefined;
     try h.init("t", "one two one two one\n", 30, 4);

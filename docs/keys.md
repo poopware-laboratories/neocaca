@@ -59,14 +59,14 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 | `Alt-,` | drop the main selection |
 | `C` / `Alt-C` | copy the main selection's shape to the next / previous line |
 | `(` / `)` | make the previous / next selection the main one |
-| `Alt-(` `Alt-)` | rotate the selections' contents *(planned)* |
+| `Alt-)` / `Alt-(` | rotate the selections' contents forward / backward: each takes the text of the one before (after) it |
 | `s` | prompt for a regex; select its matches inside the selections |
 | `S` | prompt for a regex; split the selections at its matches |
 | `Alt-s` | split the selections into lines |
 | `Alt-k` / `Alt-K` | keep / drop the selections that match a regex |
 | `Alt-i<o>` | select inside object `o` |
 | `Alt-a<o>` | select around object `o` |
-| `Alt-x` | trim each selection to whole lines *(planned)* |
+| `Alt-x` | trim each selection to the whole lines inside it; those without one are dropped |
 
 Objects: `w` word, `W` WORD, `(` `)` `b` parentheses, `[` `]` brackets,
 `{` `}` `B` braces, `<` `>` angle brackets, `"` `'` `` ` `` quotes, `p`
@@ -95,7 +95,7 @@ paragraph.
 | `r<c>` | replace every character of the selections with `c` |
 | `~` / `` ` `` / `` Alt-` `` | upper case / lower case / swap case |
 | `>` / `<` | indent / dedent the selected lines |
-| `Alt-j` | join the selected lines *(planned: `J` remains free)* |
+| `Alt-j` | join the selected lines (`J` extends down) |
 | `u` / `U` | undo / redo |
 | `i` / `a` | insert before / after each selection |
 | `I` / `A` | insert at the line start (first non-blank) / line end |

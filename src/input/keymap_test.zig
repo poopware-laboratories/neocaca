@@ -257,6 +257,10 @@ test "keymap: shaping the selections" {
     try expectNormal(")", .{ .rotate_main = 1 });
     try expectNormal("2)", .{ .rotate_main = 2 });
     try expectNormal("<a-s>", .split_lines);
+    try expectNormal("<a-x>", .trim_lines);
+    try expectNormal("<a-)>", .{ .rotate_contents = 1 });
+    try expectNormal("<a-(>", .{ .rotate_contents = -1 });
+    try expectNormal("3<a-(>", .{ .rotate_contents = -3 });
 }
 
 test "keymap: prompts" {

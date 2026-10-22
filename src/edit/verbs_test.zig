@@ -261,3 +261,76 @@ test "verbs: edits are atomic when allocation fails" {
     };
     try std.testing.checkAllAllocationFailures(gpa, T.run, .{});
 }
+
+fn expectRotate(before: []const u8, delta: isize, after: []const u8) !void {
+    var d = try fx.doc(before);
+    defer d.deinit();
+    try verbs.rotateContents(&d, delta);
+    try fx.expectDoc(&d, after);
+}
+
+test "verbs: Alt-) and Alt-( rotate the selections' contents" {
+    try expectRotate("«a» ‹bc› ‹d›\n", 1, "«d» ‹a› ‹bc›\n");
+    try expectRotate("«a» ‹bc› ‹d›\n", -1, "«bc» ‹d› ‹a›\n");
+    try expectRotate("«a» ‹bc› ‹d›\n", 2, "«bc» ‹d› ‹a›\n");
+    // Counts past the number of selections wrap, both ways.
+    try expectRotate("«a» ‹bc› ‹d›\n", -4, "«bc» ‹d› ‹a›\n");
+    try expectRotate("«a» ‹bc› ‹d›\n", 5, "«bc» ‹d› ‹a›\n");
+    // The main selection keeps its place, not its text.
+    try expectRotate("‹a› «b»\n", 1, "‹b› «a»\n");
+}
+
+test "verbs: rotating whole lines keeps one final newline" {
+    try expectRotate("«a\n»‹b\n›", 1, "«b\n»‹a\n›");
+    // The last line's newline stays when a value without one comes.
+    try expectRotate("«a»\n‹b\n›", 1, "«b\n»\n‹a›\n");
+}
+
+test "verbs: rotating multi-byte text selects whole characters" {
+    try expectRotate("«ä» ‹日本›\n", 1, "«日本» ‹ä›\n");
+    try expectRotate("«e\u{301}» ‹x›\n", -1, "«x» ‹e\u{301}›\n");
+    // The cursor is on the start of the last character, not inside it.
+    var d = try fx.doc("«ä» ‹日本›\n");
+    defer d.deinit();
+    try verbs.rotateContents(&d, 1);
+    try expectEqual(3, d.sels()[0].cursor);
+    try expectEqual(7, d.sels()[1].cursor);
+}
+
+test "verbs: a rotation that moves nothing changes nothing" {
+    var d = try fx.doc("«ab»\n");
+    defer d.deinit();
+    try verbs.rotateContents(&d, 1);
+    try fx.expectDoc(&d, "«ab»\n");
+    try expect(!d.isModified());
+    var e = try fx.doc("«a» ‹b›\n");
+    defer e.deinit();
+    try verbs.rotateContents(&e, -4);
+    try fx.expectDoc(&e, "«a» ‹b›\n");
+    try expect(!e.isModified());
+}
+
+test "verbs: one undo puts every rotated selection back" {
+    var d = try fx.doc("«a» ‹b› ‹c›\n");
+    defer d.deinit();
+    try verbs.rotateContents(&d, 1);
+    try expect(try d.undo());
+    try fx.expectDoc(&d, "«a» ‹b› ‹c›\n");
+}
+
+test "verbs: a rotation that cannot allocate leaves the document as it was" {
+    const T = struct {
+        fn run(a: std.mem.Allocator) !void {
+            var d = try Document.init(a, "a b\n");
+            defer d.deinit();
+            try d.select(&.{ .at(0), .at(2) }, 0);
+            verbs.rotateContents(&d, 1) catch |e| {
+                try std.testing.expectEqualStrings("a b\n", d.text());
+                try expect(!d.isModified());
+                return e;
+            };
+            try std.testing.expectEqualStrings("b a\n", d.text());
+        }
+    };
+    try std.testing.checkAllAllocationFailures(gpa, T.run, .{});
+}

@@ -314,6 +314,10 @@ pub const Editor = struct {
             .copy_to_line => |c| _ = try selecting.copyToLine(doc, c.down, c.count, tw),
             .select_object => |o| _ = try selecting.selectObject(doc, o.kind, o.inner),
             .split_lines => try selecting.splitLines(doc),
+            .trim_lines => if (!try selecting.trimLines(doc)) {
+                self.message.set(true, "no selection holds a whole line", .{});
+            },
+            .rotate_contents => |d| try verbs.rotateContents(doc, d),
             .prompt => |p| {
                 self.mode = .prompt;
                 self.prompt_kind = p;

@@ -30,11 +30,11 @@ clean room.
       matching bracket, buffer start/end) and text objects
 - [x] `input/`: decode terminal bytes into keys (legacy, CSI, SS3, Alt as
       ESC prefix, bracketed paste)
-- [ ] **Kakoune-style modal keybind system** (`input/keymap.zig`):
+- [x] **Kakoune-style modal keybind system** (`input/keymap.zig`):
   - [x] normal mode: selection first, then verb (`d c y p P R r ~ > <`)
   - [x] Shift extends; counts; registers (`"x`)
   - [x] multiple selections: `C`, `Alt-C`, `s`, `S`, `Alt-s`, `Alt-k`,
-        `Alt-K`, `,`, `Alt-,`, `(`, `)`, `;`, `Alt-;`
+        `Alt-K`, `,`, `Alt-,`, `(`, `)`, `Alt-(`, `Alt-)`, `;`, `Alt-;`, `Alt-x`
   - [x] object selection: `Alt-i` / `Alt-a` with `w W ( [ { < " ' ` p`
   - [x] goto prefix (`g`)
   - [x] view prefix (`v`: center, top, bottom, scroll without moving)
@@ -60,8 +60,8 @@ clean room.
       recovery file instead of dropping it
 - [x] `xd` on the last line leaves an empty line, because the final
       newline is never deleted; delete the newline before it instead
-- [ ] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `J` (see
-      `docs/keys.md`)
+- [x] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `Alt-j` join
+      (`J` extends down; see `docs/keys.md`)
 
 ## Phase 2: everyday comfort
 

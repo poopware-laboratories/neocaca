@@ -51,6 +51,10 @@ pub const Action = union(enum) {
     copy_to_line: struct { down: bool, count: usize = 1 },
     select_object: struct { kind: edit.object.Kind, inner: bool },
     split_lines,
+    /// `selecting.trimLines`
+    trim_lines,
+    /// `verbs.rotateContents`
+    rotate_contents: isize,
     prompt: Prompt,
     /// `search.next` with the last pattern.
     search_next: struct { dir: Direction, add: bool = false },

@@ -170,6 +170,29 @@ pub fn selectLines(doc: *Document, count: usize, every_line: bool) void {
     doc.selections.normalize(buf.bytes());
 }
 
+/// `Alt-x`: trims each selection to the whole lines inside it, dropping
+/// those without one; the next kept selection is main if the main one
+/// goes. False, changing nothing, when no selection holds a whole line.
+pub fn trimLines(doc: *Document) Error!bool {
+    const buf = &doc.buffer;
+    var out: std.ArrayList(Selection) = .empty;
+    defer out.deinit(doc.gpa);
+    var main: usize = 0;
+    for (doc.sels(), 0..) |s, i| {
+        if (i == doc.selections.main) main = out.items.len;
+        const top = buf.lineOf(s.min());
+        const bottom = buf.lineOf(s.max());
+        // The whole lines are those from `first` up to before `past`.
+        const first = if (s.min() == buf.lineStart(top)) top else top + 1;
+        const past = if (s.max() == buf.lineEnd(bottom)) bottom + 1 else bottom;
+        if (first >= past) continue;
+        const start = buf.lineStart(first);
+        const end = buf.lineEnd(past - 1);
+        try out.append(doc.gpa, if (s.cursor < s.anchor) .span(end, start) else .span(start, end));
+    }
+    return replaceWith(doc, out.items, main);
+}
+
 /// `%`: one selection over the whole buffer.
 pub fn selectAll(doc: *Document) Error!void {
     try doc.select(&.{.span(0, doc.buffer.len() - 1)}, 0);
