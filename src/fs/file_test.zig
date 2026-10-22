@@ -209,3 +209,25 @@ test "file: save through a link loop fails and makes nothing" {
     const n = try tmp.dir.readLink(io, "a", &got);
     try expectEqualStrings("b", got[0..n]);
 }
+
+test "file: a name of 255 bytes is a name, one of 256 is refused before the system sees it" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const longest: []const u8 = &@as([file.max_name]u8, @splat('n'));
+    const over: []const u8 = &@as([file.max_name + 1]u8, @splat('n'));
+    try std.testing.expectEqual(null, try file.load(io, gpa, tmp.dir, longest, file.max_file));
+    try file.save(io, tmp.dir, longest, "x\n");
+    try expectError(error.NameTooLong, file.load(io, gpa, tmp.dir, over, file.max_file));
+    try expectError(error.NameTooLong, file.save(io, tmp.dir, over, "x\n"));
+    try expectError(error.NameTooLong, file.create(io, tmp.dir, over, "x\n"));
+}
+
+test "file: a long name is refused in any part of the path" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDir(io, "d", .default_dir);
+    const over: [file.max_name + 1]u8 = @splat('n');
+    try expectError(error.NameTooLong, file.load(io, gpa, tmp.dir, "d/" ++ over, file.max_file));
+    try expectError(error.NameTooLong, file.save(io, tmp.dir, over ++ "/f", "x\n"));
+    try expectError(error.NameTooLong, file.create(io, tmp.dir, "./" ++ over, "x\n"));
+}
