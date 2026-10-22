@@ -1,5 +1,6 @@
 //! SIMD byte scanning: counting bytes (`count.zig`), finding a byte
-//! (`find.zig`) and finding control bytes (`control.zig`). Each kernel has a
+//! (`find.zig`), finding control bytes (`control.zig`) and finding where
+//! printable ASCII ends (`plain.zig`). Each kernel has a
 //! scalar reference, `fooScalar`, and a width-generic form, `fooWidth`, and
 //! `kernels_test.zig` checks them all against each other.
 //!
@@ -13,6 +14,7 @@
 const counting = @import("simd/count.zig");
 const find = @import("simd/find.zig");
 const control = @import("simd/control.zig");
+const plain = @import("simd/plain.zig");
 
 pub const default_width = @import("simd/width.zig").default;
 
@@ -29,9 +31,15 @@ pub const indexOfControl = control.indexOfControl;
 pub const indexOfControlScalar = control.indexOfControlScalar;
 pub const indexOfControlWidth = control.indexOfControlWidth;
 
+pub const isPlain = plain.isPlain;
+pub const indexOfNonPlain = plain.indexOfNonPlain;
+pub const indexOfNonPlainScalar = plain.indexOfNonPlainScalar;
+pub const indexOfNonPlainWidth = plain.indexOfNonPlainWidth;
+
 test {
     _ = counting;
     _ = find;
     _ = control;
+    _ = plain;
     _ = @import("simd/kernels_test.zig");
 }

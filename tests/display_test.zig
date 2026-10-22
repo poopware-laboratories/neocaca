@@ -145,3 +145,21 @@ test "display: an unchanged screen writes no cells" {
     try h.frame();
     try expect(!contains(h.written(), "x"));
 }
+
+test "display: the end of a long line shows its last characters and column" {
+    const gpa = std.testing.allocator;
+    const text = try gpa.alloc(u8, 100_000 + 7);
+    defer gpa.free(text);
+    for (text[0..100_000], 0..) |*b, i| b.* = 'a' + @as(u8, @intCast(i % 26));
+    @memcpy(text[100_000..], "中e\u{301}\n");
+    var h: Harness = undefined;
+    try h.init("long", text, 20, 3);
+    defer h.deinit();
+    try h.typeKeys("gl");
+    try expectEqual(100_003, h.session.ed.doc.primary().cursor);
+    // From column 99989 ('t'), so the cursor on é has its scroll-off of
+    // three columns to the right.
+    try h.expectRow(0, " 1 tuvwxyzabcd中e\u{301}   ");
+    var buf: [256]u8 = undefined;
+    try expect(contains(h.row(1, &buf), "1:100003"));
+}

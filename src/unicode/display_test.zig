@@ -132,3 +132,77 @@ test "display: offsetAt inverts columnOf on random lines" {
         try expectEqual(line.len, display.offsetAt(line, col, tab));
     }
 }
+
+/// `columnOf` as one character at a time, without the run fast path.
+fn columnOfReference(line: []const u8, offset: usize, tab: usize) usize {
+    var col: usize = 0;
+    var i: usize = 0;
+    while (i < offset) : (i = chars.next(line, i)) col += display.columns(line, i, col, tab);
+    return col;
+}
+
+/// `offsetAt` as one character at a time, without the run fast path.
+fn offsetAtReference(line: []const u8, col: usize, tab: usize) usize {
+    var c: usize = 0;
+    var i: usize = 0;
+    while (i < line.len) : (i = chars.next(line, i)) {
+        const w = display.columns(line, i, c, tab);
+        if (c + w > col) return i;
+        c += w;
+    }
+    return line.len;
+}
+
+test "display: runs of printable ASCII count as one character at a time does" {
+    const seed: u64 = 0x72756e73;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    // A mark after a run joins its last letter; a tab's width depends on
+    // the run before it.
+    const pieces = [_][]const u8{ "\t", "中", "\u{301}", "\x1b", "\xff", "\u{200d}", "\r\n", "\x7f", "😀" };
+    var buf: [400]u8 = undefined;
+    for (0..3000) |_| {
+        var n: usize = 0;
+        while (n + 80 <= buf.len and random.uintLessThan(u8, 8) != 0) {
+            if (random.boolean()) {
+                const piece = pieces[random.uintLessThan(usize, pieces.len)];
+                @memcpy(buf[n..][0..piece.len], piece);
+                n += piece.len;
+            } else for (0..random.uintAtMost(usize, 70)) |_| {
+                buf[n] = random.intRangeAtMost(u8, ' ', '~');
+                n += 1;
+            }
+        }
+        const line = buf[0..n];
+        const tab = 1 + random.uintLessThan(usize, 8);
+        errdefer std.debug.print("seed {x}: line {any}, tab width {d}\n", .{ seed, line, tab });
+        // Every offset, character starts or not, and every column.
+        for (0..line.len + 1) |i| try expectEqual(columnOfReference(line, i, tab), display.columnOf(line, i, tab));
+        const cols = columnOfReference(line, line.len, tab);
+        for (0..cols + 2) |c| try expectEqual(offsetAtReference(line, c, tab), display.offsetAt(line, c, tab));
+    }
+}
+
+test "display: a mark after a long run still joins its last letter" {
+    const line = @as([70]u8, @splat('a')) ++ "e\u{301}\tz";
+    try expectEqual(71, display.columnOf(line, 73, 4));
+    try expectEqual(72, display.columnOf(line, 74, 4));
+    try expectEqual(70, display.offsetAt(line, 70, 4));
+    try expectEqual(73, display.offsetAt(line, 71, 4));
+    try expectEqual(74, display.offsetAt(line, 72, 4));
+}
+
+test "display: runs as long as every vector width, then a mark, a tab or a wide character" {
+    var buf: [200]u8 = undefined;
+    for ([_]usize{ 1, 2, 3, 15, 16, 17, 31, 32, 33, 63, 64, 65, 129 }) |run| {
+        for ([_][]const u8{ "\u{301}", "\t", "中", "\x1b" }) |after| {
+            @memset(buf[0..run], 'x');
+            @memcpy(buf[run..][0..after.len], after);
+            buf[run + after.len] = 'z';
+            const line = buf[0 .. run + after.len + 1];
+            errdefer std.debug.print("run {d} then {any}\n", .{ run, after });
+            for (0..line.len + 1) |i| try expectEqual(columnOfReference(line, i, 8), display.columnOf(line, i, 8));
+            for (0..run + 12) |c| try expectEqual(offsetAtReference(line, c, 8), display.offsetAt(line, c, 8));
+        }
+    }
+}

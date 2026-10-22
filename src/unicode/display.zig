@@ -8,6 +8,7 @@
 const std = @import("std");
 const chars = @import("chars.zig");
 const width = @import("width.zig");
+const simd = @import("../simd.zig");
 
 pub const Form = union(enum) {
     /// Draw the character's bytes as they are, in `columns` columns.
@@ -51,8 +52,21 @@ pub fn columns(text: []const u8, i: usize, col: usize, tab_width: usize) usize {
 pub fn columnOf(line: []const u8, offset: usize, tab_width: usize) usize {
     var col: usize = 0;
     var i: usize = 0;
-    while (i < offset) : (i = chars.next(line, i)) col += columns(line, i, col, tab_width);
+    while (i < offset) : (i = chars.next(line, i)) {
+        const run = plainRun(line[i..offset]);
+        col += run;
+        i += run;
+        col += columns(line, i, col, tab_width);
+    }
     return col;
+}
+
+/// Leading bytes of `text` that are each a character one column wide:
+/// a run of printable ASCII but its last byte, which a mark could join.
+/// Looks at two bytes first, so text with few runs pays little.
+fn plainRun(text: []const u8) usize {
+    if (text.len < 2 or !simd.isPlain(text[0]) or !simd.isPlain(text[1])) return 0;
+    return (simd.indexOfNonPlain(text) orelse text.len) - 1;
 }
 
 /// The offset of the character covering display column `col` in `line`,
@@ -61,6 +75,10 @@ pub fn offsetAt(line: []const u8, col: usize, tab_width: usize) usize {
     var c: usize = 0;
     var i: usize = 0;
     while (i < line.len) {
+        // Never further than the column asked for: a short walk stays short.
+        const run = plainRun(line[i..@min(line.len, i + (col - c) + 1)]);
+        c += run;
+        i += run;
         const w = columns(line, i, c, tab_width);
         if (c + w > col) return i;
         c += w;

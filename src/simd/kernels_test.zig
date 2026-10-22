@@ -14,13 +14,16 @@ fn expectAllWidthsAgree(haystack: []const u8, needle: u8) !void {
     const count = simd.countScalar(haystack, needle);
     const index = simd.indexOfByteScalar(haystack, needle);
     const control = simd.indexOfControlScalar(haystack);
+    const plain = simd.indexOfNonPlainScalar(haystack);
     try std.testing.expectEqual(count, simd.count(haystack, needle));
     try std.testing.expectEqual(index, simd.indexOfByte(haystack, needle));
     try std.testing.expectEqual(control, simd.indexOfControl(haystack));
+    try std.testing.expectEqual(plain, simd.indexOfNonPlain(haystack));
     inline for (widths) |n| {
         try std.testing.expectEqual(count, simd.countWidth(n, haystack, needle));
         try std.testing.expectEqual(index, simd.indexOfByteWidth(n, haystack, needle));
         try std.testing.expectEqual(control, simd.indexOfControlWidth(n, haystack));
+        try std.testing.expectEqual(plain, simd.indexOfNonPlainWidth(n, haystack));
     }
 }
 
@@ -81,5 +84,22 @@ test "random input agrees with the scalar references" {
             std.debug.print("seed {x}, round {d}, len {d}\n", .{ seed, round, len });
             return err;
         };
+    }
+}
+
+test "a run of printable ASCII ends at the bytes just outside it, at every edge length" {
+    var buf: [256]u8 = undefined;
+    for (edge_lengths) |len| {
+        if (len == 0) continue;
+        for ([_]usize{ 0, len / 2, len - 1 }) |pos| {
+            // The last plain bytes on either side, then the first not.
+            for ([_]u8{ ' ', '~', 0x1f, 0x7f, 0x80, 0xff }) |b| {
+                @memset(buf[0..len], 'a');
+                buf[pos] = b;
+                try expectAllWidthsAgree(buf[0..len], b);
+                const want: ?usize = if (simd.isPlain(b)) null else pos;
+                try std.testing.expectEqual(want, simd.indexOfNonPlain(buf[0..len]));
+            }
+        }
     }
 }

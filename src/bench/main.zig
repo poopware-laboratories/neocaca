@@ -59,5 +59,15 @@ pub fn main(init: std.process.Init) !void {
             return kernels.indexOfControl(t) orelse t.len;
         }
     });
+    // Without its newlines the text is one long run of printable ASCII,
+    // which the search reads to the end.
+    try measure.compare(w, io, "find a non-ASCII byte", plain, struct {
+        pub fn scalar(t: []const u8) usize {
+            return kernels.indexOfNonPlainScalar(t) orelse t.len;
+        }
+        pub fn simd(t: []const u8) usize {
+            return kernels.indexOfNonPlain(t) orelse t.len;
+        }
+    });
     try w.flush();
 }

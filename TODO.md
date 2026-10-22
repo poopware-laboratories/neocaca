@@ -12,7 +12,7 @@ clean room.
       release artifacts for every target, and an early-warning job on the
       newest stable Zig
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
-- [x] SIMD kernels (count, find, control bytes) with scalar references
+- [x] SIMD kernels (count, find, control bytes, printable-ASCII runs) with scalar references
 - [x] Command line parsing, help and version
 - [x] Folder-per-subsystem layout
 - [x] Clean-room policy, Kakoune-inspired keybinding model documented
