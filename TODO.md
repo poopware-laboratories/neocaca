@@ -88,11 +88,16 @@ Safety first, then the biggest daily gains.
 
 - **PR: cap the number of selections**
   - [ ] S: `max_selections`, tested at the limit and one past it. Today
-        `S` or `s` on a huge file can make millions of selections (about
-        2 GB at 10 million), bounded only by memory.
-- **PR: keep line endings and the BOM on save**
-  - [ ] M: CRLF files keep CRLF on save
-  - [ ] S: a BOM is kept on save
+        `S` or `s` on a huge file can make millions of selections (32
+        bytes each), bounded only by memory.
+- **PR: respect line endings, the BOM and a missing final newline.**
+  The bytes of a file are kept as loaded, but:
+  - [ ] M: CRLF files show no `^M` at each line end, and the lines added
+        to them (Enter, `o`, `O`, paste) end in CRLF, not a bare `\n`
+  - [ ] S: a BOM is hidden and cannot be deleted by accident; today it
+        shows as a replacement glyph at the start of the file
+  - [ ] S: a file without a final newline is saved without one; today the
+        buffer adds one on load and `:w` writes it
 - **PR: never overwrite a change made on disk**
   - [ ] S: notice when the file changed on disk (size and modification
         time), checked on focus and before `:w`
