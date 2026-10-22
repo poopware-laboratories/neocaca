@@ -13,6 +13,13 @@ the terminal directly (raw mode, escape sequences out, key bytes in) and
 keeps its own text buffer, input decoder and screen renderer, all tested
 without a real terminal.
 
+Its yardstick is [flow](https://flow-control.dev), another Zig terminal
+editor: neocaca aims to be a measurable step up from it. "The yardstick"
+in [`TODO.md`](TODO.md) lists where neocaca is ahead, where it is behind,
+and the item that closes each gap. Compare with flow through its
+user-facing documentation and by running it, never through its source
+(see "Clean-room policy").
+
 ## Quick reference
 
 ```sh
