@@ -1,6 +1,7 @@
 //! `Tty`: the real terminal. Raw mode on and off, its size, waiting for
-//! input with a timeout, and the resize signal (SIGWINCH), which wakes the
-//! wait through a pipe its handler writes to. POSIX only.
+//! input with a timeout, and the resize and hang-up signals (SIGWINCH,
+//! SIGHUP), which wake the wait through a pipe their handlers write to.
+//! POSIX only.
 
 const std = @import("std");
 const attr = @import("attr.zig");
@@ -22,6 +23,8 @@ pub const Ready = struct {
     /// The size may have changed, or a byte came on the wake pipe (see
     /// `wakeFd`).
     woken: bool = false,
+    /// The terminal hung up (SIGHUP): it is gone for good.
+    hung_up: bool = false,
 };
 
 pub const Tty = struct {
@@ -45,7 +48,8 @@ pub const Tty = struct {
         const self: Tty = .{ .in = in, .out = out, .original = original, .wake = wake };
         writeAll(out, modes.enter);
         wake_fd.store(wake[1], .release);
-        watchResize(true);
+        hung_up.store(false, .release);
+        watchSignals(true);
         active = self;
         return self;
     }
@@ -55,7 +59,7 @@ pub const Tty = struct {
     pub fn restore(self: *Tty) void {
         if (active == null) return;
         active = null;
-        watchResize(false);
+        watchSignals(false);
         wake_fd.store(-1, .release);
         writeAll(self.out, modes.leave);
         // Nothing more can be done if this fails: the terminal is ours no
@@ -105,6 +109,7 @@ pub const Tty = struct {
             _ = posix.read(self.wake[0], &drain) catch {};
             ready.woken = true;
         }
+        ready.hung_up = hung_up.load(.acquire);
         return ready;
     }
 
@@ -148,13 +153,27 @@ fn onResize(_: posix.SIG) callconv(.c) void {
     if (fd >= 0) _ = std.c.write(fd, "w", 1);
 }
 
-fn watchResize(on: bool) void {
+var hung_up: std.atomic.Value(bool) = .init(false);
+
+/// SIGHUP would end the process with the changes unsaved; instead it
+/// wakes the wait, which reports it.
+fn onHangUp(sig: posix.SIG) callconv(.c) void {
+    hung_up.store(true, .release);
+    onResize(sig);
+}
+
+fn watchSignals(on: bool) void {
+    watch(posix.SIG.WINCH, if (on) onResize else posix.SIG.DFL);
+    watch(posix.SIG.HUP, if (on) onHangUp else posix.SIG.DFL);
+}
+
+fn watch(sig: posix.SIG, handler: ?posix.Sigaction.handler_fn) void {
     const act: posix.Sigaction = .{
-        .handler = .{ .handler = if (on) onResize else posix.SIG.DFL },
+        .handler = .{ .handler = handler },
         .mask = posix.sigemptyset(),
         .flags = posix.SA.RESTART,
     };
-    posix.sigaction(posix.SIG.WINCH, &act, null);
+    posix.sigaction(sig, &act, null);
 }
 
 fn sizeOf(fd: fd_t) ?Size {

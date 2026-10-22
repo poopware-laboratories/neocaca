@@ -35,6 +35,7 @@ test {
     _ = @import("app/session_test.zig");
     _ = @import("app/session_save_test.zig");
     _ = @import("app/saving_test.zig");
+    _ = @import("app/recovery_test.zig");
     _ = loop;
     _ = @import("app/loop_test.zig");
     _ = edit;

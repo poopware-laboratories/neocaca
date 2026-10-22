@@ -9,6 +9,7 @@ const input = @import("../input.zig");
 const rendering = @import("../render.zig");
 const editor = @import("editor.zig");
 const Saving = @import("saving.zig").Saving;
+const recovery = @import("recovery.zig");
 
 const Editor = editor.Editor;
 const Screen = rendering.Screen;
@@ -70,6 +71,23 @@ pub const Session = struct {
     /// Whether the editor has asked to exit.
     pub fn done(self: *const Session) bool {
         return self.ed.quit;
+    }
+
+    pub const Recovery = union(enum) {
+        /// Nothing was unsaved.
+        none,
+        /// The name written, a slice of the caller's buffer.
+        written: []const u8,
+        failed: recovery.Error,
+    };
+
+    /// Writes unsaved changes to a recovery file (see `recovery.zig`),
+    /// once a save in flight is over; for a terminal that went away.
+    pub fn recover(self: *Session, buf: *[recovery.max_name]u8) Recovery {
+        self.settle();
+        if (!self.ed.doc.isModified()) return .none;
+        const where = recovery.write(self.io, self.dir, self.ed.path, self.ed.doc.text(), buf) catch |e| return .{ .failed = e };
+        return .{ .written = where };
     }
 
     /// Whether the editor asked to be suspended, once.

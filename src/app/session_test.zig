@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const Session = @import("session.zig").Session;
+const recovery = @import("recovery.zig");
 
 const io = std.testing.io;
 const gpa = std.testing.allocator;
@@ -105,6 +106,50 @@ test "session: Ctrl-z is taken once, and the next frame is drawn whole" {
     // After a suspend the terminal holds the shell's output.
     s.redrawAll();
     try expect(std.mem.indexOf(u8, try frame(&s, &buf), "\x1b[2J") != null);
+}
+
+test "session: recovering an unmodified buffer writes nothing" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 4);
+    defer s.deinit();
+    var buf: [recovery.max_name]u8 = undefined;
+    try expectEqual(.none, s.recover(&buf));
+    try typeKeys(&s, "ix\x1b:w");
+    try s.feed("\r");
+    // The save is still in flight: what it writes is not unsaved.
+    try expect(s.saving != null);
+    try expectEqual(.none, s.recover(&buf));
+    var text: [16]u8 = undefined;
+    try std.testing.expectError(error.FileNotFound, readFile(tmp.dir, "f.recovered", &text));
+}
+
+test "session: recovering writes the unsaved text beside the file" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "saved\n" });
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 4);
+    defer s.deinit();
+    try typeKeys(&s, "ix\x1b");
+    var buf: [recovery.max_name]u8 = undefined;
+    try expectEqualStrings("f.recovered", (s.recover(&buf)).written);
+    var text: [16]u8 = undefined;
+    try expectEqualStrings("xsaved\n", try readFile(tmp.dir, "f.recovered", &text));
+    try expectEqualStrings("saved\n", try readFile(tmp.dir, "f", &text));
+}
+
+test "session: recovering a scratch buffer, and failing to" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, null, 20, 4);
+    defer s.deinit();
+    try typeKeys(&s, "iscratch\x1b");
+    var buf: [recovery.max_name]u8 = undefined;
+    try expectEqualStrings("neocaca.recovered", (s.recover(&buf)).written);
+    var t: Session = try .init(gpa, io, tmp.dir, "gone/f", 20, 4);
+    defer t.deinit();
+    try typeKeys(&t, "ix\x1b");
+    try expectEqual(error.FileNotFound, (t.recover(&buf)).failed);
 }
 
 test "session: typed keys edit, and :w writes the file" {

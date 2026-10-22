@@ -7,6 +7,7 @@ const term = @import("../term.zig");
 const exit = @import("exit.zig");
 const loop = @import("loop.zig");
 const Session = @import("session.zig").Session;
+const recovery = @import("recovery.zig");
 
 /// What editing needs from the process.
 pub const Env = struct {
@@ -46,9 +47,24 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
     loop.run(&session, &tty, &out.interface) catch |e| {
         tty.restore();
         try err.print("neocaca: the terminal failed: {s}\n", .{@errorName(e)});
+        try recover(&session, err);
         return .failure;
     };
+    tty.restore();
+    try recover(&session, err);
     return .ok;
+}
+
+/// After the terminal went away rather than the editor quitting, writes
+/// the unsaved changes to a recovery file and says where.
+fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!void {
+    if (session.done()) return;
+    var buf: [recovery.max_name]u8 = undefined;
+    switch (session.recover(&buf)) {
+        .none => {},
+        .written => |where| try err.print("neocaca: unsaved changes written to \"{s}\"\n", .{where}),
+        .failed => |e| try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{@errorName(e)}),
+    }
 }
 
 fn describeOpen(e: term.tty.OpenError) []const u8 {

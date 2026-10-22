@@ -96,6 +96,38 @@ test "tty: a resize while stopped wakes the first wait after" {
     try expect((try t.wait(1000)).woken);
 }
 
+fn handlesHangUp() bool {
+    var old: posix.Sigaction = undefined;
+    posix.sigaction(posix.SIG.HUP, null, &old);
+    return old.handler.handler != posix.SIG.DFL;
+}
+
+test "tty: a hang-up wakes the wait instead of ending the process" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    // Raising it unhandled would end the test run.
+    try expect(handlesHangUp());
+    try posix.raise(.HUP);
+    const ready = try t.wait(1000);
+    try expect(ready.hung_up);
+    try expect(ready.woken);
+    // It stays hung up: the terminal is not coming back.
+    try expect((try t.wait(0)).hung_up);
+    t.restore();
+    try expect(!handlesHangUp());
+}
+
+test "tty: no hang-up without the signal" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    try expect(!(try t.wait(0)).hung_up);
+    try posix.raise(.WINCH);
+    try expect(!(try t.wait(1000)).hung_up);
+}
+
 test "tty: the panic path restores the open terminal" {
     const pty: Pty = try .open();
     defer pty.close();

@@ -44,3 +44,17 @@ pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8) SaveError!voi
     try af.file.sync(io);
     try af.replace(io);
 }
+
+pub const CreateError = File.OpenError || File.WritePositionalError || File.SyncError;
+
+/// Writes `bytes` to a new file at `path`, readable by its owner only;
+/// fails with `error.PathAlreadyExists` rather than replace a file. A
+/// write that fails part way (a full disk) leaves what it wrote.
+pub fn create(io: Io, dir: Dir, path: []const u8, bytes: []const u8) CreateError!void {
+    const f = try dir.createFile(io, path, .{ .exclusive = true, .permissions = owner_only });
+    defer f.close(io);
+    try f.writePositionalAll(io, bytes, 0);
+    try f.sync(io);
+}
+
+const owner_only: File.Permissions = if (File.Permissions.has_executable_bit) .fromMode(0o600) else .default_file;

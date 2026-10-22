@@ -20,6 +20,8 @@ const Step = union(enum) {
     idle,
     /// The save in flight finishes and wakes the wait.
     saved,
+    /// The terminal hangs up (SIGHUP).
+    hangup,
 };
 
 /// Plays `steps`, then reports the terminal gone.
@@ -58,6 +60,7 @@ const Script = struct {
                 return .{ .woken = true };
             },
             .idle => return .{},
+            .hangup => return .{ .woken = true, .hung_up = true },
             .saved => {
                 const job = self.session.?.saving.?;
                 while (!job.isFinished()) try std.Io.sleep(io, .fromMilliseconds(1), .awake);
@@ -186,6 +189,29 @@ test "loop: after a suspend at the same size the screen is still drawn whole" {
     try expectEqual(20, f.session.ed.width);
     const out = f.out.buffered();
     try expect(std.mem.indexOf(u8, out[script.written[0]..script.written[1]], "\x1b[2J") != null);
+}
+
+test "loop: a hang-up ends the loop without reading on" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{ .{ .input = "ix" }, .hangup, .{ .input = "y" } } };
+    try f.run(&script);
+    try expect(!f.session.done());
+    try expectEqual(2, script.i);
+    try expectEqualStrings("xb\n", f.session.ed.doc.text());
+}
+
+test "loop: a hang-up during a save still finishes it" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{ .{ .input = "ix\x1b" }, .idle, .{ .input = ":w\r" }, .hangup } };
+    try f.run(&script);
+    try expectEqual(null, f.session.saving);
+    try expect(!f.session.ed.doc.isModified());
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("xb\n", try f.tmp.dir.readFile(io, "a", &buf));
 }
 
 test "loop: no suspend without Ctrl-z" {

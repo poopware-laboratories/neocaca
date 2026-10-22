@@ -113,3 +113,40 @@ test "file: a saved file loads back byte for byte" {
     defer gpa.free(got);
     try std.testing.expectEqualSlices(u8, &bytes, got);
 }
+
+test "file: create writes a new file readable by its owner only" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try file.create(io, tmp.dir, "r", "unsaved\n");
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("unsaved\n", try tmp.dir.readFile(io, "r", &buf));
+    if (!std.Io.File.Permissions.has_executable_bit) return;
+    const st = try tmp.dir.statFile(io, "r", .{});
+    try std.testing.expectEqual(0, st.permissions.toMode() & 0o077);
+}
+
+test "file: create never replaces a file" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "r", .data = "older\n" });
+    try expectError(error.PathAlreadyExists, file.create(io, tmp.dir, "r", "newer\n"));
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("older\n", try tmp.dir.readFile(io, "r", &buf));
+}
+
+test "file: create writes empty and binary contents byte for byte" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try file.create(io, tmp.dir, "empty", "");
+    const bytes = "\x00\xff\x1b[2J\r\n";
+    try file.create(io, tmp.dir, "bin", bytes);
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("", try tmp.dir.readFile(io, "empty", &buf));
+    try expectEqualStrings(bytes, try tmp.dir.readFile(io, "bin", &buf));
+}
+
+test "file: create into a missing directory fails and makes nothing" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try expectError(error.FileNotFound, file.create(io, tmp.dir, "no/such/r", "x\n"));
+}
