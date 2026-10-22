@@ -292,6 +292,18 @@ test "editing: inserting at an inner object's cursor keeps its last character wh
     try h.expectText("(xé) \"y\"\n");
 }
 
+test "editing: pasting a line and a word on the last line puts each where it belongs" {
+    var h: Harness = undefined;
+    try h.init("a.txt", "a\nb c\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%sa\\n|c\ry");
+    try h.expectSelections(&.{ "a\n", "c" });
+    try h.typeKeys("%sb|c\rp");
+    try h.expectText("a\nb cc\na\n");
+    try h.typeKeys("u");
+    try h.expectText("a\nb c\n");
+}
+
 test "editing: counts repeat moves and verbs" {
     var h: Harness = undefined;
     try h.init("t", "1\n2\n3\n4\n5\n", 30, 7);

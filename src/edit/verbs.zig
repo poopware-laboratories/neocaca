@@ -105,37 +105,51 @@ pub fn paste(doc: *Document, regs: *const Registers, reg: u8, before: bool) Erro
     const buf = &doc.buffer;
     const text = doc.text();
     const list = doc.sels();
-    var changes: std.ArrayList(Change) = .empty;
-    defer changes.deinit(doc.gpa);
-    try changes.ensureTotalCapacity(doc.gpa, list.len);
     const new = try doc.gpa.alloc(Selection, list.len);
     defer doc.gpa.free(new);
-    var prev_at: usize = 0;
-    var added: usize = 0;
-    for (list, new, 0..) |s, *n, i| {
+    var pastes: std.ArrayList(Paste) = .empty;
+    defer pastes.deinit(doc.gpa);
+    try pastes.ensureTotalCapacity(doc.gpa, list.len);
+    for (list, 0..) |s, i| {
         const v = values[@min(i, values.len - 1)];
+        if (v.len == 0) continue;
         const r = s.range(text);
-        var at = if (linewise(v))
+        const at = if (linewise(v))
             (if (before) buf.lineStart(buf.lineOf(r.start)) else buf.lineEnd(buf.lineOf(r.end - 1)) + 1)
         else if (before) r.start else @min(r.end, text.len - 1);
-        // Mixed values could put a line paste before an earlier one.
-        at = @max(at, prev_at);
-        prev_at = at;
-        if (v.len == 0) {
-            n.* = s; // mapped below, once every change is known
-            continue;
-        }
-        changes.appendAssumeCapacity(.{ .start = at, .end = at, .text = v });
-        n.* = over(at + added, v);
-        added += v.len;
+        pastes.appendAssumeCapacity(.{ .change = .{ .start = at, .end = at, .text = v }, .owner = i });
+    }
+    // A line pasted below an earlier selection can land after a word
+    // pasted for a later one. Stable: pastes at one offset keep their
+    // selections' order, except that a line goes before a word.
+    std.sort.block(Paste, pastes.items, {}, Paste.before);
+    const changes = try doc.gpa.alloc(Change, pastes.items.len);
+    defer doc.gpa.free(changes);
+    var added: usize = 0;
+    for (pastes.items, changes) |p, *c| {
+        c.* = p.change;
+        new[p.owner] = over(p.change.start + added, p.change.text);
+        added += p.change.text.len;
     }
     for (list, new, 0..) |s, *n, i| {
+        // Selections with an empty value stay, mapped through the pastes.
         if (values[@min(i, values.len - 1)].len > 0) continue;
-        n.* = .span(buffer.change.mapPos(changes.items, s.anchor, .after), buffer.change.mapPos(changes.items, s.cursor, .after));
+        n.* = .span(buffer.change.mapPos(changes, s.anchor, .after), buffer.change.mapPos(changes, s.cursor, .after));
     }
-    try doc.edit(changes.items, new, doc.selections.main);
+    try doc.edit(changes, new, doc.selections.main);
     return true;
 }
+
+/// One value of a paste, and the selection it is pasted for.
+const Paste = struct {
+    change: Change,
+    owner: usize,
+
+    fn before(_: void, a: Paste, b: Paste) bool {
+        if (a.change.start != b.change.start) return a.change.start < b.change.start;
+        return linewise(a.change.text) and !linewise(b.change.text);
+    }
+};
 
 /// `R`: replaces each selection with the register's value for it (as for
 /// `paste`) and selects it. False when the register is empty.
