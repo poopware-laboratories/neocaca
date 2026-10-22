@@ -208,6 +208,12 @@ test "keymap: the view prefix places and scrolls the view" {
     try expectNormal("vk", .{ .view = .{ .to = .up } });
     try expectNormal("5vj", .{ .view = .{ .to = .down, .count = 5 } });
     try expectNormal("3vk", .{ .view = .{ .to = .up, .count = 3 } });
+    try expectNormal("vh", .{ .view = .{ .to = .left } });
+    try expectNormal("4vl", .{ .view = .{ .to = .right, .count = 4 } });
+    try expectNormal("vH", null);
+    try expectNormal("v<c-l>", null);
+    try expectNormal("v<esc>", null);
+    try expectNormal("2v<esc>", null);
     try expectNormal("vx", null);
     try expectNormal("v<a-j>", null);
     var map: Keymap = .{};

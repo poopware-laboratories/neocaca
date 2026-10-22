@@ -46,6 +46,7 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 | `Ctrl-f` `Ctrl-b`, PageDown, PageUp | a page down / up |
 | `vc` `vv` / `vt` / `vb` | put the cursor's line in the middle / at the top / at the bottom of the view |
 | `vj` / `vk` | scroll the view a line down / up (with a count, that many), the cursor moving only to stay in view |
+| `vh` / `vl` | scroll the view a column left / right (with a count, that many), the cursor moving along its line only to stay in view |
 
 ### Shaping the selections
 

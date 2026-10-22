@@ -38,7 +38,7 @@ clean room.
   - [x] object selection: `Alt-i` / `Alt-a` with `w W ( [ { < " ' ` p`
   - [x] goto prefix (`g`)
   - [x] view prefix (`v`: center, top, bottom, scroll without moving)
-  - [ ] `vh` / `vl`: scroll the view by columns
+  - [x] `vh` / `vl`: scroll the view by columns
   - [x] insert mode at every cursor (`i a I A o O`), auto-indent
   - [x] search `/ ? n N Alt-n *`
   - [x] prompt commands `:w :q :q! :wq :x :e :e! :<line>`

@@ -150,6 +150,8 @@ pub const Keymap = struct {
                     'b' => .bottom,
                     'j' => .down,
                     'k' => .up,
+                    'h' => .left,
+                    'l' => .right,
                     else => return null,
                 };
                 return .{ .view = .{ .to = to, .count = self.times() } };

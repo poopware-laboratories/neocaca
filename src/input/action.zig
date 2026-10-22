@@ -28,9 +28,9 @@ pub const Prompt = enum {
 pub const Scroll = enum { half_down, half_up, page_down, page_up };
 
 /// The `v` prefix: where to put the main cursor's line, or which way to
-/// scroll the view by `count` lines.
+/// scroll the view by `count` lines or columns.
 pub const View = struct {
-    to: enum { center, top, bottom, down, up },
+    to: enum { center, top, bottom, down, up, left, right },
     count: usize = 1,
 };
 

@@ -7,6 +7,7 @@
 
 const std = @import("std");
 const edit = @import("../edit.zig");
+const unicode = @import("../unicode.zig");
 const fs = @import("../fs.zig");
 const input = @import("../input.zig");
 const regex = @import("../regex.zig");
@@ -332,6 +333,7 @@ pub const Editor = struct {
     fn moveView(self: *Editor, v: input.action.View) Error!void {
         const at: ui.view.Place = switch (v.to) {
             .down, .up => return self.scrollBy(v.to == .down, v.count, false),
+            .left, .right => return self.scrollColumns(v.to == .right, v.count),
             .top => .top,
             .center => .center,
             .bottom => .bottom,
@@ -342,6 +344,33 @@ pub const Editor = struct {
             .height = self.textRows(),
             .scrolloff = self.options.scrolloff,
         }, at);
+    }
+
+    /// Scrolls the view `n` columns. The main cursor moves along its line
+    /// only to stay in view outside the margin, onto a character that
+    /// starts there; every selection moves as many characters.
+    fn scrollColumns(self: *Editor, right: bool, n: usize) Error!void {
+        const buf = &self.doc.buffer;
+        const width = @max(ui.document.textWidth(self.width, buf.lineCount()), 1);
+        self.view.left = if (right) self.view.left +| n else self.view.left -| n;
+        const m = @min(self.options.scrolloff, (width - 1) / 2);
+        const low = if (self.view.left > 0) self.view.left + m else 0;
+        const high = @max(low, self.view.left + width - 1 - m);
+        const tw = self.options.tab_width;
+        const cursor = self.doc.primary().cursor;
+        const col = edit.motion.column(buf, cursor, tw);
+        if (col >= low and col <= high) return;
+        const start = buf.lineStart(buf.lineOf(cursor));
+        const line = buf.line(buf.lineOf(cursor));
+        var target = start + unicode.display.offsetAt(line, std.math.clamp(col, low, high), tw);
+        // A wide character or tab starting before the margin is left of it.
+        if (col < low and target < start + line.len and edit.motion.column(buf, target, tw) < low)
+            target = unicode.chars.next(buf.bytes(), target);
+        if (target == cursor) return;
+        var steps: usize = 0;
+        var p = @min(cursor, target);
+        while (p < @max(cursor, target)) : (steps += 1) p = unicode.chars.next(buf.bytes(), p);
+        try selecting.move(&self.doc, if (target > cursor) .right else .left, steps, false, tw);
     }
 
     /// Scrolls the view `n` lines; the cursors move as far when `carry`,
