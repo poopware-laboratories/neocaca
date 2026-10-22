@@ -15,6 +15,7 @@ const render = @import("../render.zig");
 const ui = @import("../ui.zig");
 const layout = @import("layout.zig");
 const prompting = @import("prompting.zig");
+const viewing = @import("viewing.zig");
 
 const Action = input.Action;
 const Document = edit.Document;
@@ -338,8 +339,8 @@ pub const Editor = struct {
                 try edit.insert.enter(doc, w);
                 self.mode = .insert;
             },
-            .scroll => |s| try self.scroll(s),
-            .view => |v| try self.moveView(v),
+            .scroll => |s| try viewing.scroll(self, s),
+            .view => |v| try viewing.moveView(self, v),
             .text => |cp| {
                 var bytes: [4]u8 = undefined;
                 // The keymap only makes text of valid code points.
@@ -358,78 +359,6 @@ pub const Editor = struct {
 
     fn emptyRegister(self: *Editor, reg: u8) void {
         self.message.set(true, "register {c} is empty", .{reg});
-    }
-
-    /// Moves the view and every cursor by half a page or a page.
-    fn scroll(self: *Editor, s: input.action.Scroll) Error!void {
-        const page = @max(self.textRows(), 1);
-        const n = switch (s) {
-            .half_down, .half_up => @max(page / 2, 1),
-            .page_down, .page_up => page,
-        };
-        try self.scrollBy(s == .half_down or s == .page_down, n, true);
-    }
-
-    /// `v`: places the main cursor's line in the view, or scrolls the view
-    /// alone.
-    fn moveView(self: *Editor, v: input.action.View) Error!void {
-        const at: ui.view.Place = switch (v.to) {
-            .down, .up => return self.scrollBy(v.to == .down, v.count, false),
-            .left, .right => return self.scrollColumns(v.to == .right, v.count),
-            .top => .top,
-            .center => .center,
-            .bottom => .bottom,
-        };
-        self.view.place(.{
-            .line = self.doc.buffer.lineOf(self.doc.primary().cursor),
-            .lines = self.doc.buffer.lineCount(),
-            .height = self.textRows(),
-            .scrolloff = self.options.scrolloff,
-        }, at);
-    }
-
-    /// Scrolls the view `n` columns. The main cursor moves along its line
-    /// only to stay in view outside the margin, onto a character that
-    /// starts there; every selection moves as many characters.
-    fn scrollColumns(self: *Editor, right: bool, n: usize) Error!void {
-        const buf = &self.doc.buffer;
-        const width = @max(ui.document.textWidth(self.width, buf.lineCount()), 1);
-        self.view.left = if (right) self.view.left +| n else self.view.left -| n;
-        const m = @min(self.options.scrolloff, (width - 1) / 2);
-        const low = if (self.view.left > 0) self.view.left + m else 0;
-        const high = @max(low, self.view.left + width - 1 - m);
-        const tw = self.options.tab_width;
-        const cursor = self.doc.primary().cursor;
-        const col = edit.motion.column(buf, cursor, tw);
-        if (col >= low and col <= high) return;
-        const start = buf.lineStart(buf.lineOf(cursor));
-        const line = buf.line(buf.lineOf(cursor));
-        var target = start + unicode.display.offsetAt(line, std.math.clamp(col, low, high), tw);
-        // A wide character or tab starting before the margin is left of it.
-        if (col < low and target < start + line.len and edit.motion.column(buf, target, tw) < low)
-            target = unicode.chars.next(buf.bytes(), target);
-        if (target == cursor) return;
-        var steps: usize = 0;
-        var p = @min(cursor, target);
-        while (p < @max(cursor, target)) : (steps += 1) p = unicode.chars.next(buf.bytes(), p);
-        try selecting.move(&self.doc, if (target > cursor) .right else .left, steps, false, tw);
-    }
-
-    /// Scrolls the view `n` lines; the cursors move as far when `carry`,
-    /// and in any case into the view outside the margin.
-    fn scrollBy(self: *Editor, down: bool, n: usize, carry: bool) Error!void {
-        const page = @max(self.textRows(), 1);
-        const lines = self.doc.buffer.lineCount();
-        self.view.scroll(if (down) @intCast(@min(n, lines)) else -@as(isize, @intCast(@min(n, lines))), lines);
-        const m = @min(self.options.scrolloff, (page - 1) / 2);
-        const low = if (self.view.top > 0) self.view.top + m else 0;
-        const high = @max(low, self.view.top + page - 1 - m);
-        const line = self.doc.buffer.lineOf(self.doc.primary().cursor);
-        const moved = if (!carry) line else if (down) line +| n else line -| n;
-        const target = @min(std.math.clamp(moved, low, high), lines - 1);
-        const tw = self.options.tab_width;
-        if (target > line) try selecting.move(&self.doc, .down, target - line, false, tw);
-        if (target < line) try selecting.move(&self.doc, .up, line - target, false, tw);
     }
 };
 
