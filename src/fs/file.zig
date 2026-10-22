@@ -3,6 +3,7 @@
 //! original, so a crash or a full disk never leaves a truncated file.
 
 const std = @import("std");
+const link = @import("link.zig");
 
 const Io = std.Io;
 const Dir = Io.Dir;
@@ -24,19 +25,21 @@ pub fn load(io: Io, gpa: std.mem.Allocator, dir: Dir, path: []const u8, limit: u
     };
 }
 
-pub const SaveError = Dir.CreateFileAtomicError || Dir.StatFileError || File.SetPermissionsError ||
+pub const SaveError = link.Error || Dir.CreateFileAtomicError || Dir.StatFileError || File.SetPermissionsError ||
     File.WritePositionalError || File.SyncError || Dir.RenameError;
 
 /// Replaces `path` with `bytes` atomically: they go to a temporary file in
 /// the same directory, which is synced, given the permissions of the file
-/// it replaces, and renamed over it. On any error the original is left as
-/// it was.
+/// it replaces, and renamed over it. A link is kept: the file it names is
+/// replaced. On any error the original is left as it was.
 pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8) SaveError!void {
-    const old: ?File.Permissions = if (dir.statFile(io, path, .{})) |st| st.permissions else |e| switch (e) {
+    var buf: [Dir.max_path_bytes]u8 = undefined;
+    const target = try link.resolve(io, dir, path, &buf);
+    const old: ?File.Permissions = if (dir.statFile(io, target, .{})) |st| st.permissions else |e| switch (e) {
         error.FileNotFound => null,
         else => return e,
     };
-    var af = try dir.createFileAtomic(io, path, .{ .replace = true });
+    var af = try dir.createFileAtomic(io, target, .{ .replace = true });
     defer af.deinit(io);
     // Set after creation, so the umask does not narrow them.
     if (old) |p| try af.file.setPermissions(io, p);

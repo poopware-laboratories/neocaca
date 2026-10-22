@@ -286,7 +286,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
 | `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups and finished saves through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
-| `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions, and new files that never replace one. |
+| `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions and links, and new files that never replace one; `link.zig`: the file a path names once its links are followed. |
 | `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig` and `display_test.zig` assert on the buffers, files and `Screen`; `terminal_test.zig` runs the editor on a pseudo-terminal end to end. |
 
 ## Keybinding model (Kakoune-inspired)
