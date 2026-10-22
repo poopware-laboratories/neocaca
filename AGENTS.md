@@ -18,7 +18,7 @@ without a real terminal.
 ```sh
 zig build                                   # debug build: zig-out/bin/neocaca
 zig build test --summary all                # every unit and integration test
-zig build test -Dtest-filter="piece table"  # only tests whose name matches
+zig build test -Dtest-filter="regex:"       # only tests whose name matches
 zig build fmt                               # format our sources (zig fmt is the style)
 zig build fmt-check                         # fail on unformatted sources, as CI does
 zig build test -fincremental --watch        # rebuild and rerun the tests on every save (x86_64-linux)
@@ -62,12 +62,17 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
     Alpine (musl, in a container, where `.github/scripts/install-zig.sh`
     installs Zig and checks its SHA-256), each uploading its ReleaseSafe
     binary; the Alpine binary must be statically linked;
+  - the tests in Debug and ReleaseSafe for `aarch64-linux-musl` under
+    qemu on Ubuntu, the CPU of the macOS runners without their queue;
   - a ReleaseSafe build and artifact for every supported target
     (`x86_64`/`aarch64` Linux with glibc and musl, both macOS, FreeBSD);
   - a benchmark smoke run.
 
-  All must pass; run them before pushing (`-Dtarget=x86_64-linux-musl` runs
-  the musl tests on any x86_64 Linux). A non-blocking `zig-latest` job
+  Every test run passes `--test-timeout 3m`, so a hung test fails naming
+  itself while the rest still run, and the test jobs stop at 45 minutes
+  (`timeout-minutes`). All must pass; run them before pushing (`-Dtarget=x86_64-linux-musl` runs
+  the musl tests on any x86_64 Linux, and `-Dtarget=aarch64-linux-musl
+  -fqemu` the aarch64 ones once `qemu-user` is installed). A non-blocking `zig-latest` job
   builds with the newest stable Zig to warn before an upgrade.
 - **Platform-gated code** (`switch (builtin.target.os.tag)` and other
   `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
@@ -190,7 +195,9 @@ and SIMD, never from turning safety off.
 - **Bounds on untrusted sizes** hold on fast paths too: a fast path takes
   the same `max_*` limits as the slow path.
 - **Hardened allocator.** mimalloc runs with `-Dmimalloc-secure=on` by
-  default; `off` exists only to measure the allocator itself.
+  default. `off` exists to measure the allocator itself; CI also runs the
+  tests with it so the wrapper is checked in both settings, but nothing
+  ships with it.
 
 ## Memory and allocators
 
@@ -226,9 +233,10 @@ Zig makes every allocation explicit; keep it that way.
 - **`defer` and `errdefer` go on the line after the acquisition**, never
   later. Every `try` between an allocation and its hand-off needs an
   `errdefer` that frees it.
-- **Arenas for scratch.** Per-frame render scratch and per-command temporary
-  data use an `std.heap.ArenaAllocator` reset each frame or command. Long-
-  lived state (buffers, undo history) never lives in a frame arena.
+- **Arenas for scratch.** When a frame or a command needs temporary
+  memory, it comes from an `std.heap.ArenaAllocator` reset after each frame
+  or command. Long-lived state (buffers, undo history) never lives in a
+  frame arena.
 - **Out of memory is an error, not a crash.** Propagate `error.OutOfMemory`;
   never `catch unreachable` or `@panic` on allocation. An edit that fails to
   allocate leaves the buffer exactly as it was.
@@ -285,9 +293,9 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/input/` | `decode.zig`: pure decoding of terminal bytes into `Key`s (`key.zig`); `decoder.zig`: keys split across reads, pastes, the Escape timeout; `keymap.zig`: keys to `Action`s (`action.zig`) as a pure state machine; `keyname.zig`: the key notation of `:map`; `mapping.zig`: the user's mappings. |
 | `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
-| `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups and finished saves through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
+| `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups and finished saves and loads through a self-pipe), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
 | `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions and links, and new files that never replace one; `link.zig`: the file a path names once its links are followed. |
-| `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig` and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `terminal_test.zig` runs the editor on a pseudo-terminal end to end. |
+| `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig` and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
 
 ## Keybinding model (Kakoune-inspired)
 
@@ -319,19 +327,26 @@ the keymap and its tests.
 - **Keep files small and single-purpose.** Prefer a new file over growing
   one past roughly 400 lines, and a new folder (with its namespace file)
   over a file holding two subsystems. Each file starts with a `//!` doc
-  comment saying what it is for. Tests that outgrow their file move to a sibling
-  `name_test.zig`, referenced from the module so `zig build test` reaches it.
+  comment saying what it is for. The limit holds for test files too:
+  tests that outgrow their file move to a sibling `name_test.zig`, and a
+  test file that outgrows itself splits by topic (as the count tests of
+  `selecting_test.zig` went to `selecting_count_test.zig`), each
+  referenced from the namespace file so `zig build test` reaches it.
 - **Functional core, imperative shell.** Encoding, decoding, layout, editing
-  and diffing are pure functions over plain data (`input.decode(bytes)`,
-  `ui.layout(state, size)`, `render.diff(old, new, writer)`). Only `term/`,
-  `fs/` and `main.zig` do I/O; `App` mostly routes events. If a test needs a
+  and diffing are pure functions over plain data (`input.decode.parse(bytes,
+  final)`, `app.layout.draw(editor, screen)`, `render.diff(old, new,
+  writer)`). Only `term/`, `fs/` and `main.zig` do I/O, with the shell files
+  of `app/` that wire them in (`edit.zig`, `session.zig`, `saving.zig`,
+  `loading.zig`, `recovery.zig`); the rest of `app/` is pure, and `Editor`
+  mostly routes keys. If a test needs a
   real terminal, the logic is in the wrong place.
 - **Never block the event loop.** Reading the terminal, saving files and
   running external tools must not freeze typing. Long work goes off the
   loop and reports back as an event.
 - **The terminal is always restored.** Raw mode, the alternate screen,
-  mouse and bracketed-paste modes are undone on normal exit, on error
-  returns and on panic (install a panic handler that restores first).
+  bracketed paste and every mode added later (mouse, the kitty keyboard
+  protocol) are undone on normal exit, on error returns, on suspend and on
+  panic (the panic handler restores first).
 - **Never lose user data.** Save by writing a temporary file in the same
   directory and renaming it over the original; keep permissions; on any
   error leave the original untouched and tell the user. Every edit is
@@ -343,9 +358,16 @@ the keymap and its tests.
   constants) on what is loaded or decoded, each tested at the limit and one
   past it. The same holds for bytes coming back from the terminal (replies,
   pastes).
-- **Widths are hard.** Cursor movement and rendering work in grapheme
-  clusters and display columns, not bytes or code points. Wide characters,
-  combining marks, tabs and emoji each need tests.
+- **Widths are hard.** Cursor movement and rendering work in characters
+  (a code point with the combining marks after it, `unicode/chars.zig`)
+  and display columns, never bytes. Full grapheme clusters (UAX #29) are
+  on the roadmap. Wide characters, combining marks, tabs and emoji each
+  need tests.
+- **Overflow is checked, not wrapped.** Use plain `+`, `-`, `*` so
+  ReleaseSafe catches a mistake, and saturating `+|` where a bound is
+  meant. A wrapping operator (`+%`) is allowed only where wrapping cannot
+  happen or is the point, with a comment stating why (see
+  `simd/count.zig`).
 - **No new dependencies; write our own.** Use the Zig standard library only.
   Implement features in-house from their specifications (clean room: never
   read or copy another implementation's source), so we keep control over

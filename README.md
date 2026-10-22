@@ -28,10 +28,12 @@ line of code:
   a crash never truncates a file.
 - **Opening a file can't attack your terminal.** File contents are treated
   as untrusted: escape sequences and control bytes are shown visibly, never
-  written to the terminal raw. (The SIMD scan that finds them is already
-  in.)
-- **Fast on big files.** Text scanning uses SIMD, and the release
-  allocator is [mimalloc](https://github.com/microsoft/mimalloc).
+  written to the terminal raw.
+- **Fast where it matters.** Text scanning uses SIMD, the screen is
+  redrawn only where it changed, saves and loads run off the event loop,
+  and the release allocator is [mimalloc](https://github.com/microsoft/mimalloc).
+  (Very large files are next: today every edit rebuilds the whole text,
+  see [`TODO.md`](TODO.md).)
 - **Small and self-contained.** One binary, the Zig standard library and
   mimalloc, nothing else.
 - **Built test-first.** Every behavior starts as a failing test; pull
@@ -51,13 +53,14 @@ checks stay on without slowing them down:
 
 Scanning 64 MiB of text, in ReleaseSafe, with the hardened mimalloc
 (`zig build bench -Dbench-optimize=safe`, x86-64 with AVX2, one noisy
-cloud machine):
+cloud machine, so expect a spread of a few GiB/s):
 
 | Kernel | Scalar | SIMD |
 |--------|-------:|-----:|
-| Count newlines | 2.2 GiB/s | 20.9 GiB/s |
-| Find a byte | 4.6 GiB/s | 22.3 GiB/s |
-| Find a control byte | 2.2 GiB/s | 26.7 GiB/s |
+| Count newlines | 2.1 GiB/s | 16.4 GiB/s |
+| Find a byte | 4.0 GiB/s | 23.7 GiB/s |
+| Find a control byte | 2.1 GiB/s | 13.8 GiB/s |
+| Find a non-ASCII byte | 3.3 GiB/s | 22.9 GiB/s |
 
 ReleaseFast runs at about the same speed: the kernels' loops let the
 compiler prove their bounds checks redundant, so it removes them itself.
@@ -100,9 +103,12 @@ in [`docs/keys.md`](docs/keys.md).
 ## How it is built
 
 ```
-terminal bytes ──► term::Tty ──► app::loop ──► input::Decoder ──► input::keymap ──► edit::Document
-                                                                                        │
-terminal ◄── render::diff ◄── render::Screen ◄── app::layout ◄── ui ◄───────────────────┘
+terminal bytes ──► term::Tty ──► app::loop ──► app::Session ──► input::Decoder ──► input::keymap
+                                                    │ fs::file (saves, loads            │
+                                                    │  on their own threads)            ▼
+                                                    └──────────────────────────► app::Editor ──► edit::Document
+                                                                                                      │
+terminal ◄── render::diff ◄── render::Screen ◄── app::layout ◄── ui ◄─────────────────────────────────┘
 ```
 
 A pure core (buffers, editing, input decoding, layout, screen diffing)
@@ -117,7 +123,7 @@ The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/app/` | The editor state, its event loop, and the session joining it to the terminal and files |
 | `src/cli/` | Commands, parsing, help text |
 | `src/alloc/` | mimalloc as a `std.mem.Allocator`; per-mode process allocator |
-| `src/simd/` | One file per kernel: byte counting, byte search, control-byte search |
+| `src/simd/` | One file per kernel: byte counting, byte search, control-byte search, printable-ASCII runs |
 | `src/bench/` | `zig build bench`: kernels against their scalar references |
 | `src/unicode/` | UTF-8 that never fails, display widths, characters with combining marks |
 | `src/buffer/` | Text with a line index, and change sets |
@@ -126,8 +132,8 @@ The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/input/` | Terminal bytes to keys, and the Kakoune-style keymap |
 | `src/render/` | The cell grid, styles, and the diff into escape bytes |
 | `src/ui/` | Gutter, text, status line, prompt, scrolling |
-| `src/term/` | Raw mode, size, input waits, resizes, restore on exit and panic |
-| `src/fs/` | Bounded loads and atomic saves |
+| `src/term/` | Raw mode, size, input waits, resizes, suspend, hang-ups, restore on exit and panic |
+| `src/fs/` | Bounded loads, atomic saves that keep permissions and links |
 | `tests/` | Whole editing sessions from scripted keys, and the editor on a pseudo-terminal |
 
 ## Contributing

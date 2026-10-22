@@ -31,6 +31,17 @@ description: Use when driving an open neocaca pull request to green - CI failure
 Use the Zig version from `build.zig.zon`: a failure that only reproduces
 on another version is a version mismatch, not a fix to make.
 
+## Hung tests
+
+CI runs the tests with `--test-timeout 3m`, and each test job stops at 45
+minutes. A test that hangs is killed and named in the log, and the rest
+still run; reproduce it with `-Dtest-filter` and the same flag. A job that
+reaches its 45 minutes means the build itself hung, not a test.
+
+A failure only on macOS or in `qemu-aarch64` is often aarch64 itself:
+reproduce it on Linux with `sudo apt-get install qemu-user`, then
+`zig build test -Dtarget=aarch64-linux-musl -Doptimize=safe -fqemu`.
+
 ## Flaky tests
 
 Tests touching processes, timing or the real terminal are the usual

@@ -84,6 +84,22 @@ jobs:
           path: zig-out/bin/neocaca
           if-no-files-found: error
 
+  # aarch64 under qemu on Linux: the same CPU as the macOS runners, in
+  # minutes instead of a macOS queue. aarch64-only miscompiles (the vector
+  # overflow checks in ReleaseSafe, for one) show up here first.
+  qemu-aarch64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        optimize: [debug, safe]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+      - run: sudo apt-get update && sudo apt-get install -y qemu-user
+      - run: zig build test -Dtarget=aarch64-linux-musl -Doptimize=${{ matrix.optimize }} -fqemu --summary all --test-timeout 3m
+
   # A ReleaseSafe build and artifact for every supported target.
   cross:
     runs-on: ubuntu-latest

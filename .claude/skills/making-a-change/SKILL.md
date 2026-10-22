@@ -10,15 +10,15 @@ required. Skipping one is how pull requests go red.
 
 ## 1. Before writing code
 
-- Search the open issues (and `TODO.md`, once it exists) for the topic.
+- Search the open issues and `TODO.md` for the topic.
   Someone may own it, or an issue may say how it must be done.
 - Branch from an up-to-date `main`: `git switch main && git pull --rebase &&
   git switch -c type/short-topic` (`fix/undo-merge`, `feat/soft-wrap`).
 - Find the folder from the table in AGENTS.md ("Architecture in one
   screen") and the file for the concern; start a new file rather than
   mixing two concerns in one. If the logic needs a terminal or a file to
-  test, it belongs in a pure module instead; only `term/`, `fs/` and
-  `main.zig` do I/O.
+  test, it belongs in a pure module instead; only `term/`, `fs/`,
+  `main.zig` and the shell files of `app/` that wire them do I/O.
 
 ## 2. Red, green, refactor
 
@@ -36,6 +36,9 @@ zig build test -Doptimize=safe --summary all
 zig build -Dtarget=x86_64-macos     # when platform-gated code changed
 zig build -Dtarget=x86_64-freebsd   # likewise
 ```
+
+In the same commit: tick or add the `TODO.md` item, and change
+`docs/keys.md` with any binding.
 
 Then count the diff (`build.zig` and benchmarks excluded, see AGENTS.md):
 three test lines (inside `test` blocks, `*_test.zig`,

@@ -56,6 +56,7 @@ pub const Scratch = struct {
 
     /// Starts a new step: every `seen` mark from before becomes stale.
     fn nextGeneration(self: *Scratch) void {
+        // Wraps on purpose: at 0, below, every mark is cleared instead.
         self.generation +%= 1;
         if (self.generation == 0) {
             @memset(self.a.seen, 0);

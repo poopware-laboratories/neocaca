@@ -12,11 +12,11 @@ not negotiable, including for "trivial" fixes.
 
 1. **Red: write the test first.** Put it next to the code it tests (a
    `test "…"` block at the end of the file, or the sibling `name_test.zig`).
-   Name it as a sentence about behavior: `test "backspace at line start
-   joins with the previous line"`.
+   Name it as a sentence about behavior, prefixed with its module:
+   `test "verbs: delete never removes the final newline"`.
 2. **Run only it** and read the failure:
    ```sh
-   zig build test -Dtest-filter="backspace at line start" --summary all
+   zig build test -Dtest-filter="delete never removes" --summary all
    ```
    It must fail for the expected reason: an `expect*` mismatch, or a
    compile error naming the function you have not written yet. A leak
@@ -33,25 +33,26 @@ the exact input of the report.
 
 ## Shape of a good test
 
-Bytes or plain data in, state or bytes out, with the leak-checking
-allocator:
+Plain data in, state out, with the leak-checking allocator. Editing tests
+write documents with their selections marked (`«…»` the main one, `‹…›`
+the others; see `src/edit/fixture_test.zig`), so a test reads like the
+screen:
 
 ```zig
-test "backspace at line start joins with the previous line" {
-    var buf = try Buffer.initText(std.testing.allocator, "ab\ncd");
-    defer buf.deinit();
-    var cursor: Cursor = .{ .line = 1, .col = 0 };
-
-    try edit.backspace(&buf, &cursor);
-
-    try std.testing.expectEqualStrings("abcd", try buf.lineSlice(0));
-    try std.testing.expectEqual(Cursor{ .line = 0, .col = 2 }, cursor);
+test "verbs: delete never removes the final newline" {
+    try expectDelete("a«b\n»", "a«\n»", &.{"b\n"});
+    try expectDelete("«ab\ncd\n»", "«\n»", &.{"ab\ncd\n"});
 }
 ```
 
+where `expectDelete(before, after, yanked)` builds the document with
+`fx.doc`, runs `verbs.delete`, and checks it with `fx.expectDoc` and the
+register (`src/edit/verbs_test.zig`).
+
 Prefer `expectEqualStrings` / `expectEqualSlices` (they print a diff) over
-`expect(a == b)`. Integration tests in `tests/` feed scripted input bytes
-to a whole editor and assert on the final `Screen` text and buffers.
+`expect(a == b)`. Integration tests in `tests/` feed scripted key bytes
+to a whole session (`tests/harness.zig`) and assert on the text, the files
+and the `Screen`.
 
 ## What to cover
 

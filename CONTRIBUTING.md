@@ -51,14 +51,9 @@ are in the [quick reference](AGENTS.md#quick-reference).
    `TODO.md`, update [`docs/keys.md`](docs/keys.md) when a binding changes,
    and update the architecture table in `AGENTS.md` when files move.
 
-Before pushing, run what CI runs:
-
-```sh
-zig build fmt                            # format
-zig build fmt-check
-zig build test --summary all             # Debug
-zig build test -Doptimize=safe --summary all  # ReleaseSafe, as shipped
-```
+Before pushing, run `zig build fmt`, then the checks CI runs (formatting,
+the tests in Debug and ReleaseSafe, the other targets): they are listed in
+the [quick reference](AGENTS.md#quick-reference).
 
 For anything that changes what the screen shows, also run the editor and
 look, as [Verifying UI changes](AGENTS.md#verifying-ui-changes) describes.

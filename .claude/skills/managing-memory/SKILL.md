@@ -12,14 +12,23 @@ allocators"); this is how to apply and test them.
 ## Writing it
 
 ```zig
-/// Returns the text of `range`. Caller owns the returned slice.
-pub fn copyRange(self: *const Buffer, gpa: std.mem.Allocator, range: Range) ![]u8 {
-    const out = try gpa.alloc(u8, range.len());
-    errdefer gpa.free(out);
-    try self.readInto(range, out);
-    return out;
+/// Stores copies of `strings` in `name`. On error the register keeps
+/// its old value.
+pub fn set(self: *Registers, name: u8, strings: []const []const u8) error{OutOfMemory}!void {
+    const copy = try self.gpa.alloc([]u8, strings.len);
+    var n: usize = 0;
+    errdefer {
+        for (copy[0..n]) |s| self.gpa.free(s);
+        self.gpa.free(copy);
+    }
+    while (n < strings.len) : (n += 1) copy[n] = try self.gpa.dupe(u8, strings[n]);
+    self.free(self.values[name]);
+    self.values[name] = copy;
 }
 ```
+
+(`src/edit/registers.zig`: everything that can fail runs before the old
+value is touched, so a failure changes nothing.)
 
 - Take the allocator as a parameter (name it `gpa` for long-lived memory,
   `arena` for scratch); store it in a struct only when the struct must free
@@ -30,8 +39,8 @@ pub fn copyRange(self: *const Buffer, gpa: std.mem.Allocator, range: Range) ![]u
 - `deinit(self: *T)` frees everything, then `self.* = undefined`.
 - Standard containers are unmanaged: pass the allocator to each call
   (`list.append(gpa, x)`, `list.deinit(gpa)`) and keep it consistent.
-- Scratch per frame or command: an `ArenaAllocator`, reset with
-  `.retain_capacity`. Nothing from the arena may outlive the reset.
+- Scratch, when a frame or command needs it: an `ArenaAllocator`, reset
+  with `.retain_capacity`. Nothing from the arena may outlive the reset.
 - Sizes from files or the terminal are capped (`max_*`) before allocating.
 
 ## Which allocator
@@ -52,21 +61,24 @@ Debug and ReleaseSafe, and benchmark against the previous version.
   fails each allocation in turn and checks nothing leaks:
 
   ```zig
-  fn insertThenUndo(gpa: std.mem.Allocator) !void {
-      var buf = try Buffer.initText(gpa, "hello");
-      defer buf.deinit();
-      try buf.insert(5, " world");
-      try buf.undo();
-      try std.testing.expectEqualStrings("hello", try buf.lineSlice(0));
-  }
-
-  test "insert and undo survive every allocation failure" {
-      try std.testing.checkAllAllocationFailures(std.testing.allocator, insertThenUndo, .{});
+  test "document: a failed allocation leaves the document as it was" {
+      try std.testing.checkAllAllocationFailures(gpa, struct {
+          fn run(a: std.mem.Allocator) !void {
+              var doc: Document = try .init(a, "one two\n");
+              defer doc.deinit();
+              doc.edit(&.{.{ .start = 0, .end = 3, .text = "1" }}, &.{.at(0)}, 0) catch |err| {
+                  try std.testing.expectEqualStrings("one two\n", doc.text());
+                  try std.testing.expect(!doc.isModified());
+                  return err;
+              };
+              try std.testing.expectEqualStrings("1 two\n", doc.text());
+          }
+      }.run, .{});
   }
   ```
-- For "an edit that fails leaves the buffer unchanged", use
-  `std.testing.FailingAllocator` with a fail index and compare the buffer
-  before and after the failed call.
+  The `catch` checks the other half of the rule: an edit that fails to
+  allocate leaves the document exactly as it was (see
+  `src/edit/document_test.zig`).
 - Run the suite in Debug and ReleaseSafe: both keep safety checks; a
   segfault or "use of undefined" only in one mode is still a bug.
 

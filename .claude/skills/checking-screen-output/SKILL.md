@@ -10,16 +10,31 @@ tests, and looking at the editor in a real terminal.
 
 ## 1. Screen tests
 
-Layout and drawing produce a `render.Screen`, a grid of cells. Assert on
-it as text, one string per row, so failures show a readable diff:
+Drawing produces a `render.Screen`, a grid of cells. Assert on it a row
+at a time, as text, so failures show a readable diff. A drawing function
+is tested on its own (`src/ui/status_test.zig`):
 
 ```zig
-test "status line shows a modified marker" {
-    var screen = try renderFor(std.testing.allocator, .{ .text = "x", .modified = true }, .{ .cols = 20, .rows = 3 });
-    defer screen.deinit();
-    try std.testing.expectEqualStrings("x                   \n" ++
-        "~                   \n" ++
-        "[+] untitled    1:1 ", try screen.dumpText(std.testing.allocator));
+test "status: modified buffers, several selections and pending keys" {
+    var info = base;
+    info.modified = true;
+    info.selections = 4;
+    info.pending = "2\"a";
+    info.mode = .insert;
+    try expectStatus(40, info, " INSERT  main.zig [+]  2\"a  4 sels  3:7 ");
+}
+```
+
+and a whole session through `tests/harness.zig`, which types keys and
+reads back rows:
+
+```zig
+test "display: escape sequences in a file are shown, never sent" {
+    var h: Harness = undefined;
+    try h.init("evil", "\x1b]0;owned\x07\x1b[2J\x9b1m\n", 40, 3);
+    defer h.deinit();
+    try expect(!contains(h.written(), "\x1b]"));
+    try h.expectRow(0, " 1 ^[]0;owned^G^[[2J\u{fffd}1m                 ");
 }
 ```
 
@@ -30,11 +45,11 @@ style dump beside the text dump.
 
 ## 2. Escape-output tests
 
-`render.diff(old, new, writer)` turns two screens into bytes. Test the
-exact bytes for small cases, and the invariant for random ones: applying
-the diff output to `old` (with the test-only screen interpreter) gives
-`new`, and an unchanged screen writes nothing. Partial redraws must equal a
-full redraw.
+`render.diff(old, new, writer)` turns two screens into bytes
+(`src/render/diff_test.zig`). Test the exact bytes for small cases, that an
+unchanged screen writes nothing, that a new size redraws everything, and
+that hostile cell text never reaches the terminal as control bytes. Whole
+sessions check the same through `h.written()`.
 
 ## 3. Look at it
 
@@ -47,7 +62,7 @@ tmux resize-window -t nc -x 40 -y 10        # check the resize path
 tmux kill-session -t nc
 ```
 
-Use a sample file with styled syntax, a wide character, a combining mark,
+Use a sample file with a wide character, a combining mark,
 a tab, a control byte and a line longer than the window. Capture before
 and after your change and diff them; every difference must be intended.
 Also check, once, in a real terminal with a light and a dark theme, and
