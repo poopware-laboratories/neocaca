@@ -1,6 +1,9 @@
 //! Editing: selections (`edit/selection.zig`), the document they live in
-//! with its undo history (`edit/document.zig`, `edit/history.zig`) and
-//! registers (`edit/registers.zig`).
+//! with its undo history (`edit/document.zig`, `edit/history.zig`), the
+//! selection changes (`edit/motion.zig`, `edit/object.zig`,
+//! `edit/selecting.zig`, `edit/search.zig`, counted by `edit/repeat.zig`),
+//! the text changes (`edit/verbs.zig`, `edit/insert.zig`) and registers
+//! (`edit/registers.zig`).
 
 pub const selection = @import("edit/selection.zig");
 pub const history = @import("edit/history.zig");
@@ -23,6 +26,7 @@ test {
     _ = history;
     _ = registers;
     _ = motion;
+    _ = @import("edit/repeat.zig");
     _ = object;
     _ = selecting;
     _ = @import("edit/selecting_test.zig");

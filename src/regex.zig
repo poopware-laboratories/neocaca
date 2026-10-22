@@ -19,6 +19,7 @@ pub const parse = @import("regex/parse.zig");
 test {
     _ = regex;
     _ = parse;
+    _ = @import("regex/ast.zig");
     _ = @import("regex/program.zig");
     _ = @import("regex/vm.zig");
     _ = @import("regex/regex_test.zig");

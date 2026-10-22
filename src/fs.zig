@@ -10,6 +10,7 @@ pub const max_file = file.max_file;
 
 test {
     _ = file;
+    _ = @import("fs/link.zig");
     _ = @import("fs/file_test.zig");
     _ = @import("fs/link_test.zig");
 }

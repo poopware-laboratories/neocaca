@@ -22,6 +22,9 @@ pub const edit = @import("app/edit.zig");
 test {
     _ = exit;
     _ = @import("app/run.zig");
+    _ = @import("app/loading.zig");
+    _ = @import("app/saving.zig");
+    _ = @import("app/recovery.zig");
     _ = commands;
     _ = @import("app/commands_test.zig");
     _ = editor;

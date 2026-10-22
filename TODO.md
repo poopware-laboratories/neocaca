@@ -7,14 +7,21 @@ clean room.
 
 ## Phase 0: foundations
 
-- [x] Build, test, fmt and bench steps; CI on Linux and macOS
-- [x] CI on Ubuntu (glibc), Alpine (musl, static) and macOS (Apple Silicon),
-      release artifacts for every target, and an early-warning job on the
-      newest stable Zig
+- [x] Build, test, fmt and bench steps
+- [x] CI on Ubuntu (glibc) and Alpine (musl, static), release artifacts
+      for every target, and an early-warning job on the newest stable Zig
+- [x] CI tests passing on macOS (Apple Silicon), each test with a
+      3-minute timeout so one that hangs is named
+- [x] CI tests for aarch64 under qemu on Linux, to catch aarch64-only
+      bugs without waiting for a macOS runner
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
 - [x] SIMD kernels (count, find, control bytes, printable-ASCII runs) with scalar references
 - [x] Command line parsing, help and version
 - [x] Folder-per-subsystem layout
+- [ ] Every file under about 400 lines: split `edit/selecting.zig` and
+      the test files past the limit (`edit/verbs_test.zig`,
+      `edit/selecting_test.zig`, `input/keymap_test.zig`,
+      `regex/regex_test.zig`, `tests/editing_test.zig`) by topic
 - [x] Clean-room policy, Kakoune-inspired keybinding model documented
 
 ## Phase 1: a usable modal editor
@@ -60,28 +67,46 @@ clean room.
       stops itself and restores the terminal first)
 - [x] A hang-up (closed terminal window) writes the unsaved buffer to a
       recovery file instead of dropping it
-- [x] `xd` on the last line leaves an empty line, because the final
-      newline is never deleted; delete the newline before it instead
 - [x] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `Alt-j` join
       (`J` extends down; see `docs/keys.md`)
 
 ## Phase 2: everyday comfort
 
 - [ ] Soft wrap of long lines
-- [ ] Multiple buffers (`:b`, `:bn`, `:bp`, `:bd`) and a buffer list
+- [ ] Multiple buffers (`:b`, `:bn`, `:bp`, `:bd`) and a buffer list:
+      `app::Editor` holds one `Document` today; make it a list with a
+      current index, each document keeping its own path, selections,
+      history and save state, before splits build on it
 - [ ] Shell filters (`|`, `!`, `Alt-|`) run off the event loop
 - [ ] System clipboard through OSC 52 (write only)
 - [ ] Mouse: click to place a selection, drag to extend, wheel to scroll
-- [ ] Kitty keyboard protocol, probed, with legacy fallback
+- [ ] Kitty keyboard protocol, probed, with legacy fallback: the legacy
+      encoding cannot tell Esc from the start of an Alt key without the
+      25 ms timeout, nor Ctrl-i from Tab or Ctrl-m from Enter
+- [ ] A cap on the number of selections (`max_selections`), tested at the
+      limit and one past it: today `S` or `s` on a huge file can make
+      millions (about 2 GB at 10 million), bounded only by memory
 - [ ] Grapheme clusters per UAX #29 (emoji ZWJ sequences, regional
       indicators) instead of codepoint + combining marks
 - [ ] Line endings (CRLF kept on save) and a BOM kept on save
-- [ ] Large files: a piece table or rope once the contiguous buffer is
-      measured to be the bottleneck
+- [ ] Large files: a piece table or rope behind the `buffer::Buffer`
+      interface. Today the text is one contiguous array and every edit
+      rebuilds it and its line index, so an edit costs the size of the
+      file; measure with a benchmark (typing into a 100 MB file) first,
+      and keep `Buffer`'s API so `edit/` does not change
 - [ ] Configuration file (keys, tab width, scroll-off, colors)
 - [ ] Searches and `s`/`S`/`Alt-k` off the event loop, cancelled by
-      `Esc`, so the step bound can grow past what one key may freeze
+      `Esc`, so the step bound can grow past what one key may freeze:
+      today they run on the loop within `max_steps`, which caps how much
+      of a large file one search can cover
+- [ ] Reload prompt when the file changes on disk (checked on focus and
+      before `:w`, by size and modification time), never overwriting
+      someone else's change silently
+- [ ] Key hints: after a prefix (`g`, `v`, `"`, `Alt-i`), show the keys
+      that can follow and what they do, from the keymap itself
 - [ ] Undo tree browsing and selection history (`Alt-u`, `Alt-U`)
+- [ ] Latency in CI: a benchmark of keypress-to-frame time and startup on
+      a large file, in ReleaseSafe, reported on every run
 
 ## Phase 3: code awareness
 
@@ -108,4 +133,8 @@ clean room.
       which text is selected without relying on color, and a screen
       reader mode that announces changes instead of redrawing the grid
 - [ ] Session restore
+- [ ] Persistent undo: history saved beside the file (bounded, checked
+      against the file's contents before use, never trusted blindly)
+- [ ] Command palette: every `:` command and key action, searchable by
+      name, showing its binding
 - [ ] Packaging and releases
