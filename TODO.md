@@ -5,6 +5,12 @@ add items when you find gaps. Phases run roughly in order; within a phase,
 items are independent. Every item follows `AGENTS.md`: tests first, 3:1,
 clean room.
 
+Open work is cut into **pieces**: **S** is about 20 minutes, **M** about
+40. Each one leaves the pull request green and mergeable. Under each
+**PR:** heading, the pieces stack into one pull request; see "Work in
+pieces" in `AGENTS.md`. Take the first unticked piece. Cut a phase into
+pieces when you reach it.
+
 ## Phase 0: foundations
 
 - [x] Build, test, fmt and bench steps
@@ -14,20 +20,21 @@ clean room.
       3-minute timeout so one that hangs is named
 - [x] CI tests for aarch64 under qemu on Linux, to catch aarch64-only
       bugs without waiting for a macOS runner
-- [ ] Find why the macOS Debug test job once hung for 20 minutes without
-      `--test-timeout` firing (so outside any test body: compiling, the
-      build runner, or a test binary's start or exit), and give each test
-      step its own `timeout-minutes` so such a hang fails in minutes, not
-      at the job's 45
 - [x] mimalloc as the release allocator, SafeAllocator in Debug
 - [x] SIMD kernels (count, find, control bytes, printable-ASCII runs) with scalar references
 - [x] Command line parsing, help and version
 - [x] Folder-per-subsystem layout
-- [ ] Every file under about 400 lines: split `edit/selecting.zig` and
-      the test files past the limit (`edit/verbs_test.zig`,
-      `edit/selecting_test.zig`, `input/keymap_test.zig`,
-      `regex/regex_test.zig`, `tests/editing_test.zig`) by topic
 - [x] Clean-room policy, Kakoune-inspired keybinding model documented
+- **PR: split the files past about 400 lines, by topic**
+  - [ ] S: `edit/selecting.zig`
+  - [ ] S: `edit/verbs_test.zig` and `edit/selecting_test.zig`
+  - [ ] S: `input/keymap_test.zig`, `regex/regex_test.zig` and
+        `tests/editing_test.zig`
+- **PR: a hang outside any test fails in minutes**
+  - [ ] S: give each test step its own `timeout-minutes`. The macOS Debug
+        job once hung for 20 minutes without `--test-timeout` firing, so
+        the hang was outside any test body: compiling, the build runner,
+        or a test binary's start or exit.
 
 ## Phase 1: a usable modal editor
 
@@ -77,41 +84,71 @@ clean room.
 
 ## Phase 2: everyday comfort
 
-- [ ] Soft wrap of long lines
-- [ ] Multiple buffers (`:b`, `:bn`, `:bp`, `:bd`) and a buffer list:
-      `app::Editor` holds one `Document` today; make it a list with a
-      current index, each document keeping its own path, selections,
-      history and save state, before splits build on it
-- [ ] Shell filters (`|`, `!`, `Alt-|`) run off the event loop
-- [ ] System clipboard through OSC 52 (write only)
-- [ ] Mouse: click to place a selection, drag to extend, wheel to scroll
-- [ ] Kitty keyboard protocol, probed, with legacy fallback: the legacy
-      encoding cannot tell Esc from the start of an Alt key without the
-      25 ms timeout, nor Ctrl-i from Tab or Ctrl-m from Enter
-- [ ] A cap on the number of selections (`max_selections`), tested at the
-      limit and one past it: today `S` or `s` on a huge file can make
-      millions (about 2 GB at 10 million), bounded only by memory
-- [ ] Grapheme clusters per UAX #29 (emoji ZWJ sequences, regional
-      indicators) instead of codepoint + combining marks
-- [ ] Line endings (CRLF kept on save) and a BOM kept on save
-- [ ] Large files: a piece table or rope behind the `buffer::Buffer`
-      interface. Today the text is one contiguous array and every edit
-      rebuilds it and its line index, so an edit costs the size of the
-      file; measure with a benchmark (typing into a 100 MB file) first,
-      and keep `Buffer`'s API so `edit/` does not change
-- [ ] Configuration file (keys, tab width, scroll-off, colors)
-- [ ] Searches and `s`/`S`/`Alt-k` off the event loop, cancelled by
-      `Esc`, so the step bound can grow past what one key may freeze:
-      today they run on the loop within `max_steps`, which caps how much
-      of a large file one search can cover
-- [ ] Reload prompt when the file changes on disk (checked on focus and
-      before `:w`, by size and modification time), never overwriting
-      someone else's change silently
-- [ ] Key hints: after a prefix (`g`, `v`, `"`, `Alt-i`), show the keys
-      that can follow and what they do, from the keymap itself
-- [ ] Undo tree browsing and selection history (`Alt-u`, `Alt-U`)
-- [ ] Latency in CI: a benchmark of keypress-to-frame time and startup on
-      a large file, in ReleaseSafe, reported on every run
+Safety first, then the biggest daily gains.
+
+- **PR: cap the number of selections**
+  - [ ] S: `max_selections`, tested at the limit and one past it. Today
+        `S` or `s` on a huge file can make millions of selections (about
+        2 GB at 10 million), bounded only by memory.
+- **PR: keep line endings and the BOM on save**
+  - [ ] M: CRLF files keep CRLF on save
+  - [ ] S: a BOM is kept on save
+- **PR: never overwrite a change made on disk**
+  - [ ] S: notice when the file changed on disk (size and modification
+        time), checked on focus and before `:w`
+  - [ ] S: `:w` refuses to overwrite it and says so; `:w!` forces
+- **PR: soft wrap of long lines**
+  - [ ] M: wrapped line layout, pure and tested
+  - [ ] M: draw it, with the cursor and scrolling over wrapped lines
+- **PR: multiple buffers.** `app::Editor` holds one `Document` today;
+  splits build on this.
+  - [ ] M: a list of documents with a current index, each keeping its
+        own path, selections, history and save state (no new keys yet)
+  - [ ] S: `:e` opens a second buffer; `:bn` and `:bp` switch
+  - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line
+- **PR: system clipboard through OSC 52 (write only)**
+  - [ ] S: yank also copies to the system clipboard
+- **PR: mouse**
+  - [ ] M: click to place a selection, drag to extend
+  - [ ] S: wheel to scroll
+- **PR: shell filters, off the event loop**
+  - [ ] M: run a command on its own thread, bounded output, cancelled by
+        `Esc`
+  - [ ] S: `|` replaces each selection with its output
+  - [ ] S: `!` inserts the output and `Alt-|` only runs the command
+- **PR: kitty keyboard protocol, with legacy fallback.** The legacy
+  encoding cannot tell Esc from the start of an Alt key without the
+  25 ms timeout, nor Ctrl-i from Tab or Ctrl-m from Enter.
+  - [ ] S: probe for it and fall back cleanly
+  - [ ] M: decode its key events
+- **PR: searches off the event loop.** Today they run on the loop within
+  `max_steps`, which caps how much of a large file one search can cover.
+  - [ ] M: `/`, `?`, `s`, `S` and `Alt-k` run on their own thread
+  - [ ] S: `Esc` cancels them; raise the step bound
+- **PR: large files.** Today the text is one contiguous array, and every
+  edit rebuilds it and its line index, so an edit costs the size of the
+  file.
+  - [ ] S: a benchmark of typing into a 100 MB file
+  - [ ] M: a piece table behind the `buffer::Buffer` interface
+  - [ ] M: its line index; `Buffer`'s API is unchanged, so `edit/` does
+        not change
+  - [ ] S: the benchmark again, with the numbers in the PR
+- **PR: grapheme clusters per UAX #29** (emoji ZWJ sequences, regional
+  indicators) instead of code point and combining marks
+  - [ ] M: the break property table, derived from the Unicode data
+  - [ ] M: cursor movement and drawing by cluster
+- **PR: configuration file**
+  - [ ] M: load and validate it (tab width, scroll-off, colors), bounded
+  - [ ] S: key mappings from it
+- **PR: key hints**
+  - [ ] S: after a prefix (`g`, `v`, `"`, `Alt-i`), show the keys that
+        can follow and what they do, from the keymap itself
+- **PR: undo tree and selection history**
+  - [ ] M: browse the undo tree
+  - [ ] S: selection history (`Alt-u`, `Alt-U`)
+- **PR: latency in CI**
+  - [ ] S: a benchmark of keypress-to-frame time and startup on a large
+        file, in ReleaseSafe, reported on every run
 
 ## Phase 3: code awareness
 

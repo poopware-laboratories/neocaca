@@ -381,7 +381,29 @@ goes through a branch and a pull request.
    Commit** and becomes the squashed commit on `main`; the body explains
    *why*, links the issue, and carries the evidence (benchmarks, screen
    captures).
-4. **Merge by squashing** once every check passes, so `main` stays linear.
+4. **Merge by squashing** once every check passes and the maintainer says
+   to, so `main` stays linear.
+
+**Work in pieces.** Usage limits cut long sessions short, so open work
+moves in pieces of about 20 to 40 minutes. `TODO.md` lists them, grouped
+under the pull request they stack into.
+
+- **One piece, then stop.** Take the first unticked piece and say what it
+  will change. Do it, push it, wait for CI, then report to the maintainer:
+  what changed, whether CI is green, and what the next piece is. Never
+  roll on into the next piece unasked.
+- **Every piece leaves the pull request mergeable**: green, with its docs
+  and `TODO.md` current and nothing half-built, so stopping is always
+  safe.
+- **The maintainer chooses.** *Merge* squashes it, and the next piece
+  starts a new pull request. *Continue* stacks the next piece of the same
+  pull request onto it, and its title and body grow to cover it. Only
+  pieces under the same heading stack; say so when the next one belongs
+  in a new pull request.
+- **Push after every green step.** After a session ends early, finish the
+  open piece on the pushed branch before anything else. A piece that
+  outgrows its size stops at a green point and is reported; the rest
+  becomes a new piece in `TODO.md`.
 
 **Titles and commits follow [Conventional Commits 1.0](https://www.conventionalcommits.org/en/v1.0.0/):**
 `type(scope)!: summary`, with the scope optional, and the summary in lower

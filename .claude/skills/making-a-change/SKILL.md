@@ -10,6 +10,10 @@ required. Skipping one is how pull requests go red.
 
 ## 1. Before writing code
 
+- Take the first unticked piece in `TODO.md` (or the one the maintainer
+  names), and say in a line or two what it will change. Do only that
+  piece. If a pull request for its heading is open, stack onto that
+  branch.
 - Search the open issues and `TODO.md` for the topic.
   Someone may own it, or an issue may say how it must be done.
 - Branch from an up-to-date `main`: `git switch main && git pull --rebase &&
@@ -59,7 +63,17 @@ three test lines (inside `test` blocks, `*_test.zig`,
   commit on `main`, so write it for a reader of the changelog.
 - One concern per pull request. Link the issue: `Closes #N`.
 - Fill in `.github/pull_request_template.md`: *Why*, *How it was checked*,
-  the checklist.
+  the checklist. When stacking a piece, widen the title and body to cover
+  it.
+
+## 5. Stop and report
+
+Once the piece is pushed and CI is green (or you know why it is not),
+stop. Tell the maintainer what changed, the CI result, and the next
+piece, and whether it stacks onto this pull request or needs a new one.
+Tick the piece in `TODO.md` as part of the piece itself. Then wait:
+*merge* squashes the pull request, and *continue* starts the next piece
+on the same branch. Never merge or start the next piece unasked.
 
 ## Related skills
 

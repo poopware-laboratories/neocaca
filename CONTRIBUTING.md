@@ -7,8 +7,10 @@ to it rather than repeating it, so read it before your first change.
 
 ## Find something to work on
 
-- [`TODO.md`](TODO.md) is the roadmap, in phases. Work from the earliest
-  phase with open items.
+- [`TODO.md`](TODO.md) is the roadmap, in phases, with open work cut
+  into small pieces grouped by pull request. Take the first unticked
+  piece; [Work in pieces](AGENTS.md#branches-pull-requests-and-commits)
+  says how they stack.
 - Search the [open issues](https://github.com/poopware-laboratories/neocaca/issues)
   before you start: someone may already be on it, or the issue may say how
   it should be done. Comment on the issue to claim it.
