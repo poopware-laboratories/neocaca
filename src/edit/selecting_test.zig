@@ -137,6 +137,8 @@ test "selecting: x selects the cursor's line, then the next" {
     try expectOp("«a»bc\nde\nf\n", selecting.selectLines, .{ 2, false }, true, "«abc\nde\n»f\n");
     try expectOp("a«bc\nd»e\n", selecting.selectLines, .{ 1, false }, true, "abc\n«de\n»");
     try expectOp("abc\n«de\n»", selecting.selectLines, .{ 1, false }, true, "abc\n«de\n»");
+    // A backward selection's line comes out forward.
+    try expectOp("a«|bc»\nde\n", selecting.selectLines, .{ 1, false }, true, "«abc\n»de\n");
 }
 
 test "selecting: X extends over every line the selection touches" {

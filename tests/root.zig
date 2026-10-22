@@ -7,5 +7,6 @@ test {
     _ = @import("harness.zig");
     _ = @import("editing_test.zig");
     _ = @import("display_test.zig");
+    _ = @import("counts_test.zig");
     _ = @import("terminal_test.zig");
 }
