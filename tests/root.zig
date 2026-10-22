@@ -8,5 +8,6 @@ test {
     _ = @import("editing_test.zig");
     _ = @import("display_test.zig");
     _ = @import("counts_test.zig");
+    _ = @import("random_test.zig");
     _ = @import("terminal_test.zig");
 }
