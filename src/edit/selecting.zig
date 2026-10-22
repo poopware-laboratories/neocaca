@@ -17,6 +17,8 @@ const repeat = @import("repeat.zig");
 
 const chars = unicode.chars;
 const Error = error{OutOfMemory};
+/// `TooCostly`: the regex ran out of steps, and nothing changed.
+pub const SearchError = Error || error{TooCostly};
 
 pub const Motion = union(enum) {
     left,
@@ -340,7 +342,8 @@ fn replaceWith(doc: *Document, out: []const Selection, main: usize) Error!bool {
 }
 
 /// `s`: selects every non-empty match of `re` inside the selections.
-pub fn selectMatches(doc: *Document, re: *Regex) Error!bool {
+pub fn selectMatches(doc: *Document, re: *Regex) SearchError!bool {
+    re.refill();
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
     defer out.deinit(doc.gpa);
@@ -355,12 +358,14 @@ pub fn selectMatches(doc: *Document, re: *Regex) Error!bool {
             from = m.end;
         }
     }
+    if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }
 
 /// `S`: splits the selections at the non-empty matches of `re`, keeping
 /// the non-empty pieces between them.
-pub fn split(doc: *Document, re: *Regex) Error!bool {
+pub fn split(doc: *Document, re: *Regex) SearchError!bool {
+    re.refill();
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
     defer out.deinit(doc.gpa);
@@ -380,6 +385,7 @@ pub fn split(doc: *Document, re: *Regex) Error!bool {
         }
         if (r.end > start) try out.append(doc.gpa, .span(start, chars.prev(text, r.end)));
     }
+    if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }
 
@@ -404,7 +410,8 @@ pub fn splitLines(doc: *Document) Error!void {
 
 /// `Alt-k` (`keep`) and `Alt-K`: keeps the selections that contain a match
 /// of `re`, or those that do not.
-pub fn keepMatching(doc: *Document, re: *Regex, keep: bool) Error!bool {
+pub fn keepMatching(doc: *Document, re: *Regex, keep: bool) SearchError!bool {
+    re.refill();
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
     defer out.deinit(doc.gpa);
@@ -414,5 +421,6 @@ pub fn keepMatching(doc: *Document, re: *Regex, keep: bool) Error!bool {
         const r = s.range(text);
         if (re.matchesIn(text, r.start, r.end) == keep) try out.append(doc.gpa, s);
     }
+    if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }

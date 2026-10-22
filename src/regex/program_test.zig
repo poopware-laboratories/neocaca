@@ -132,3 +132,44 @@ test "program: compile fails cleanly without memory" {
         }
     }.run, .{});
 }
+
+fn expectFirst(pattern: []const u8, want: ?u8) !void {
+    var prog = try compile(gpa, pattern);
+    defer prog.deinit(gpa);
+    errdefer std.debug.print("pattern /{s}/\n", .{pattern});
+    try std.testing.expectEqual(want, prog.first);
+}
+
+test "program: the byte every match starts with" {
+    try expectFirst("abc", 'a');
+    try expectFirst("a+b", 'a');
+    try expectFirst("(?:ab|ac)d", 'a');
+    try expectFirst("(?:(?:x))", 'x');
+    // The lead byte both encodings share.
+    try expectFirst("é|è", 0xc3);
+    try expectFirst("中", 0xe4);
+}
+
+test "program: no first byte when a match can start with another or with none" {
+    try expectFirst("", null);
+    try expectFirst("a|b", null);
+    try expectFirst("a*b", null);
+    try expectFirst("a?", null);
+    try expectFirst("é|e", null);
+    try expectFirst(".", null);
+    try expectFirst("[a]", null);
+    // Assertions look at the text around a start; a byte escape matches
+    // an invalid byte, which can be part of a character the walk skips.
+    try expectFirst("^a", null);
+    try expectFirst("\\ba", null);
+    try expectFirst("a|$", null);
+    try expectFirst("\\xe4", null);
+}
+
+test "program: a reversed program has no first byte" {
+    var parsed = try parse.parse(gpa, "ab");
+    defer parsed.deinit(gpa);
+    var rev = try program.compileReversed(gpa, parsed.tree());
+    defer rev.deinit(gpa);
+    try std.testing.expectEqual(null, rev.first);
+}

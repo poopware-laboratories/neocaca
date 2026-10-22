@@ -13,6 +13,7 @@ pub const Regex = regex.Regex;
 pub const Match = regex.Match;
 pub const Error = regex.Error;
 pub const escape = regex.escape;
+pub const max_steps = @import("regex/vm.zig").max_steps;
 pub const parse = @import("regex/parse.zig");
 
 test {
@@ -25,4 +26,5 @@ test {
     _ = @import("regex/program_test.zig");
     _ = @import("regex/vm_test.zig");
     _ = @import("regex/backward_test.zig");
+    _ = @import("regex/budget_test.zig");
 }

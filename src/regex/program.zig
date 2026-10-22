@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const ast = @import("ast.zig");
+const utf8 = @import("../unicode.zig").utf8;
 
 pub const Inst = union(enum) {
     char: u21,
@@ -28,6 +29,9 @@ pub const max_insts = 20_000;
 pub const Program = struct {
     insts: []Inst,
     ranges: []ast.Range,
+    /// The byte every match starts with, when there is one: text before
+    /// it cannot start a match, so a search skips to it.
+    first: ?u8 = null,
 
     pub fn deinit(self: *Program, gpa: std.mem.Allocator) void {
         gpa.free(self.insts);
@@ -55,7 +59,37 @@ fn compileWith(gpa: std.mem.Allocator, tree: ast.Tree, reversed: bool) Error!Pro
     _ = try c.emit(.match);
     const ranges = try gpa.dupe(ast.Range, tree.ranges);
     errdefer gpa.free(ranges);
-    return .{ .insts = try c.insts.toOwnedSlice(gpa), .ranges = ranges };
+    const first = if (reversed) null else try firstByte(gpa, c.insts.items);
+    return .{ .insts = try c.insts.toOwnedSlice(gpa), .ranges = ranges, .first = first };
+}
+
+/// The lead byte of every character a match can start with, when they
+/// all share one. Null when a match can be empty, or start at an
+/// assertion (which looks at the text before it), a class, `.` or a byte
+/// escape (whose byte can sit inside a character a walk steps over).
+fn firstByte(gpa: std.mem.Allocator, insts: []const Inst) error{OutOfMemory}!?u8 {
+    var seen = try std.DynamicBitSetUnmanaged.initEmpty(gpa, insts.len);
+    defer seen.deinit(gpa);
+    var stack: std.ArrayList(u32) = .empty;
+    defer stack.deinit(gpa);
+    try stack.append(gpa, 0);
+    var first: ?u8 = null;
+    while (stack.pop()) |pc| {
+        if (seen.isSet(pc)) continue;
+        seen.set(pc);
+        switch (insts[pc]) {
+            .jump => |to| try stack.append(gpa, to),
+            .split => |s| try stack.appendSlice(gpa, &.{ s.x, s.y }),
+            .char => |cp| {
+                var buf: [4]u8 = undefined;
+                const lead = utf8.encode(cp, &buf)[0];
+                if (first != null and first != lead) return null;
+                first = lead;
+            },
+            else => return null,
+        }
+    }
+    return first;
 }
 
 const Compiler = struct {

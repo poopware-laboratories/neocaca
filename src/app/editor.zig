@@ -34,6 +34,8 @@ pub const Options = struct {
     tab_width: usize = 8,
     indent_width: usize = 4,
     scrolloff: usize = 3,
+    /// Steps one regex command may take before it stops, changing nothing.
+    regex_steps: u64 = regex.max_steps,
 };
 
 /// What the shell must do for the editor. Paths are borrowed from the

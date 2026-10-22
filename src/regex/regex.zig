@@ -36,6 +36,18 @@ pub const Regex = struct {
         self.* = undefined;
     }
 
+    /// Gives back the whole step budget (`vm.max_steps`); one command
+    /// calls it once, before its searches.
+    pub fn refill(self: *Regex) void {
+        self.scratch.spent = 0;
+    }
+
+    /// Whether the searches since `refill` ran out of steps. They then
+    /// found nothing, whatever the text holds.
+    pub fn exhausted(self: *const Regex) bool {
+        return self.scratch.exhausted();
+    }
+
     /// The first match starting at or after `from`, in all of `text`.
     pub fn find(self: *Regex, text: []const u8, from: usize) ?Match {
         return vm.find(&self.prog, &self.scratch, text, from, text.len, false);

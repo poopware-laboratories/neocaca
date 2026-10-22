@@ -23,7 +23,8 @@ clean room.
       width (wide, zero width, combining), character boundaries
 - [x] `buffer/`: text storage with a line index; byte offset ⇄ line/column
 - [x] `regex/`: a linear-time, bounded regex engine (Pike VM) for search,
-      select and split
+      select and split; each command bounded in steps (`max_steps`), and
+      the search skipped ahead to the pattern's first byte (SIMD)
 - [x] `edit/`: selections (anchor + cursor, multiple, a main one), change
       sets mapped through edits, undo and redo history
 - [x] `edit/`: motions (characters, words, WORDs, lines, find character,
@@ -78,6 +79,8 @@ clean room.
 - [ ] Large files: a piece table or rope once the contiguous buffer is
       measured to be the bottleneck
 - [ ] Configuration file (keys, tab width, scroll-off, colors)
+- [ ] Searches and `s`/`S`/`Alt-k` off the event loop, cancelled by
+      `Esc`, so the step bound can grow past what one key may freeze
 - [ ] Undo tree browsing and selection history (`Alt-u`, `Alt-U`)
 
 ## Phase 3: code awareness

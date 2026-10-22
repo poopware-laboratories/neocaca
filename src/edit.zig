@@ -27,6 +27,7 @@ test {
     _ = selecting;
     _ = @import("edit/selecting_test.zig");
     _ = @import("edit/selecting_count_test.zig");
+    _ = @import("edit/stopped_test.zig");
     _ = verbs;
     _ = @import("edit/verbs_test.zig");
     _ = insert;

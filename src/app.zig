@@ -27,6 +27,7 @@ test {
     _ = editor;
     _ = @import("app/editor_test.zig");
     _ = @import("app/editor_prompt_test.zig");
+    _ = @import("app/editor_stop_test.zig");
     _ = @import("app/editor_view_test.zig");
     _ = @import("app/editor_map_test.zig");
     _ = @import("app/requesting.zig");

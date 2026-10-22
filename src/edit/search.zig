@@ -13,7 +13,8 @@ const Match = regex.Match;
 
 pub const Direction = enum { forward, backward };
 
-pub const Result = enum { found, wrapped, not_found };
+/// `stopped`: the regex ran out of steps (`Regex.exhausted`) first.
+pub const Result = enum { found, wrapped, not_found, stopped };
 
 /// The first non-empty match inside `text[from..to]`.
 pub fn nonEmpty(re: *Regex, text: []const u8, from: usize, to: usize) ?Match {
@@ -39,12 +40,14 @@ fn lastBefore(re: *Regex, text: []const u8, end: usize) ?Match {
 }
 
 /// Selects the next match in `dir` from the main selection, replacing
-/// every selection, or adds it as the new main one with `add`.
+/// every selection, or adds it as the new main one with `add`. Refills
+/// the budget of `re` first.
 pub fn next(doc: *Document, re: *Regex, dir: Direction, add: bool) error{OutOfMemory}!Result {
     const text = doc.text();
     const r = doc.primary().range(text);
     var result: Result = .found;
-    const m = switch (dir) {
+    re.refill();
+    const found = switch (dir) {
         .forward => firstFrom(re, text, r.end) orelse blk: {
             result = .wrapped;
             break :blk firstFrom(re, text, 0);
@@ -53,7 +56,9 @@ pub fn next(doc: *Document, re: *Regex, dir: Direction, add: bool) error{OutOfMe
             result = .wrapped;
             break :blk lastBefore(re, text, text.len);
         },
-    } orelse return .not_found;
+    };
+    if (re.exhausted()) return .stopped;
+    const m = found orelse return .not_found;
     var walk: unicode.chars.Walk = .{ .text = text, .at = doc.buffer.lineStart(doc.buffer.lineOf(m.start)) };
     const sel = over(&walk, m);
     if (!add) {

@@ -34,10 +34,13 @@ pub fn submit(ed: *Editor) Error!void {
             var re = compile(ed, text) orelse return;
             defer re.deinit();
             const found = switch (ed.prompt_kind) {
-                .select => try selecting.selectMatches(&ed.doc, &re),
-                .split => try selecting.split(&ed.doc, &re),
-                .keep => try selecting.keepMatching(&ed.doc, &re, true),
-                else => try selecting.keepMatching(&ed.doc, &re, false),
+                .select => selecting.selectMatches(&ed.doc, &re),
+                .split => selecting.split(&ed.doc, &re),
+                .keep => selecting.keepMatching(&ed.doc, &re, true),
+                else => selecting.keepMatching(&ed.doc, &re, false),
+            } catch |e| switch (e) {
+                error.TooCostly => return stopped(ed),
+                error.OutOfMemory => |oom| return oom,
             };
             // Drop fails only when every selection matches, and split
             // when the matches leave no character outside them.
@@ -52,10 +55,16 @@ pub fn submit(ed: *Editor) Error!void {
 
 /// The compiled pattern, or null after showing why it is bad.
 fn compile(ed: *Editor, pattern: []const u8) ?Regex {
-    return Regex.compile(ed.gpa, pattern) catch |e| {
+    var re = Regex.compile(ed.gpa, pattern) catch |e| {
         ed.message.set(true, "bad regex: {s}", .{@errorName(e)});
         return null;
     };
+    re.scratch.limit = ed.options.regex_steps;
+    return re;
+}
+
+fn stopped(ed: *Editor) void {
+    ed.message.set(true, "stopped: too much work for this regex", .{});
 }
 
 /// Selects the next match of the last pattern in `dir`.
@@ -64,8 +73,11 @@ pub fn searchNext(ed: *Editor, dir: edit.search.Direction, add: bool) Error!void
         ed.message.set(true, "no search pattern", .{});
         return;
     };
+    // The option may have changed since the pattern was compiled.
+    re.scratch.limit = ed.options.regex_steps;
     switch (try edit.search.next(&ed.doc, re, dir, add)) {
         .found => {},
+        .stopped => stopped(ed),
         .wrapped => ed.message.set(false, "search wrapped", .{}),
         .not_found => {
             const pattern = ed.regs.get(edit.registers.search);
