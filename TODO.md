@@ -166,7 +166,8 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
   - [ ] S: `neocaca <directory>` opens an empty buffer named after the
         directory; refuse it at startup with an exit code instead. A file
         in a directory that does not exist says "new file" and fails only
-        at `:w`; say so when it opens.
+        at `:w`; say so when it opens. So does a path through a file
+        (`:e f/x`) on macOS, where Linux says it is not a directory.
   - [ ] S: a message wider than the window is cut mid-word with no mark
         (`unsaved changes; :q! dis` at 24 columns); end it with `…`.
         A message over its 256 bytes loses its end too, so a long path
