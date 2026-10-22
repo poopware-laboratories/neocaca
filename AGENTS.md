@@ -356,6 +356,10 @@ the keymap and its tests.
 - **Errors are values.** Use specific error sets for library code, handle
   every error explicitly, and never discard one with `catch {}` without a
   comment saying why that is safe.
+- **Docs follow the code, in the same commit.** Every Markdown file
+  describes the code as it is: a change that makes a sentence wrong fixes
+  it, new behavior is documented and removed behavior deleted, without
+  being asked. A pull request that leaves a doc stale is not finished.
 - **Config compatibility.** User-facing configuration keys and keybindings,
   once released, keep working under their old names.
 - Match surrounding style: comment density, naming (`camelCase` functions,

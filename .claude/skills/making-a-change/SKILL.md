@@ -37,8 +37,16 @@ zig build -Dtarget=x86_64-macos     # when platform-gated code changed
 zig build -Dtarget=x86_64-freebsd   # likewise
 ```
 
-In the same commit: tick or add the `TODO.md` item, and change
-`docs/keys.md` with any binding.
+In the same commit, bring every Markdown file in step with the change,
+unasked:
+
+- tick or add the `TODO.md` item; change `docs/keys.md` with any binding
+  or `:` command, checked against the keymap and `app/commands.zig`;
+- `git grep -n` the `*.md` files for each name the diff touches (file,
+  function, key, command, flag, `max_*` limit, CI job) and fix every
+  sentence it makes wrong: AGENTS.md's table and rules, README,
+  SECURITY, ACCESSIBILITY, CONTRIBUTING, the skills;
+- add what is new and undocumented; delete what no longer exists.
 
 Then count the diff (`build.zig` and benchmarks excluded, see AGENTS.md):
 three test lines (inside `test` blocks, `*_test.zig`,
