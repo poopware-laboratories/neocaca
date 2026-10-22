@@ -33,17 +33,21 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         optimize: [debug, safe]
     runs-on: ${{ matrix.os }}
-    # A hung test fails within --test-timeout, naming itself, rather than
-    # holding the runner for GitHub's six-hour limit.
+    # A hung test fails within --test-timeout, naming itself. A hang outside
+    # any test (compiling, the build runner, a test binary's start or exit)
+    # fails at its step's timeout-minutes of 15 (the slowest step takes
+    # about 3 today); the job's 45 is the last resort.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: mlugg/setup-zig@v2
       - run: zig build test -Doptimize=${{ matrix.optimize }} --summary all --test-timeout 3m
+        timeout-minutes: 15
       # The shipping configuration also runs with mimalloc's hardening off,
       # so a test cannot pass only because of the padding it adds.
       - if: matrix.optimize == 'safe'
         run: zig build test -Doptimize=safe -Dmimalloc-secure=off --summary all --test-timeout 3m
+        timeout-minutes: 15
       - if: matrix.optimize == 'safe'
         run: zig build -Doptimize=safe
       - if: matrix.optimize == 'safe'
@@ -68,8 +72,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: .github/scripts/install-zig.sh
       - run: zig build test -Dtarget=x86_64-linux-musl -Doptimize=${{ matrix.optimize }} --summary all --test-timeout 3m
+        timeout-minutes: 15
       - if: matrix.optimize == 'safe'
         run: zig build test -Dtarget=x86_64-linux-musl -Doptimize=safe -Dmimalloc-secure=off --summary all --test-timeout 3m
+        timeout-minutes: 15
       - if: matrix.optimize == 'safe'
         run: zig build -Dtarget=x86_64-linux-musl -Doptimize=safe
       - if: matrix.optimize == 'safe'
@@ -99,6 +105,7 @@ jobs:
       - uses: mlugg/setup-zig@v2
       - run: sudo apt-get update && sudo apt-get install -y qemu-user
       - run: zig build test -Dtarget=aarch64-linux-musl -Doptimize=${{ matrix.optimize }} -fqemu --summary all --test-timeout 3m
+        timeout-minutes: 15
 
   # A ReleaseSafe build and artifact for every supported target.
   cross:
@@ -144,3 +151,4 @@ jobs:
         with:
           version: latest
       - run: zig build test --summary all --test-timeout 3m
+        timeout-minutes: 15

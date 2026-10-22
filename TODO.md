@@ -95,10 +95,10 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         `regex/regex_test.zig` (`escape` to `escape_test.zig`) and
         `tests/editing_test.zig` (the `:` commands to `commands_test.zig`)
 - **PR: a hang outside any test fails in minutes**
-  - [ ] S: give each test step its own `timeout-minutes`. The macOS Debug
-        job once hung for 20 minutes without `--test-timeout` firing, so
-        the hang was outside any test body: compiling, the build runner,
-        or a test binary's start or exit.
+  - [x] S: each test step stops at 15 minutes (`timeout-minutes`). The
+        macOS Debug job once hung for 20 minutes without `--test-timeout`
+        firing, so the hang was outside any test body: compiling, the
+        build runner, or a test binary's start or exit.
 
 ## Phase 1: a usable modal editor
 

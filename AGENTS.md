@@ -67,11 +67,11 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
   Silicon), Alpine (musl, whose binary must be static) and
   `aarch64-linux-musl` under qemu, with ReleaseSafe again at
   `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target;
-  and a benchmark smoke run. Test runs pass `--test-timeout 3m` and test
-  jobs stop at 45 minutes. All must pass; run them before pushing
-  (`-Dtarget=x86_64-linux-musl` for musl, `-Dtarget=aarch64-linux-musl
-  -fqemu` with `qemu-user` for aarch64). The `zig-latest` job tries the
-  newest stable Zig without blocking.
+  and a benchmark smoke run. Test runs pass `--test-timeout 3m`, each test
+  step stops at 15 minutes and each test job at 45. All must pass; run
+  them before pushing (`-Dtarget=x86_64-linux-musl` for musl,
+  `-Dtarget=aarch64-linux-musl -fqemu` with `qemu-user` for aarch64). The
+  `zig-latest` job tries the newest stable Zig without blocking.
 - **Platform-gated code** (`switch (builtin.target.os.tag)` and other
   `@import("builtin")` checks) is only analyzed for the target you build. Zig compiles lazily:
   a function nobody calls is never type-checked. Check other targets with

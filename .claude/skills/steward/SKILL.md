@@ -35,10 +35,11 @@ on another version is a version mismatch, not a fix to make.
 
 ## Hung tests
 
-CI runs the tests with `--test-timeout 3m`, and each test job stops at 45
-minutes. A test that hangs is killed and named in the log, and the rest
-still run; reproduce it with `-Dtest-filter` and the same flag. A job that
-reaches its 45 minutes means the build itself hung, not a test.
+CI runs the tests with `--test-timeout 3m`, each test step stops at 15
+minutes and each test job at 45. A test that hangs is killed and named in
+the log, and the rest still run; reproduce it with `-Dtest-filter` and the
+same flag. A step that reaches its 15 minutes means something outside any
+test hung: compiling, the build runner, or a test binary's start or exit.
 
 A failure only on macOS or in `qemu-aarch64` is often aarch64 itself:
 reproduce it on Linux with `sudo apt-get install qemu-user`, then
