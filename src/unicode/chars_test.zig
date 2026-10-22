@@ -206,3 +206,44 @@ test "chars: count agrees with walking every byte value" {
     try expectEqual(256, chars.count(&buf));
     try expectConsistent(&buf);
 }
+
+test "chars: holding finds the character of any byte without a walk" {
+    // The same text as the walk above, asked in any order.
+    const text = "ae\u{301}\u{302}x中\xffb";
+    const cases = [_][2]usize{
+        .{ 10, 10 }, .{ 9, 7 }, .{ 5, 1 }, .{ 0, 0 }, .{ 8, 7 },   .{ 3, 1 },
+        .{ 6, 6 },   .{ 2, 1 }, .{ 1, 1 }, .{ 7, 7 }, .{ 11, 11 }, .{ 4, 1 },
+    };
+    for (cases) |c| try expectEqual(c[1], chars.holding(text, c[0]));
+}
+
+test "chars: holding a stray continuation byte is that byte" {
+    // \x82\x80 after "a" belong to no sequence; inside 😀 (1..5) they do.
+    try expectEqual(1, chars.holding("a\x82\x80", 1));
+    try expectEqual(2, chars.holding("a\x82\x80", 2));
+    try expectEqual(1, chars.holding("a😀", 4));
+    // A truncated sequence is invalid bytes, each its own character.
+    try expectEqual(2, chars.holding("a\xe2\x82b", 2));
+}
+
+test "chars: holding agrees with a walk from the start on random bytes" {
+    var prng: std.Random.DefaultPrng = .init(0x686f6c64);
+    const random = prng.random();
+    const alphabet = [_][]const u8{ "a", "\n", "\u{301}", "\u{200d}", "中", "\xff", "\xe2", "\x82", "\x80", "😀" };
+    var buf: [120]u8 = undefined;
+    for (0..2000) |_| {
+        var len: usize = 0;
+        while (len + 4 <= buf.len and (len == 0 or random.uintLessThan(u8, 10) != 0)) {
+            const piece = alphabet[random.uintLessThan(usize, alphabet.len)];
+            @memcpy(buf[len..][0..piece.len], piece);
+            len += piece.len;
+        }
+        const text = buf[0..len];
+        for (0..len) |i| {
+            expectEqual(startOfScalar(text, i), chars.holding(text, i)) catch |err| {
+                std.debug.print("failing input: {x} at {d}\n", .{ text, i });
+                return err;
+            };
+        }
+    }
+}

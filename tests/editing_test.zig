@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const neocaca = @import("neocaca");
 const Harness = @import("harness.zig").Harness;
 
 const expect = std.testing.expect;
@@ -389,4 +390,21 @@ test "editing: an insert mode mapping leaves insert mode and moves" {
     try h.send("\x1bj"); // Alt-j
     try h.expectRow(2, " NORMAL  b.txt [+]                  2:2 ");
     try h.expectText(">one\ntwo\n");
+}
+
+test "editing: indenting a line that starts with a mark keeps the selection on a character" {
+    var h: Harness = undefined;
+    try h.init("t", "\u{301}a\n", 30, 4);
+    defer h.deinit();
+    // The lone mark is selected; the indent gives it a base to join.
+    try h.typeKeys(">");
+    const sel = h.session.ed.doc.sels()[0];
+    const text = h.text();
+    try expectEqual(neocaca.unicode.chars.holding(text, sel.anchor), sel.anchor);
+    try expectEqual(neocaca.unicode.chars.holding(text, sel.cursor), sel.cursor);
+    // Deleting it takes whole characters, never half of one.
+    try h.typeKeys("d");
+    try h.expectText("   a\n");
+    try h.typeKeys("uu");
+    try h.expectText("\u{301}a\n");
 }

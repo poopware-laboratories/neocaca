@@ -73,3 +73,31 @@ test "selection: merging respects wide characters" {
     try s.set(gpa, text, &.{ .at(0), .at(0), .at(3) }, 2);
     try expectSelections(&s, &.{ .{ 0, 0 }, .{ 3, 3 } }, 1);
 }
+
+test "selection: positions inside a character move to its start" {
+    // "e" with a combining acute (bytes 0..3), then the wide 中 (3..6).
+    const text = "e\u{301}中x\n";
+    var s: Selections = try .init(gpa, .at(0));
+    defer s.deinit(gpa);
+    try s.set(gpa, text, &.{ .span(2, 1), .span(5, 6) }, 1);
+    try expectSelections(&s, &.{ .{ 0, 0 }, .{ 3, 6 } }, 1);
+    // Every byte of a character lands on that character's start.
+    for (0..6) |p| {
+        try s.set(gpa, text, &.{.at(p)}, 0);
+        try expectEqual(@as(usize, if (p < 3) 0 else 3), s.primary().cursor);
+    }
+}
+
+test "selection: snapping merges selections that land on one character" {
+    const text = "e\u{301}\u{302}x\n";
+    var s: Selections = try .init(gpa, .at(0));
+    defer s.deinit(gpa);
+    try s.set(gpa, text, &.{ .at(1), .at(3), .at(5) }, 1);
+    try expectSelections(&s, &.{ .{ 0, 0 }, .{ 5, 5 } }, 0);
+    // The last byte of a text snaps too; its end, as in an empty buffer,
+    // stays where it is.
+    try s.set(gpa, "e\u{301}", &.{.at(2)}, 0);
+    try expectSelections(&s, &.{.{ 0, 0 }}, 0);
+    try s.set(gpa, "", &.{.at(0)}, 0);
+    try expectSelections(&s, &.{.{ 0, 0 }}, 0);
+}

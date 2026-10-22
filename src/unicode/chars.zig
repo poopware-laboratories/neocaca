@@ -68,6 +68,23 @@ pub fn prev(text: []const u8, end: usize) usize {
     return start;
 }
 
+/// The start of the character holding byte `i`, which is below
+/// `text.len`, found from the bytes around it alone.
+pub fn holding(text: []const u8, i: usize) usize {
+    std.debug.assert(i < text.len);
+    // A codepoint that holds `i` and goes on past it starts at most two
+    // bytes before it; one that ends right after `i` is `prev`'s to find.
+    var end = i + 1;
+    for (0..@as(usize, @min(i, 2)) + 1) |back| {
+        const d = utf8.decode(text[i - back ..]);
+        if (d.cp != null and i - back + d.len > i) {
+            end = i - back + d.len;
+            break;
+        }
+    }
+    return prev(text, end);
+}
+
 /// The first codepoint of the character at `i`, or null for an invalid byte.
 pub fn codepointAt(text: []const u8, i: usize) ?u21 {
     return utf8.decode(text[i..]).cp;
