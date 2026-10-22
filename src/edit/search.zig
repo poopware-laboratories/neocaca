@@ -28,6 +28,12 @@ pub fn nonEmpty(re: *Regex, text: []const u8, from: usize, to: usize) ?Match {
     return null;
 }
 
+/// The selection over the characters that hold the bytes of `m`, which is
+/// not empty and does not start before the last byte `walk` was asked for.
+pub fn over(walk: *unicode.chars.Walk, m: Match) Selection {
+    return .span(walk.start(m.start), walk.start(m.end - 1));
+}
+
 /// The first non-empty match starting at or after `from`.
 fn firstFrom(re: *Regex, text: []const u8, from: usize) ?Match {
     return nonEmpty(re, text, from, text.len);
@@ -61,7 +67,8 @@ pub fn next(doc: *Document, re: *Regex, dir: Direction, add: bool) error{OutOfMe
             break :blk lastBefore(re, text, text.len);
         },
     } orelse return .not_found;
-    const sel: Selection = .span(m.start, unicode.chars.prev(text, m.end));
+    var walk: unicode.chars.Walk = .{ .text = text, .at = doc.buffer.lineStart(doc.buffer.lineOf(m.start)) };
+    const sel = over(&walk, m);
     if (!add) {
         try doc.select(&.{sel}, 0);
         return result;

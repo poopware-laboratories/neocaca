@@ -283,9 +283,10 @@ pub fn selectMatches(doc: *Document, re: *Regex) Error!bool {
     for (doc.sels(), 0..) |s, k| {
         if (k == doc.selections.main) main = out.items.len;
         const r = s.range(text);
+        var walk: chars.Walk = .{ .text = text, .at = r.start };
         var from = r.start;
         while (search.nonEmpty(re, text, from, r.end)) |m| {
-            try out.append(doc.gpa, .span(m.start, chars.prev(text, m.end)));
+            try out.append(doc.gpa, search.over(&walk, m));
             from = m.end;
         }
     }
@@ -302,11 +303,14 @@ pub fn split(doc: *Document, re: *Regex) Error!bool {
     for (doc.sels(), 0..) |s, k| {
         if (k == doc.selections.main) main = out.items.len;
         const r = s.range(text);
+        var walk: chars.Walk = .{ .text = text, .at = r.start };
         var start = r.start;
         var from = r.start;
         while (search.nonEmpty(re, text, from, r.end)) |m| {
-            if (m.start > start) try out.append(doc.gpa, .span(start, chars.prev(text, m.start)));
-            start = m.end;
+            // The pieces keep out every character a match touches.
+            const cut = search.over(&walk, m);
+            if (cut.anchor > start) try out.append(doc.gpa, .span(start, chars.prev(text, cut.anchor)));
+            start = chars.next(text, cut.cursor);
             from = m.end;
         }
         if (r.end > start) try out.append(doc.gpa, .span(start, chars.prev(text, r.end)));

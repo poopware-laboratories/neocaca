@@ -248,6 +248,22 @@ test "editing: deleting the last lines split into selections leaves no empty lin
     try h.expectText("a\nb\nc\n");
 }
 
+test "editing: s on a combining mark selects and deletes the whole character" {
+    var h: Harness = undefined;
+    try h.init("t", "ae\u{301}b e\u{301}\n", 30, 4);
+    defer h.deinit();
+    try h.typeKeys("%s");
+    try h.send("\u{301}"); // a character arrives in one read
+    try h.typeKeys("\r");
+    try h.expectSelections(&.{ "e\u{301}", "e\u{301}" });
+    try h.typeKeys("d");
+    try h.expectText("ab \n");
+    try h.typeKeys("u%S");
+    try h.send("\u{301}");
+    try h.typeKeys("\r");
+    try h.expectSelections(&.{ "a", "b ", "\n" });
+}
+
 test "editing: counts repeat moves and verbs" {
     var h: Harness = undefined;
     try h.init("t", "1\n2\n3\n4\n5\n", 30, 7);

@@ -6,6 +6,7 @@ const std = @import("std");
 const fx = @import("fixture_test.zig");
 const selecting = @import("selecting.zig");
 const Regex = @import("../regex.zig").Regex;
+const chars = @import("../unicode.zig").chars;
 const Document = @import("document.zig").Document;
 
 const gpa = std.testing.allocator;
@@ -238,6 +239,62 @@ test "selecting: S splits the selections at the matches" {
     try expectRegexOp("«ab»\n", selecting.split, ",", .{}, true, "«ab»\n");
     try expectRegexOp("«a\nb\n»", selecting.split, "^", .{}, true, "«a\nb\n»");
     try expectRegexOp("«a,b\n»", selecting.split, "^|,", .{}, true, "«a»,‹b\n›");
+}
+
+test "selecting: s and S take whole characters when a match cuts one" {
+    // A match of the mark alone, or of the base alone, selects both.
+    try expectRegexOp("«e\u{301}x»\n", selecting.selectMatches, "\u{301}", .{}, true, "«e\u{301}»x\n");
+    try expectRegexOp("«e\u{301}x»\n", selecting.selectMatches, "e", .{}, true, "«e\u{301}»x\n");
+    try expectRegexOp("«e\u{301}x»\n", selecting.selectMatches, "\u{301}x", .{}, true, "«e\u{301}x»\n");
+    // The base and its mark matched apart are one character, selected once.
+    try expectRegexOp("«e\u{301}x»\n", selecting.selectMatches, "e|\u{301}", .{}, true, "«e\u{301}»x\n");
+    try expectRegexOp("«ae\u{301}b»\n", selecting.split, "\u{301}", .{}, true, "«a»e\u{301}‹b›\n");
+    try expectRegexOp("«ae\u{301}b»\n", selecting.split, "e", .{}, true, "«a»e\u{301}‹b›\n");
+}
+
+/// Fails unless every selection of `d` starts and ends on a character
+/// boundary of its text.
+fn expectOnBoundaries(d: *const Document) !void {
+    const text = d.text();
+    var bounds: std.DynamicBitSetUnmanaged = try .initEmpty(gpa, text.len + 1);
+    defer bounds.deinit(gpa);
+    var i: usize = 0;
+    while (i < text.len) : (i = chars.next(text, i)) bounds.set(i);
+    for (d.sels()) |sel| {
+        try std.testing.expect(bounds.isSet(sel.anchor));
+        try std.testing.expect(bounds.isSet(sel.cursor));
+    }
+}
+
+test "selecting: s and S select whole characters on random text with marks" {
+    var prng: std.Random.DefaultPrng = .init(0x6d61726b);
+    const random = prng.random();
+    const alphabet = [_][]const u8{ "a", "e", "\u{301}", "\u{302}", "\n", "中", "\xff" };
+    const patterns = [_][]const u8{ "\u{301}", "e", "e\u{301}", "\u{302}a", "a|\u{301}", "[^a]" };
+    var res: [patterns.len]Regex = undefined;
+    for (&res, patterns) |*re, p| re.* = try .compile(gpa, p);
+    defer for (&res) |*re| re.deinit();
+    var buf: [64]u8 = undefined;
+    for (0..500) |_| {
+        var len: usize = 0;
+        while (len + 4 < buf.len and random.uintLessThan(u8, 12) != 0) {
+            const piece = alphabet[random.uintLessThan(usize, alphabet.len)];
+            @memcpy(buf[len..][0..piece.len], piece);
+            len += piece.len;
+        }
+        for (&res, patterns) |*re, p| {
+            for ([_]bool{ false, true }) |splitting| {
+                var d: Document = try .init(gpa, buf[0..len]);
+                defer d.deinit();
+                try selecting.selectAll(&d);
+                _ = if (splitting) try selecting.split(&d, re) else try selecting.selectMatches(&d, re);
+                expectOnBoundaries(&d) catch |err| {
+                    std.debug.print("failing input: {x}, pattern {s}\n", .{ buf[0..len], p });
+                    return err;
+                };
+            }
+        }
+    }
 }
 
 test "selecting: Alt-s splits the selections into lines" {

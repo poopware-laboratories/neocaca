@@ -23,6 +23,12 @@ test "search: the next match after the main selection" {
     try expectSearch("«a»\nb\n", "^b", .forward, false, .found, "a\n«b»\n");
 }
 
+test "search: a match that cuts a character selects all of it" {
+    try expectSearch("«a»\nxe\u{301}\n", "\u{301}", .forward, false, .found, "a\nx«e\u{301}»\n");
+    try expectSearch("xe\u{301}y\n«a»\n", "e", .backward, false, .found, "x«e\u{301}»y\na\n");
+    try expectSearch("«a»e\u{301}\u{302}\n", "\u{302}", .forward, true, .found, "‹a›«e\u{301}\u{302}»\n");
+}
+
 test "search: wraps around the buffer end" {
     try expectSearch("ab «ab»\n", "ab", .forward, false, .wrapped, "«ab» ab\n");
     try expectSearch("«ab»\n", "ab", .forward, false, .wrapped, "«ab»\n");

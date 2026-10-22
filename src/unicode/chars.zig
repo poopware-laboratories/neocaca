@@ -32,6 +32,26 @@ pub fn next(text: []const u8, i: usize) usize {
     return end;
 }
 
+/// A walk forward over the characters of `text`, for the characters that
+/// hold bytes asked for in increasing order (the ends of regex matches,
+/// which may cut a character). Each walk is linear in what it passes.
+pub const Walk = struct {
+    text: []const u8,
+    /// A character start at or before the next byte asked for.
+    at: usize,
+
+    /// The start of the character holding byte `i`, which is below
+    /// `text.len` and not before the last byte asked for.
+    pub fn start(self: *Walk, i: usize) usize {
+        std.debug.assert(i < self.text.len and self.at <= i);
+        while (true) {
+            const end = next(self.text, self.at);
+            if (end > i) return self.at;
+            self.at = end;
+        }
+    }
+};
+
 /// Start of the character ending at `end`; `end` must be above zero.
 pub fn prev(text: []const u8, end: usize) usize {
     var start = utf8.prevStart(text, end);
