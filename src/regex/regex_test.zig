@@ -203,8 +203,49 @@ test "regex: matching time is linear on a pathological pattern" {
     try std.testing.expectEqual(30, m.end);
 }
 
+/// Passes allocations through to `child` but never grows or shrinks one
+/// in place, so the number of allocations does not depend on the platform.
+const FixedGrowth = struct {
+    child: std.mem.Allocator,
+
+    fn allocator(self: *FixedGrowth) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &.{
+            .alloc = alloc,
+            .resize = std.mem.Allocator.noResize,
+            .remap = std.mem.Allocator.noRemap,
+            .free = free,
+        } };
+    }
+
+    fn alloc(ctx: *anyopaque, len: usize, alignment: std.mem.Alignment, ret: usize) ?[*]u8 {
+        const self: *FixedGrowth = @ptrCast(@alignCast(ctx));
+        return self.child.rawAlloc(len, alignment, ret);
+    }
+
+    fn free(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret: usize) void {
+        const self: *FixedGrowth = @ptrCast(@alignCast(ctx));
+        self.child.rawFree(memory, alignment, ret);
+    }
+};
+
+test "regex: the fixed-growth allocator never grows in place" {
+    var fixed: FixedGrowth = .{ .child = gpa };
+    const a = fixed.allocator();
+    const buf = try a.alloc(u8, 16);
+    defer a.free(buf);
+    try std.testing.expect(!a.resize(buf, 32));
+    try std.testing.expect(!a.resize(buf, 8));
+    try std.testing.expectEqual(null, a.remap(buf, 4096));
+    buf[15] = 'x';
+    try std.testing.expectEqual('x', buf[15]);
+}
+
 test "regex: compile fails cleanly without memory" {
-    try std.testing.checkAllAllocationFailures(gpa, struct {
+    // Whether a buffer grows in place depends on the platform's pages,
+    // which changes how many allocations a compile makes; refusing every
+    // resize makes the count the same everywhere.
+    var fixed: FixedGrowth = .{ .child = gpa };
+    try std.testing.checkAllAllocationFailures(fixed.allocator(), struct {
         fn run(a: std.mem.Allocator) !void {
             var re = try Regex.compile(a, "(ab|[c-e]+)*?x{2,3}\\b");
             re.deinit();
