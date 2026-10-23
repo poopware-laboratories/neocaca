@@ -1,6 +1,8 @@
 //! `Tty`: the real terminal. Raw mode on and off, its size, waiting for
 //! input with a timeout, and the resize and hang-up signals (SIGWINCH,
 //! SIGHUP), which wake the wait through a pipe their handlers write to.
+//! While it is open SIGXFSZ is ignored, so a write past the file size
+//! limit fails with `error.FileTooBig` instead of ending the editor.
 //! POSIX only.
 
 const std = @import("std");
@@ -165,6 +167,7 @@ fn onHangUp(sig: posix.SIG) callconv(.c) void {
 fn watchSignals(on: bool) void {
     watch(posix.SIG.WINCH, if (on) onResize else posix.SIG.DFL);
     watch(posix.SIG.HUP, if (on) onHangUp else posix.SIG.DFL);
+    watch(posix.SIG.XFSZ, if (on) posix.SIG.IGN else posix.SIG.DFL);
 }
 
 fn watch(sig: posix.SIG, handler: ?posix.Sigaction.handler_fn) void {

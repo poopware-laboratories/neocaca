@@ -200,14 +200,16 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
 - **PR: fixes from the second dogfood pass.** The crash goes first;
   Phase 1 is done once this pull request is in and its short pass is
   clean.
-  - [ ] S: a save past the file size limit kills the editor. `ulimit -f 1`
+  - [x] S: a save past the file size limit kills the editor. `ulimit -f 1`
         in the shell, then `:w` on `unicode.txt` (9 KB): `SIGXFSZ` ends
         neocaca with exit code 153, the unsaved edit is lost, the
         terminal is left in raw mode without echo, and a 512-byte
         temporary file (`4efc61bb66dd3e91`) stays beside the original,
         which is untouched. Ignore `SIGXFSZ`, so the write fails with
         `EFBIG`, the temporary file is removed and the message says the
-        file is too large, as a full disk already does.
+        file is too large, as a full disk already does. Done: `term.Tty`
+        ignores `SIGXFSZ` while it is open, and the save fails with
+        "the file is too big".
   - [ ] S: `:w` replaces a read-only file. `read-only.txt` (mode 0444,
         owned by the user, in a writable directory) is saved without a
         word, since the save renames a new file over it, and keeps its

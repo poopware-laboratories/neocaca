@@ -123,6 +123,27 @@ test "file: a failed save leaves the original untouched" {
     try std.testing.expectEqual(.directory, st.kind);
 }
 
+test "file: a save past the file size limit fails, keeps the original and leaves no temporary file" {
+    // The editor ignores SIGXFSZ while the terminal is open (`term.Tty`);
+    // without that the write would end the process.
+    const ignore: std.posix.Sigaction = .{ .handler = .{ .handler = std.posix.SIG.IGN }, .mask = std.posix.sigemptyset(), .flags = 0 };
+    var old: std.posix.Sigaction = undefined;
+    std.posix.sigaction(std.posix.SIG.XFSZ, &ignore, &old);
+    defer std.posix.sigaction(std.posix.SIG.XFSZ, &old, null);
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "old\n" });
+    const limit = try std.posix.getrlimit(.FSIZE);
+    try std.posix.setrlimit(.FSIZE, .{ .cur = 4096, .max = limit.max });
+    const saved = file.save(io, tmp.dir, "f", &@as([8192]u8, @splat('x')));
+    try std.posix.setrlimit(.FSIZE, limit);
+    try expectError(error.FileTooBig, saved);
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("old\n", try tmp.dir.readFile(io, "f", &buf));
+    var it = tmp.dir.iterate();
+    while (try it.next(io)) |entry| try expectEqualStrings("f", entry.name);
+}
+
 test "file: save into a missing directory fails" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
