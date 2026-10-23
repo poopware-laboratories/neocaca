@@ -238,9 +238,20 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         `.unicode.txt.4efc61bb66dd3e91.tmp` beside the file, a hidden
         file keeping its one dot and a long name cut between characters
         to fit 255 bytes; one left by an earlier save is never touched.
-  - [ ] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
+  - [x] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
         again; Phase 1 is done when it finds no crash, lost data or raw
-        terminal bytes.
+        terminal bytes. Run on 2026-10-23 on a fresh corpus, in ReleaseSafe
+        as a user who is not root, under tmux. Nothing new: every path of
+        scenario 8 is refused or saved as documented (`read-only.txt`
+        refused, then written by `:w!` and still 0444); a resize to one
+        cell and back, a 220 KB paste (0.12 s, one undo), a hang-up (the
+        `.recovered` file holds the edit) and Ctrl-z from a prompt and
+        insert mode all held; a full 64 KB tmpfs and `ulimit -f 1` left the
+        original byte for byte and no temporary file; `kill -9` mid-save
+        left `server.log` whole beside `.server.log.<random>.tmp`. One gap
+        is lost data, but already the first item of Phase 2 ("never
+        overwrite a change made on disk"): a line appended from another
+        shell was overwritten by `:w` without a word.
 
 ## Phase 2: everyday comfort
 
