@@ -1,5 +1,6 @@
 //! Build graph: the neocaca library module (with mimalloc compiled in), the
-//! editor executable, the test step and the benchmark step.
+//! editor executable, the test step, the benchmark step and the
+//! comparison with flow.
 
 const std = @import("std");
 
@@ -94,6 +95,47 @@ pub fn build(b: *std.Build) void {
     const bench_cmd = b.addRunArtifact(bench);
     bench_cmd.addPassthruArgs();
     bench_step.dependOn(&bench_cmd.step);
+
+    // `zig build compare -Dflow=<path>`: neocaca as shipped (ReleaseSafe)
+    // against another editor on a pseudo-terminal.
+    const flow = b.option([]const u8, "flow", "The flow binary `zig build compare` measures neocaca against");
+    const safe_lib = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = .safe,
+        .link_libc = true,
+        .imports = &.{.{ .name = "build_options", .module = options_mod }},
+    });
+    addMimalloc(safe_lib, mimalloc, .safe, secure);
+    const safe_exe = b.addExecutable(.{
+        .name = "neocaca",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = .safe,
+            .imports = &.{.{ .name = "neocaca", .module = safe_lib }},
+        }),
+    });
+    const compare = b.addExecutable(.{
+        .name = "neocaca-compare",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/bench/compare.zig"),
+            .target = target,
+            .optimize = .safe,
+            .imports = &.{.{ .name = "neocaca", .module = safe_lib }},
+        }),
+    });
+    const compare_step = b.step("compare", "Measure neocaca against flow (-Dflow=<path>)");
+    if (flow) |path| {
+        const compare_cmd = b.addRunArtifact(compare);
+        compare_cmd.addArtifactArg(safe_exe);
+        compare_cmd.addArg(path);
+        compare_cmd.addPassthruArgs();
+        compare_cmd.has_side_effects = true;
+        compare_step.dependOn(&compare_cmd.step);
+    } else {
+        compare_step.dependOn(&b.addFail("zig build compare needs -Dflow=<path to the flow binary>").step);
+    }
 }
 
 /// Compiles mimalloc's single-file build into `mod`. No CMake: the defines
