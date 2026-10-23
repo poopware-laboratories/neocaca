@@ -189,9 +189,47 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         now says so, as an error, when no selection has the object
         around it; one found around any selection says nothing.
 - **PR: the dogfood pass that closes Phase 1**
-  - [ ] M: every scenario of `docs/dogfooding.md` on its corpus, once the
+  - [x] M: every scenario of `docs/dogfooding.md` on its corpus, once the
         fixes above are in; its findings become pieces, and Phase 1 is done
         when none of them is a crash, lost data or raw terminal bytes.
+        Run on 2026-10-23 as a user who is not root, under tmux. It found
+        one crash (a file size limit kills the editor) and four rough
+        edges, all in the pull request below; nothing raw reached the
+        terminal. The rest is already on the roadmap, with the numbers
+        added to its items.
+- **PR: fixes from the second dogfood pass.** The crash goes first;
+  Phase 1 is done once this pull request is in and its short pass is
+  clean.
+  - [ ] S: a save past the file size limit kills the editor. `ulimit -f 1`
+        in the shell, then `:w` on `unicode.txt` (9 KB): `SIGXFSZ` ends
+        neocaca with exit code 153, the unsaved edit is lost, the
+        terminal is left in raw mode without echo, and a 512-byte
+        temporary file (`4efc61bb66dd3e91`) stays beside the original,
+        which is untouched. Ignore `SIGXFSZ`, so the write fails with
+        `EFBIG`, the temporary file is removed and the message says the
+        file is too large, as a full disk already does.
+  - [ ] S: `:w` replaces a read-only file. `read-only.txt` (mode 0444,
+        owned by the user, in a writable directory) is saved without a
+        word, since the save renames a new file over it, and keeps its
+        mode 0444. Refuse it ("the file is read-only") and let `:w!`
+        write it anyway.
+  - [ ] S: `Ctrl-z` suspends only from normal mode. In insert mode or a
+        prompt it does nothing, so the next keys go to the buffer or the
+        prompt: `:w half-typed`, `Ctrl-z`, then `fg` Enter wrote a file
+        named `half-typedfg`. Suspend from every mode and come back to it.
+  - [ ] S: on a narrow window, a message with a path loses its reason when
+        its start and its reason do not fit beside even a shortened path:
+        at 30 columns, `:w` to a missing directory shows `cannot write
+        "a-very-long-dir…` and `:e` there shows the path but not "its
+        directory does not exist". Keep the reason: the path goes to `…`
+        first, then the start of the message.
+  - [ ] S: a temporary file left by a save that never finished (the
+        editor killed, the power cut) has a bare random name nobody can
+        connect to the file. Name it after the file and hide it
+        (`.unicode.txt.<random>.tmp`).
+  - [ ] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
+        again; Phase 1 is done when it finds no crash, lost data or raw
+        terminal bytes.
 
 ## Phase 2: everyday comfort
 
@@ -202,16 +240,21 @@ Safety first, then the biggest daily gains.
         `S` or `s` on a huge file can make millions of selections (32
         bytes each), bounded only by memory: `%` then `s` `a` on a 50 MB
         file made 9.6 million, froze the editor for 5 seconds and used
-        830 MB.
+        830 MB. On the 100 MB log of the corpus, `%` `s` `a` made 2.8
+        million in 1.5 s (457 MB), and `%` `Alt-s` 1.4 million lines in
+        0.6 s (350 MB).
 - **PR: respect line endings, the BOM and a missing final newline.**
   The bytes of a file are kept as loaded, but:
   - [ ] M: CRLF files show no `^M` at each line end, and the lines added
-        to them (Enter, `o`, `O`, paste) end in CRLF, not a bare `\n`
+        to them (Enter, `o`, `O`, paste) end in CRLF, not a bare `\n`.
+        Today `gl` then `a` on a CRLF line puts the text between the
+        `\r` and the `\n`.
   - [ ] S: a BOM is hidden and cannot be deleted by accident; today it
         shows as a replacement glyph at the start of the file
   - [ ] S: a file without a final newline is saved without one; today the
         buffer adds one on load and `:w` writes it
-- **PR: never overwrite a change made on disk**
+- **PR: never overwrite a change made on disk.** Today a line appended
+  from another shell is lost at the next `:w`, without a word.
   - [ ] S: notice when the file changed on disk (size and modification
         time), checked on focus and before `:w`
   - [ ] S: `:w` refuses to overwrite it and says so; `:w!` forces
@@ -249,20 +292,28 @@ Safety first, then the biggest daily gains.
   - [ ] S: probe for it and fall back cleanly
   - [ ] M: decode its key events
 - **PR: searches off the event loop.** Today they run on the loop within
-  `max_steps`, which caps how much of a large file one search can cover.
+  `max_steps`, which caps how much of a large file one search can cover:
+  on the 100 MB log, a pattern that starts with a class (`[0-9]+ZZ`,
+  `\d+ZZ`) stops after 1.5 s with "too much work for this regex" where
+  the answer is "not found", while a literal one misses all 100 MB in
+  129 ms.
   - [ ] M: `/`, `?`, `s`, `S` and `Alt-k` run on their own thread
   - [ ] S: `Esc` cancels them; raise the step bound
 - **PR: large files.** Today the text is one contiguous array, and every
   edit rebuilds it and its line index, so an edit costs the size of the
   file.
-  - [ ] S: a benchmark of typing into a 100 MB file (by hand, a 50 MB
-        file takes about 50 ms a key in ReleaseSafe)
+  - [ ] S: a benchmark of typing into a 100 MB file (by hand, in
+        ReleaseSafe: about 100 ms a key on the 100 MB log, 35 ms on the
+        31 MB CSV, 50 ms with 1000 cursors there)
   - [ ] M: a piece table behind the `buffer::Buffer` interface
   - [ ] M: its line index; `Buffer`'s API is unchanged, so `edit/` does
         not change
   - [ ] S: the benchmark again, with the numbers in the PR
 - **PR: grapheme clusters per UAX #29** (emoji ZWJ sequences, regional
-  indicators) instead of code point and combining marks
+  indicators) instead of code point and combining marks. Under tmux,
+  which draws a ZWJ sequence or an emoji with its skin tone as one
+  character, moving over them in `unicode.txt` leaves a second copy of
+  🏽 and 👧 on screen.
   - [ ] M: the break property table, derived from the Unicode data
   - [ ] M: cursor movement and drawing by cluster
 - **PR: configuration file**

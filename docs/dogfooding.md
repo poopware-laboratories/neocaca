@@ -104,3 +104,4 @@ to. A scenario that no longer applies is rewritten, not left to rot.
 | Date | Phase | Open 100 MB / 50 MB | Typing (ms a key) | `%` `s` on the big file | Findings |
 |------|-------|---------------------|-------------------|--------------------------|----------|
 | 2026-10-22 | 1 | 50 MB: under 1 s | 50 on 50 MB, instant on small files | 9.6 million selections, 5 s frozen, 830 MB | 5 rough edges ([#12](https://github.com/poopware-laboratories/neocaca/pull/12)); this guide written after it, from a hand-made corpus |
+| 2026-10-23 | 1 | 100 MB: 1.0 s, 231 MB | 100 on 100 MB, 35 on the 31 MB CSV, 50 there with 1000 cursors | `a`: 2.8 million selections, 1.5 s, 457 MB | 1 crash (`SIGXFSZ`), 4 rough edges ([#14](https://github.com/poopware-laboratories/neocaca/pull/14)); tmux only, as a user who is not root |
