@@ -7,6 +7,7 @@ pub fn describe(e: anyerror) []const u8 {
     return switch (e) {
         error.AccessDenied, error.PermissionDenied => "permission denied",
         error.BadPathName => "the name is not valid",
+        error.ChangedOnDisk => "the file changed on disk",
         error.DeviceBusy, error.FileBusy => "the file is busy",
         error.DiskQuota => "the disk quota is used up",
         error.FileNotFound => "no such file or directory",

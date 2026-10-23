@@ -1,9 +1,11 @@
 //! Files: `fs/file.zig` (bounded load, atomic save, creating a new file),
-//! `fs/temp.zig` (the temporary file a save writes), `fs/link.zig` (the
+//! `fs/temp.zig` (the temporary file a save writes), `fs/disk.zig`
+//! (what a file was on disk, so a save can tell it changed), `fs/link.zig` (the
 //! file a symbolic link names, for saves) and
 //! `fs/reason.zig` (why one failed, in words).
 
 pub const file = @import("fs/file.zig");
+pub const disk = @import("fs/disk.zig");
 
 pub const load = file.load;
 pub const save = file.save;
@@ -13,6 +15,7 @@ pub const describe = @import("fs/reason.zig").describe;
 
 test {
     _ = file;
+    _ = disk;
     _ = @import("fs/link.zig");
     _ = @import("fs/temp.zig");
     _ = @import("fs/reason.zig");
@@ -20,4 +23,5 @@ test {
     _ = @import("fs/reason_test.zig");
     _ = @import("fs/link_test.zig");
     _ = @import("fs/temp_test.zig");
+    _ = @import("fs/disk_test.zig");
 }

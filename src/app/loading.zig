@@ -17,6 +17,9 @@ pub const Loading = struct {
     /// Set by the thread before `finished`; the contents are owned until
     /// `take`.
     result: fs.file.LoadError!?[]u8 = null,
+    /// What the file was on disk just before it was read, set with
+    /// `result`.
+    disk: fs.disk.Disk = .unknown,
     finished: std.atomic.Value(bool) = .init(false),
     thread: ?std.Thread = null,
 
@@ -44,10 +47,19 @@ pub const Loading = struct {
     }
 
     fn run(self: *Loading) void {
+        self.disk = stamp(self.io, self.dir, self.path);
         self.result = fs.load(self.io, self.gpa, self.dir, self.path, self.limit);
         self.finished.store(true, .release);
         // A full pipe already holds a wakeup.
         if (self.notify) |fd| _ = std.c.write(fd, "l", 1);
+    }
+
+    /// What `path` is on disk, looked at before it is read: a write in
+    /// between makes the stamp older than the text, so the next save is
+    /// refused rather than let through. When it cannot be looked at, saves
+    /// are not checked; the load says why.
+    pub fn stamp(io: std.Io, dir: std.Io.Dir, path: []const u8) fs.disk.Disk {
+        return fs.disk.read(io, dir, path) catch .unknown;
     }
 
     /// Whether the load is over, so `wait` returns at once.

@@ -5,6 +5,7 @@
 const std = @import("std");
 const link = @import("link.zig");
 const temp = @import("temp.zig");
+const disk = @import("disk.zig");
 
 const Io = std.Io;
 const Dir = Io.Dir;
@@ -52,27 +53,34 @@ fn inDirectory(io: Io, dir: Dir, path: []const u8) Dir.StatFileError!bool {
 }
 
 pub const SaveError = link.Error || temp.CreateError || Dir.StatFileError || File.SetPermissionsError ||
-    File.WritePositionalError || File.SyncError || Dir.RenameError || error{ReadOnly};
+    File.WritePositionalError || File.SyncError || File.StatError || Dir.RenameError || error{ ReadOnly, ChangedOnDisk };
 
 pub const SaveOptions = struct {
-    /// Replace a read-only file too; it stays read-only.
+    /// Replace a read-only file too, which stays read-only, and one
+    /// changed on disk.
     force: bool = false,
+    /// What the file was when it was read or last written.
+    expect: disk.Disk = .unknown,
 };
 
 /// Replaces `path` with `bytes` atomically: they go to a temporary file in
 /// the same directory (`temp.zig`), which is synced, given the permissions of the file
 /// it replaces, and renamed over it. A link is kept: the file it names is
-/// replaced. A read-only file, one nobody may write, fails with
-/// `error.ReadOnly` unless `how.force`. On any error the original is left
-/// as it was.
-pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8, how: SaveOptions) SaveError!void {
+/// replaced. Unless `how.force`, a file changed on disk since it was
+/// `how.expect` fails with `error.ChangedOnDisk`, and a read-only one, one
+/// nobody may write, with `error.ReadOnly`. On any error the original is
+/// left as it was. Returns the stamp the file has once written.
+pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8, how: SaveOptions) SaveError!disk.Stamp {
     try checkNames(path);
     var buf: [Dir.max_path_bytes]u8 = undefined;
     const target = try link.resolve(io, dir, path, &buf);
-    const old: ?File.Permissions = if (dir.statFile(io, target, .{})) |st| st.permissions else |e| switch (e) {
+    const st: ?File.Stat = dir.statFile(io, target, .{}) catch |e| switch (e) {
         error.FileNotFound => null,
         else => return e,
     };
+    const now: disk.Disk = if (st) |s| .{ .stamp = .of(s) } else .missing;
+    if (!how.force and disk.changed(how.expect, now)) return error.ChangedOnDisk;
+    const old: ?File.Permissions = if (st) |s| s.permissions else null;
     if (old) |p| if (p.readOnly() and !how.force) return error.ReadOnly;
     var tmp_buf: [Dir.max_path_bytes]u8 = undefined;
     const tmp = try temp.create(io, dir, target, &tmp_buf);
@@ -84,7 +92,10 @@ pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8, how: SaveOpti
     if (old) |p| try tmp.file.setPermissions(io, p);
     try tmp.file.writePositionalAll(io, bytes, 0);
     try tmp.file.sync(io);
+    // Renaming keeps the inode, size and time it was written.
+    const written: disk.Stamp = .of(try tmp.file.stat(io));
     try dir.rename(tmp.path, dir, target, io);
+    return written;
 }
 
 pub const CreateError = File.OpenError || File.WritePositionalError || File.SyncError;
@@ -102,7 +113,7 @@ pub fn create(io: Io, dir: Dir, path: []const u8, bytes: []const u8) CreateError
 /// Refuses a path with a part longer than `max_name`. The system refuses
 /// it too, but the standard library's `statFile` panics on that in a Debug
 /// build instead of returning its error.
-fn checkNames(path: []const u8) error{NameTooLong}!void {
+pub fn checkNames(path: []const u8) error{NameTooLong}!void {
     var parts = std.mem.splitScalar(u8, path, '/');
     while (parts.next()) |part| if (part.len > max_name) return error.NameTooLong;
 }

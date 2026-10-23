@@ -79,7 +79,7 @@ test "file: load follows a link to a regular file" {
 test "file: save creates a new file" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    try file.save(io, tmp.dir, "n.txt", "hello\n", .{});
+    _ = try file.save(io, tmp.dir, "n.txt", "hello\n", .{});
     var buf: [64]u8 = undefined;
     try expectEqualStrings("hello\n", try tmp.dir.readFile(io, "n.txt", &buf));
 }
@@ -88,7 +88,7 @@ test "file: save replaces the contents and leaves no temporary file" {
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
     try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "a much longer old text\n" });
-    try file.save(io, tmp.dir, "f", "new\n", .{});
+    _ = try file.save(io, tmp.dir, "f", "new\n", .{});
     var buf: [64]u8 = undefined;
     try expectEqualStrings("new\n", try tmp.dir.readFile(io, "f", &buf));
     var it = tmp.dir.iterate();
@@ -106,7 +106,7 @@ test "file: save keeps the permissions of the file it replaces" {
     defer tmp.cleanup();
     try tmp.dir.writeFile(io, .{ .sub_path = "x.sh", .data = "#!/bin/sh\n" });
     try tmp.dir.setFilePermissions(io, "x.sh", .fromMode(0o751), .{});
-    try file.save(io, tmp.dir, "x.sh", "#!/bin/sh\nexit 0\n", .{});
+    _ = try file.save(io, tmp.dir, "x.sh", "#!/bin/sh\nexit 0\n", .{});
     const st = try tmp.dir.statFile(io, "x.sh", .{});
     try std.testing.expectEqual(0o751, st.permissions.toMode() & 0o7777);
 }
@@ -130,7 +130,7 @@ test "file: a forced save replaces a read-only file, which stays read-only" {
     defer tmp.cleanup();
     try tmp.dir.writeFile(io, .{ .sub_path = "r", .data = "old\n" });
     try tmp.dir.setFilePermissions(io, "r", .fromMode(0o444), .{});
-    try file.save(io, tmp.dir, "r", "new\n", .{ .force = true });
+    _ = try file.save(io, tmp.dir, "r", "new\n", .{ .force = true });
     var buf: [16]u8 = undefined;
     try expectEqualStrings("new\n", try tmp.dir.readFile(io, "r", &buf));
     const st = try tmp.dir.statFile(io, "r", .{});
@@ -144,7 +144,7 @@ test "file: a file anyone may write is not read-only, and a link to a read-only 
     try tmp.dir.writeFile(io, .{ .sub_path = "g", .data = "old\n" });
     // Only the others may write it: the save is left to the system.
     try tmp.dir.setFilePermissions(io, "g", .fromMode(0o446), .{});
-    try file.save(io, tmp.dir, "g", "new\n", .{});
+    _ = try file.save(io, tmp.dir, "g", "new\n", .{});
     try tmp.dir.writeFile(io, .{ .sub_path = "r", .data = "old\n" });
     try tmp.dir.setFilePermissions(io, "r", .fromMode(0o400), .{});
     try tmp.dir.symLink(io, "r", "l", .{});
@@ -190,7 +190,7 @@ test "file: a save in a subdirectory writes its temporary file there, and leaves
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
     try tmp.dir.createDir(io, "sub", .default_dir);
-    try file.save(io, tmp.dir, "sub/f", "new\n", .{});
+    _ = try file.save(io, tmp.dir, "sub/f", "new\n", .{});
     var buf: [64]u8 = undefined;
     try expectEqualStrings("new\n", try tmp.dir.readFile(io, "sub/f", &buf));
     var it = tmp.dir.iterate();
@@ -214,8 +214,8 @@ test "file: saving a hidden file with the longest name leaves only it" {
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
     const longest: []const u8 = "." ++ &@as([file.max_name - 1]u8, @splat('h'));
-    try file.save(io, tmp.dir, longest, "x\n", .{});
-    try file.save(io, tmp.dir, longest, "y\n", .{});
+    _ = try file.save(io, tmp.dir, longest, "x\n", .{});
+    _ = try file.save(io, tmp.dir, longest, "y\n", .{});
     var buf: [4]u8 = undefined;
     try expectEqualStrings("y\n", try tmp.dir.readFile(io, longest, &buf));
     var it = tmp.dir.iterate();
@@ -227,7 +227,7 @@ test "file: a temporary file left by a save that never finished is left alone" {
     defer tmp.cleanup();
     const left = ".f.0000000000000000.tmp";
     try tmp.dir.writeFile(io, .{ .sub_path = left, .data = "the unfinished save\n" });
-    try file.save(io, tmp.dir, "f", "new\n", .{});
+    _ = try file.save(io, tmp.dir, "f", "new\n", .{});
     var buf: [64]u8 = undefined;
     try expectEqualStrings("new\n", try tmp.dir.readFile(io, "f", &buf));
     try expectEqualStrings("the unfinished save\n", try tmp.dir.readFile(io, left, &buf));
@@ -244,7 +244,7 @@ test "file: a saved file loads back byte for byte" {
     defer tmp.cleanup();
     var bytes: [256]u8 = undefined;
     for (&bytes, 0..) |*b, i| b.* = @intCast(i);
-    try file.save(io, tmp.dir, "all", &bytes, .{});
+    _ = try file.save(io, tmp.dir, "all", &bytes, .{});
     const got = (try file.load(io, gpa, tmp.dir, "all", file.max_file)).?;
     defer gpa.free(got);
     try std.testing.expectEqualSlices(u8, &bytes, got);
@@ -293,7 +293,7 @@ test "file: save through a link replaces the file it names, and keeps the link" 
     try tmp.dir.createDir(io, "d", .default_dir);
     try tmp.dir.writeFile(io, .{ .sub_path = "d/t", .data = "old\n" });
     try tmp.dir.symLink(io, "d/t", "l", .{});
-    try file.save(io, tmp.dir, "l", "new\n", .{});
+    _ = try file.save(io, tmp.dir, "l", "new\n", .{});
     var got: [16]u8 = undefined;
     try expectEqualStrings("new\n", try tmp.dir.readFile(io, "d/t", &got));
     const n = try tmp.dir.readLink(io, "l", &got);
@@ -304,7 +304,7 @@ test "file: save through a dangling link makes the file it names" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.symLink(io, "t", "l", .{});
-    try file.save(io, tmp.dir, "l", "x\n", .{});
+    _ = try file.save(io, tmp.dir, "l", "x\n", .{});
     var got: [16]u8 = undefined;
     try expectEqualStrings("x\n", try tmp.dir.readFile(io, "t", &got));
 }
@@ -326,7 +326,7 @@ test "file: a name of 255 bytes is a name, one of 256 is refused before the syst
     const longest: []const u8 = &@as([file.max_name]u8, @splat('n'));
     const over: []const u8 = &@as([file.max_name + 1]u8, @splat('n'));
     try std.testing.expectEqual(null, try file.load(io, gpa, tmp.dir, longest, file.max_file));
-    try file.save(io, tmp.dir, longest, "x\n", .{});
+    _ = try file.save(io, tmp.dir, longest, "x\n", .{});
     try expectError(error.NameTooLong, file.load(io, gpa, tmp.dir, over, file.max_file));
     try expectError(error.NameTooLong, file.save(io, tmp.dir, over, "x\n", .{}));
     try expectError(error.NameTooLong, file.create(io, tmp.dir, over, "x\n"));

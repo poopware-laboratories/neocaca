@@ -43,15 +43,15 @@ pub fn abandonSave(ed: *Editor) void {
 }
 
 /// Reports how the save of `s` went.
-pub fn finishSave(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) void {
+pub fn finishSave(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) void {
     saved(ed, s, result) catch ed.outOfMemory();
 }
 
-fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{OutOfMemory}!void {
+fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) error{OutOfMemory}!void {
     ed.quitting = false;
-    result catch |e| {
+    const written = result catch |e| {
         ed.doc.endSave(false);
-        const hint = if (e == error.ReadOnly) "; :w! writes it anyway" else "";
+        const hint = if (e == error.ReadOnly or e == error.ChangedOnDisk) "; :w! writes it anyway" else "";
         ed.message.set(true, "cannot write \"{f}\": {s}{s}", .{ editor.Message.path(s.path), fs.describe(e), hint });
         return;
     };
@@ -59,21 +59,24 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{Out
         ed.doc.endSave(false);
         return e;
     };
-    ed.doc.endSave(std.mem.eql(u8, ed.path.?, s.path));
+    const same = std.mem.eql(u8, ed.path.?, s.path);
+    ed.doc.endSave(same);
+    if (same) ed.disk = written;
     ed.message.set(false, "\"{f}\" written, {d} line{s}", .{ editor.Message.path(s.path), s.lines, plural(s.lines) });
     if (s.quit) ed.quit = true;
 }
 
 /// Reports how the load of `path` went: the file's contents (owned by
 /// the editor from here), null for a missing file, or the error. A file
-/// whose directory is missing opens new, with a warning.
-pub fn finishLoad(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) void {
-    loaded(ed, path, result) catch ed.outOfMemory();
+/// whose directory is missing opens new, with a warning. `disk` is what
+/// the file was on disk before it was read.
+pub fn finishLoad(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8, disk: fs.disk.Disk) void {
+    loaded(ed, path, result, disk) catch ed.outOfMemory();
 }
 
 /// As `finishLoad`, but out of memory is returned, with the editor
 /// unchanged.
-pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) error{OutOfMemory}!void {
+pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8, disk: fs.disk.Disk) error{OutOfMemory}!void {
     const contents = result catch |e| switch (e) {
         error.NoDirectory => null,
         else => {
@@ -89,6 +92,7 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) er
     ed.doc = doc;
     if (ed.path) |p| ed.gpa.free(p);
     ed.path = owned;
+    ed.disk = disk;
     ed.view = .{};
     if (std.meta.isError(result)) {
         ed.message.set(true, "\"{f}\" new file; its directory does not exist", .{editor.Message.path(path)});

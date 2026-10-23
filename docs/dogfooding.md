@@ -83,7 +83,9 @@ already lists is noted once with its item, not reported again.
     untouched and the error shown. Kill the editor (`kill -9`) while it
     saves `server.log`: the original must be whole, and a temporary file
     left beside it must be named after it (`.server.log.<random>.tmp`).
-    Change a file from another shell while it is open.
+    Append a line to an open file from another shell: `:w` must refuse
+    and say the file changed on disk, keeping the line, and `:w!` must
+    write over it.
 11. **What this phase added.** Every pass also works through the features
     merged since the last one, in the same task-first way.
 

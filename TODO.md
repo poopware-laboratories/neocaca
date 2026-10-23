@@ -249,9 +249,15 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         insert mode all held; a full 64 KB tmpfs and `ulimit -f 1` left the
         original byte for byte and no temporary file; `kill -9` mid-save
         left `server.log` whole beside `.server.log.<random>.tmp`. One gap
-        is lost data, but already the first item of Phase 2 ("never
-        overwrite a change made on disk"): a line appended from another
-        shell was overwritten by `:w` without a word.
+        is lost data: a line appended from another shell was overwritten
+        by `:w` without a word. It is fixed below, ahead of Phase 2.
+  - [x] S: `:w` refuses to overwrite a file changed on disk and says so;
+        `:w!` forces. Done: `fs/disk.zig` stamps the file (inode, size,
+        modification time) just before it is read and after every save;
+        a save whose file no longer matches fails with "the file changed
+        on disk; :w! writes it anyway", and so does one of a new file
+        that something else made meanwhile. A file deleted since is
+        written again; `:w other` is not checked.
 
 ## Phase 2: everyday comfort
 
@@ -275,11 +281,11 @@ Safety first, then the biggest daily gains.
         shows as a replacement glyph at the start of the file
   - [ ] S: a file without a final newline is saved without one; today the
         buffer adds one on load and `:w` writes it
-- **PR: never overwrite a change made on disk.** Today a line appended
-  from another shell is lost at the next `:w`, without a word.
-  - [ ] S: notice when the file changed on disk (size and modification
-        time), checked on focus and before `:w`
-  - [ ] S: `:w` refuses to overwrite it and says so; `:w!` forces
+- **PR: notice a change made on disk while the file is open.** `:w`
+  already refuses to write over one (Phase 1); nothing says so sooner.
+  - [ ] S: when the terminal reports focus (xterm focus events, mode
+        1004), compare the file with its stamp and say it changed, before
+        any edit is made on the old text
 - **PR: soft wrap of long lines**
   - [ ] M: wrapped line layout, pure and tested
   - [ ] M: draw it, with the cursor and scrolling over wrapped lines
