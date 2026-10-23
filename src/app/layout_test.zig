@@ -215,7 +215,7 @@ test "layout: tiny screens keep the bottom lines first" {
     try typeKeys(&f.ed, "u");
     f.draw();
     try expectRow(&f.screen, 0, " NORMAL   ");
-    try expectRow(&f.screen, 1, "nothing to");
+    try expectRow(&f.screen, 1, "nothing t…");
 
     var g: Fixture = try .init("f", "abc\n", 10, 1);
     defer g.deinit();

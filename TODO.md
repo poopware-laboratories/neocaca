@@ -152,22 +152,42 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
       and `fg`. What it found is below or already in Phase 2; how a pass
       is run from now on is in `docs/dogfooding.md`.
 - **PR: fixes from the dogfood pass**
-  - [ ] S: the view keeps its old scroll when the window grows, hiding
+  - [x] S: the view keeps its old scroll when the window grows, hiding
         lines above while the rows below stay empty (a 4-line file,
-        resized to 5 rows and back to 8, shows lines 2 to 4). It should
-        scroll back to fill the window.
-  - [ ] S: messages name Zig errors (`cannot open ".": IsDir`, `cannot
+        resized to 5 rows and back to 8, showed lines 2 to 4). A taller
+        window now scrolls back to fill its rows.
+  - [x] S: messages name Zig errors (`cannot open ".": IsDir`, `cannot
         write "…": FileNotFound`); say it in words ("is a directory",
-        "no such directory").
-  - [ ] S: `neocaca <directory>` opens an empty buffer named after the
+        "no such file or directory"). Files, recovery, bad patterns and
+        the error printed when the terminal fails now all say why in
+        words (`fs.describe`, `regex.describe`). Testing it found a
+        crash: a path part over 255 bytes made the standard library
+        panic in Debug builds; `fs/file.zig` now refuses it first.
+  - [x] S: `neocaca <directory>` opens an empty buffer named after the
         directory; refuse it at startup with an exit code instead. A file
         in a directory that does not exist says "new file" and fails only
-        at `:w`; say so when it opens.
-  - [ ] S: a message wider than the window is cut mid-word with no mark
+        at `:w`; say so when it opens. So does a path through a file
+        (`:e f/x`) on macOS, where Linux says it is not a directory. Any
+        file that cannot be read (a directory, one over the size limit,
+        an unreadable one) now stops `neocaca` before the terminal is
+        touched, with exit code 1, since `:w` on the empty buffer would
+        have replaced it; a missing directory, or a path through a file,
+        opens new and says "its directory does not exist" on every
+        system.
+  - [x] S: a message wider than the window is cut mid-word with no mark
         (`unsaved changes; :q! dis` at 24 columns); end it with `…`.
-  - [ ] S: `Alt-i` or `Alt-a` with no such object around the cursor
+        A message over its 256 bytes loses its end too, so a long path
+        hides the reason (`cannot open "nnn…` with no "the name is too
+        long"); shorten the path, never the reason. A path in a message
+        (`Message.path`) now gives way first: past 256 bytes, and on a
+        window too narrow, it loses its start to `…`, so its file name
+        and the reason stay. A message too wide even then, or one
+        without a path, ends with `…` in the last column.
+  - [x] S: `Alt-i` or `Alt-a` with no such object around the cursor
         (`Alt-i"` outside quotes) changes nothing and says nothing, so the
-        next verb acts on the old selection; say "no object here".
+        next verb acts on the old selection; say "no object here". It
+        now says so, as an error, when no selection has the object
+        around it; one found around any selection says nothing.
 - **PR: the dogfood pass that closes Phase 1**
   - [ ] M: every scenario of `docs/dogfooding.md` on its corpus, once the
         fixes above are in; its findings become pieces, and Phase 1 is done

@@ -12,15 +12,24 @@ const File = Io.File;
 /// The largest file `load` takes by default, in bytes.
 pub const max_file = 256 << 20;
 
-pub const LoadError = Dir.ReadFileAllocError || Dir.StatFileError || error{ FileTooBig, NotAFile };
+/// The longest name of one file or directory on Linux, macOS and FreeBSD
+/// (`NAME_MAX`), in bytes.
+pub const max_name = 255;
 
-/// The contents of `path`, or null when it does not exist (a new file).
+pub const LoadError = Dir.ReadFileAllocError || Dir.StatFileError || error{ FileTooBig, NotAFile, NoDirectory };
+
+/// The contents of `path`, or null when it does not exist (a new file);
+/// `error.NoDirectory` when the directory it would be saved in does not
+/// exist either.
 /// Files over `limit` bytes fail with `error.FileTooBig`; pipes, devices
 /// and sockets, whose reads may wait or never end, with `error.NotAFile`.
 /// Caller owns the returned slice.
 pub fn load(io: Io, gpa: std.mem.Allocator, dir: Dir, path: []const u8, limit: usize) LoadError!?[]u8 {
+    try checkNames(path);
     const st = dir.statFile(io, path, .{}) catch |e| switch (e) {
-        error.FileNotFound => return null,
+        // A path through a file is not found on macOS, and not a
+        // directory on Linux.
+        error.FileNotFound, error.NotDir => return if (try inDirectory(io, dir, path)) null else error.NoDirectory,
         else => return e,
     };
     if (st.kind != .file and st.kind != .directory) return error.NotAFile;
@@ -31,6 +40,16 @@ pub fn load(io: Io, gpa: std.mem.Allocator, dir: Dir, path: []const u8, limit: u
     };
 }
 
+/// Whether the directory `path` names its file in exists.
+fn inDirectory(io: Io, dir: Dir, path: []const u8) Dir.StatFileError!bool {
+    const parent = std.fs.path.dirname(path) orelse return true;
+    const st = dir.statFile(io, parent, .{}) catch |e| switch (e) {
+        error.FileNotFound, error.NotDir => return false,
+        else => return e,
+    };
+    return st.kind == .directory;
+}
+
 pub const SaveError = link.Error || Dir.CreateFileAtomicError || Dir.StatFileError || File.SetPermissionsError ||
     File.WritePositionalError || File.SyncError || Dir.RenameError;
 
@@ -39,6 +58,7 @@ pub const SaveError = link.Error || Dir.CreateFileAtomicError || Dir.StatFileErr
 /// it replaces, and renamed over it. A link is kept: the file it names is
 /// replaced. On any error the original is left as it was.
 pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8) SaveError!void {
+    try checkNames(path);
     var buf: [Dir.max_path_bytes]u8 = undefined;
     const target = try link.resolve(io, dir, path, &buf);
     const old: ?File.Permissions = if (dir.statFile(io, target, .{})) |st| st.permissions else |e| switch (e) {
@@ -64,6 +84,14 @@ pub fn create(io: Io, dir: Dir, path: []const u8, bytes: []const u8) CreateError
     defer f.close(io);
     try f.writePositionalAll(io, bytes, 0);
     try f.sync(io);
+}
+
+/// Refuses a path with a part longer than `max_name`. The system refuses
+/// it too, but the standard library's `statFile` panics on that in a Debug
+/// build instead of returning its error.
+fn checkNames(path: []const u8) error{NameTooLong}!void {
+    var parts = std.mem.splitScalar(u8, path, '/');
+    while (parts.next()) |part| if (part.len > max_name) return error.NameTooLong;
 }
 
 const owner_only: File.Permissions = if (File.Permissions.has_executable_bit) .fromMode(0o600) else .default_file;

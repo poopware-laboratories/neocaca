@@ -113,3 +113,31 @@ test "view: placing in a tiny window still shows the cursor" {
     v.place(.{ .line = 5, .lines = 10, .height = 0, .scrolloff = 3 }, .center);
     try expectEqual(5, v.top);
 }
+
+test "view: a taller window scrolls back to fill its rows with text" {
+    var v: View = .{ .top = 1, .left = 4 };
+    v.fill(6, 4);
+    try expectEqual(View{ .left = 4 }, v);
+    v = .{ .top = 50 };
+    v.fill(10, 55);
+    try expectEqual(View{ .top = 45 }, v);
+}
+
+test "view: filling scrolls nothing while the text reaches the bottom row" {
+    var v: View = .{ .top = 50 };
+    v.fill(10, 100);
+    try expectEqual(View{ .top = 50 }, v);
+    v.fill(10, 60);
+    try expectEqual(View{ .top = 50 }, v);
+    v.fill(0, 60);
+    try expectEqual(View{ .top = 50 }, v);
+}
+
+test "view: filling a window taller than the buffer shows its first line" {
+    var v: View = .{ .top = 3 };
+    v.fill(100, 4);
+    try expectEqual(View{}, v);
+    v = .{ .top = 3 };
+    v.fill(5, 0);
+    try expectEqual(View{}, v);
+}

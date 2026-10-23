@@ -72,7 +72,7 @@ test "commands: :e on a named pipe is refused instead of waiting for a writer" {
     try expectEqual(.SUCCESS, linux.errno(linux.mknodat(h.tmp.dir.handle, "p", linux.S.IFIFO | 0o600, 0)));
     try h.typeKeys(":e p\r");
     try h.expectText("first\n");
-    try h.expectRow(3, "cannot open \"p\": NotAFile               ");
+    try h.expectRow(3, "cannot open \"p\": not a regular file     ");
     try h.typeKeys(":q\r");
     try expect(h.session.done());
 }

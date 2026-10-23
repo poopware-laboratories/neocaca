@@ -114,6 +114,19 @@ test "display: a resize redraws the whole screen at the new size" {
     try h.expectRow(3, " NORMAL  a 1:1 ");
 }
 
+test "display: a taller window shows the lines scrolled off above" {
+    var h: Harness = undefined;
+    try h.init("a", "1\n2\n3\n4\n", 12, 5);
+    defer h.deinit();
+    try h.typeKeys("ge");
+    try h.expectRow(0, " 2 2        ");
+    h.session.resize(12, 8);
+    try h.frame();
+    try h.expectRow(0, " 1 1        ");
+    try h.expectRow(3, " 4 4        ");
+    try h.expectRow(4, "~           ");
+}
+
 test "display: scrolling keeps the cursor on screen" {
     var h: Harness = undefined;
     try h.init("n", "1\n2\n3\n4\n5\n6\n7\n8\n9\n", 10, 4);

@@ -33,6 +33,7 @@ test {
     _ = @import("app/editor_stop_test.zig");
     _ = @import("app/editor_view_test.zig");
     _ = @import("app/editor_map_test.zig");
+    _ = @import("app/editor_message_test.zig");
     _ = @import("app/requesting.zig");
     _ = @import("app/prompting.zig");
     _ = @import("app/viewing.zig");
@@ -40,6 +41,7 @@ test {
     _ = @import("app/layout_test.zig");
     _ = session;
     _ = @import("app/session_test.zig");
+    _ = @import("app/session_open_test.zig");
     _ = @import("app/session_save_test.zig");
     _ = @import("app/session_load_test.zig");
     _ = @import("app/saving_test.zig");

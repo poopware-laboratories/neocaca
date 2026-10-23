@@ -157,7 +157,7 @@ test "editor: a failed save is reported and keeps the changes marked" {
     ed.finishSave(r.save, error.AccessDenied);
     try expect(!ed.quit);
     try expect(ed.doc.isModified());
-    try expectMessage(&ed, "cannot write \"f\": AccessDenied", true);
+    try expectMessage(&ed, "cannot write \"f\": permission denied", true);
 }
 
 test "editor: :wq quits once the save succeeds" {
@@ -239,7 +239,7 @@ test "editor: a failed load keeps the buffer" {
     ed.finishLoad(r.load, error.FileTooBig);
     try expectText(&ed, "old\n");
     try expectEqualStrings("a", ed.path.?);
-    try expectMessage(&ed, "cannot open \"big\": FileTooBig", true);
+    try expectMessage(&ed, "cannot open \"big\": the file is too big", true);
 }
 
 test "editor: :e is refused over unsaved changes, :e! reloads" {
@@ -311,8 +311,7 @@ test "editor: a bad regex is reported and changes nothing" {
     var ed: Editor = try .init(gpa, null, "abc\n");
     defer ed.deinit();
     try typeKeys(&ed, "/a(\r");
-    try expect(ed.message.is_error);
-    try expect(std.mem.startsWith(u8, ed.message.text(), "bad regex: "));
+    try expectMessage(&ed, "bad regex: unbalanced parenthesis", true);
     try typeKeys(&ed, "n");
     try expectMessage(&ed, "no search pattern", true);
 }

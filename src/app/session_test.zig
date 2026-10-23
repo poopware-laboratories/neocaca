@@ -77,20 +77,6 @@ test "session: without a file, a scratch buffer" {
     try expectMessage(&s, "");
 }
 
-test "session: a file that cannot be read keeps its name and says why" {
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    try tmp.dir.createDir(io, "d", .default_dir);
-    var s: Session = try .init(gpa, io, tmp.dir, "d", 20, 5);
-    defer s.deinit();
-    try expectText(&s, "\n");
-    try expectEqualStrings("d", s.ed.path.?);
-    try expectMessage(&s, "cannot open \"d\": IsDir");
-    try typeKeys(&s, ":w\r");
-    try expect(std.mem.startsWith(u8, s.ed.message.text(), "cannot write \"d\": "));
-    try expect(!s.done());
-}
-
 test "session: Ctrl-z is taken once, and the next frame is drawn whole" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
@@ -186,7 +172,7 @@ test "session: a failed :wq does not quit" {
     defer s.deinit();
     try typeKeys(&s, "ix\x1b:wq\r");
     try expect(!s.done());
-    try expect(std.mem.startsWith(u8, s.ed.message.text(), "cannot write \"missing/f\": "));
+    try expectMessage(&s, "cannot write \"missing/f\": no such file or directory");
     try expect(s.ed.doc.isModified());
 }
 
@@ -341,7 +327,7 @@ test "session: a frame short of memory draws what its cells allow, then grows" {
     try expectEqual(9, s.front.height);
     try expectEqual(4, s.ed.width);
     try expectEqual(9, s.ed.height);
-    try expect(std.mem.indexOf(u8, short, "out ") != null); // cut to 4 columns
+    try expect(std.mem.indexOf(u8, short, "out…") != null); // cut to 4 columns
     _ = try frame(&s, &buf);
     try expectEqual(4, s.front.width);
     // Wider: all 30 columns, in the one row the 36 cells allow.

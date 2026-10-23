@@ -3,6 +3,7 @@
 //! is printed.
 
 const std = @import("std");
+const fs = @import("../fs.zig");
 const term = @import("../term.zig");
 const exit = @import("exit.zig");
 const loop = @import("loop.zig");
@@ -26,19 +27,24 @@ pub const fallback_size: term.Size = .{ .width = 80, .height = 24 };
 /// Edits the first of `files` (none: a scratch buffer) until the editor
 /// quits or the terminal goes away. Errors are reported on `err`.
 pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code {
+    // The file is read before the terminal is touched, so a file that
+    // cannot be opened is said plainly on the shell's own screen.
+    const path: ?[]const u8 = if (files.len > 0) files[0] else null;
+    var session = Session.init(env.gpa, env.io, env.dir, path, fallback_size.width, fallback_size.height) catch |e| {
+        switch (e) {
+            error.OutOfMemory => try err.writeAll("neocaca: out of memory\n"),
+            else => try err.print("neocaca: cannot open \"{s}\": {s}\n", .{ path.?, fs.describe(e) }),
+        }
+        return .failure;
+    };
+    defer session.deinit();
     var tty = term.Tty.open(env.in, env.out) catch |e| {
         try err.print("neocaca: {s}\n", .{describeOpen(e)});
         return .failure;
     };
     defer tty.restore();
     const size = tty.size() orelse fallback_size;
-    const path: ?[]const u8 = if (files.len > 0) files[0] else null;
-    var session = Session.init(env.gpa, env.io, env.dir, path, size.width, size.height) catch {
-        tty.restore();
-        try err.writeAll("neocaca: out of memory\n");
-        return .failure;
-    };
-    defer session.deinit();
+    session.resize(size.width, size.height);
     session.notify = tty.wakeFd();
     if (files.len > 1) session.ed.message.set(false, "editing the first of {d} files", .{files.len});
 
@@ -56,7 +62,11 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
 
 /// Says what stopped the loop, then saves what can be saved.
 fn stopped(session: *Session, e: anyerror, err: *std.Io.Writer) std.Io.Writer.Error!void {
-    try err.print("neocaca: {s}: {s}\n", .{ describeStop(e), @errorName(e) });
+    if (stopDetail(e)) |detail| {
+        try err.print("neocaca: {s}: {s}\n", .{ describeStop(e), detail });
+    } else {
+        try err.print("neocaca: {s}\n", .{describeStop(e)});
+    }
     try recover(session, err);
 }
 
@@ -68,7 +78,7 @@ fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!void {
     switch (session.recover(&buf)) {
         .none => {},
         .written => |where| try err.print("neocaca: unsaved changes written to \"{s}\"\n", .{where}),
-        .failed => |e| try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{@errorName(e)}),
+        .failed => |e| try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)}),
     }
 }
 
@@ -78,6 +88,16 @@ fn describeStop(e: anyerror) []const u8 {
         error.OutOfMemory => "out of memory",
         error.FinalNewline, error.OutOfOrder, error.OutOfBounds => "an internal error stopped the editor (please report it)",
         else => "the terminal failed",
+    };
+}
+
+/// What follows `describeStop`: the terminal's error in words, a bug's
+/// own name for its report, nothing for memory.
+fn stopDetail(e: anyerror) ?[]const u8 {
+    return switch (e) {
+        error.OutOfMemory => null,
+        error.FinalNewline, error.OutOfOrder, error.OutOfBounds => @errorName(e),
+        else => fs.describe(e),
     };
 }
 
@@ -104,6 +124,15 @@ test "edit: describing why the loop stopped" {
     try std.testing.expectEqualStrings("an internal error stopped the editor (please report it)", describeStop(error.FinalNewline));
     try std.testing.expectEqualStrings("an internal error stopped the editor (please report it)", describeStop(error.OutOfOrder));
     try std.testing.expectEqualStrings("an internal error stopped the editor (please report it)", describeStop(error.OutOfBounds));
+}
+
+test "edit: what follows why the loop stopped" {
+    try std.testing.expectEqualStrings("an input/output error", stopDetail(error.InputOutput).?);
+    try std.testing.expectEqualStrings("the pipe is broken", stopDetail(error.BrokenPipe).?);
+    try std.testing.expectEqual(null, stopDetail(error.OutOfMemory));
+    // A bug keeps its name, which the report needs.
+    try std.testing.expectEqualStrings("FinalNewline", stopDetail(error.FinalNewline).?);
+    try std.testing.expectEqualStrings("OutOfBounds", stopDetail(error.OutOfBounds).?);
 }
 
 test "edit: a bug that stops the loop is reported, and the changes kept" {
@@ -134,7 +163,7 @@ test "edit: a terminal that fails after :q has nothing to recover" {
     var err_buf: [256]u8 = undefined;
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.InputOutput, &err);
-    try std.testing.expectEqualStrings("neocaca: the terminal failed: InputOutput\n", err.buffered());
+    try std.testing.expectEqualStrings("neocaca: the terminal failed: an input/output error\n", err.buffered());
 }
 
 test "edit: changes that cannot be recovered are said to be lost" {
@@ -148,8 +177,8 @@ test "edit: changes that cannot be recovered are said to be lost" {
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.OutOfMemory, &err);
     try std.testing.expectEqualStrings(
-        \\neocaca: out of memory: OutOfMemory
-        \\neocaca: the unsaved changes could not be written: FileNotFound
+        \\neocaca: out of memory
+        \\neocaca: the unsaved changes could not be written: no such file or directory
         \\
     , err.buffered());
 }
@@ -163,5 +192,43 @@ test "edit: standard input that is not a terminal is a failure, said plainly" {
     var err: std.Io.Writer = .fixed(&err_buf);
     const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = std.Io.Dir.cwd(), .in = p[0], .out = p[1] };
     try std.testing.expectEqual(.failure, try edit(env, &.{"x"}, &err));
+    try std.testing.expectEqualStrings("neocaca: standard input is not a terminal\n", err.buffered());
+}
+
+test "edit: a file that cannot be read is refused before the terminal is touched" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDir(std.testing.io, "d", .default_dir);
+    var p: [2]std.posix.fd_t = undefined;
+    try std.testing.expectEqual(0, std.c.pipe(&p));
+    defer _ = std.c.close(p[0]);
+    defer _ = std.c.close(p[1]);
+    var err_buf: [256]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = tmp.dir, .in = p[0], .out = p[1] };
+    try std.testing.expectEqual(.failure, try edit(env, &.{"d"}, &err));
+    try std.testing.expectEqualStrings("neocaca: cannot open \"d\": is a directory\n", err.buffered());
+}
+
+test "edit: a name too long to open is refused with its reason whole" {
+    const long: []const u8 = &@as([300]u8, @splat('n'));
+    var err_buf: [512]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = std.Io.Dir.cwd(), .in = -1, .out = -1 };
+    try std.testing.expectEqual(.failure, try edit(env, &.{long}, &err));
+    try std.testing.expectEqualStrings("neocaca: cannot open \"" ++ long ++ "\": the name is too long\n", err.buffered());
+}
+
+test "edit: a file in a missing directory is not refused, it goes on to the terminal" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var p: [2]std.posix.fd_t = undefined;
+    try std.testing.expectEqual(0, std.c.pipe(&p));
+    defer _ = std.c.close(p[0]);
+    defer _ = std.c.close(p[1]);
+    var err_buf: [256]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = tmp.dir, .in = p[0], .out = p[1] };
+    try std.testing.expectEqual(.failure, try edit(env, &.{"gone/f"}, &err));
     try std.testing.expectEqualStrings("neocaca: standard input is not a terminal\n", err.buffered());
 }

@@ -90,3 +90,9 @@ test "recovery: a directory it cannot write in is an error" {
     var buf: [recovery.max_name]u8 = undefined;
     try std.testing.expectError(error.FileNotFound, recovery.write(io, tmp.dir, "gone/f", "x\n", &buf));
 }
+
+test "recovery: why it failed reads as words" {
+    try std.testing.expectEqualStrings("every recovery file name is taken", recovery.describe(error.NoFreeName));
+    try std.testing.expectEqualStrings("the name is too long", recovery.describe(error.NameTooLong));
+    try std.testing.expectEqualStrings("no space left on the device", recovery.describe(error.NoSpaceLeft));
+}
