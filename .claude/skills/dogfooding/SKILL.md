@@ -47,8 +47,19 @@ The traps, each of which looks like an editor bug the first time:
   may export `GIT_EDITOR=true`, which makes `git commit` abort at once
   without starting neocaca.
 - **Root ignores file permissions.** As root, `read-only.txt` and
-  `unreadable.txt` behave like plain files; say so in the report rather
-  than reporting it as a pass.
+  `unreadable.txt` behave like plain files. Make a user and run the
+  corpus script, the editor and tmux as that user, or say in the report
+  that these were not checked:
+
+  ```sh
+  useradd -m dog && cp zig-out/bin/neocaca /home/dog/
+  runuser -u dog -- scripts/dogfood-corpus.sh /home/dog/dogfood
+  runuser -u dog -- tmux new-session -d -s nc -x 80 -y 24 "cd ~/dogfood && exec sh"
+  ```
+
+- **A full disk is a small tmpfs** (as root): `mount -t tmpfs -o
+  size=64k,mode=0777 tmpfs /home/dog/full`, a file to edit in it, then
+  fill the rest with `dd if=/dev/zero of=/home/dog/full/filler`.
 
 Memory: `ps -o rss= -C neocaca` while the scenario holds the state.
 
