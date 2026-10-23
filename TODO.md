@@ -217,10 +217,12 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         write it anyway. Done: a file nobody may write (no write bit) is
         refused, as root too, with "the file is read-only; :w! writes it
         anyway"; `:w!` replaces it and keeps its mode.
-  - [ ] S: `Ctrl-z` suspends only from normal mode. In insert mode or a
+  - [x] S: `Ctrl-z` suspends only from normal mode. In insert mode or a
         prompt it does nothing, so the next keys go to the buffer or the
         prompt: `:w half-typed`, `Ctrl-z`, then `fg` Enter wrote a file
         named `half-typedfg`. Suspend from every mode and come back to it.
+        Done: `keymap.isSuspend` is Ctrl-z in insert mode and the prompt
+        too; the mode, the prompt line and the insert session are kept.
   - [ ] S: on a narrow window, a message with a path loses its reason when
         its start and its reason do not fit beside even a shortened path:
         at 30 columns, `:w` to a missing directory shows `cannot write

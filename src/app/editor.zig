@@ -280,7 +280,7 @@ pub const Editor = struct {
         switch (self.mode) {
             .normal => if (self.keymap.normal(k)) |a| try self.apply(a),
             .insert => if (input.keymap.insertKey(k)) |a| try self.apply(a),
-            .prompt => switch (try self.prompt.key(k)) {
+            .prompt => if (input.keymap.isSuspend(k)) try self.apply(.@"suspend") else switch (try self.prompt.key(k)) {
                 .edited, .ignored => {},
                 .cancel => self.mode = .normal,
                 .submit => {

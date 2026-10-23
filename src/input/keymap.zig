@@ -333,9 +333,15 @@ fn typedChar(k: Key) ?u21 {
     };
 }
 
+/// Whether `k` is Ctrl-z, which suspends from every mode.
+pub fn isSuspend(k: Key) bool {
+    return k.mods.ctrl and !k.mods.alt and k.code == .char and k.code.char == 'z';
+}
+
 /// The action of `k` in insert mode, or null for keys that do nothing
 /// there.
 pub fn insertKey(k: Key) ?Action {
+    if (isSuspend(k)) return .@"suspend";
     const one = struct {
         fn move(m: Motion) Action {
             return .{ .move = .{ .motion = m } };

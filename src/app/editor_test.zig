@@ -136,11 +136,24 @@ test "editor: Ctrl-z asks the shell to suspend, once, and changes nothing else" 
     try expectMain(&ed, 1, 1);
     try expectText(&ed, "abc\n");
     try expectEqual(null, ed.takeRequest());
-    // In insert mode it is not a key.
-    try typeKeys(&ed, "i");
+}
+
+test "editor: Ctrl-z suspends from insert mode and a prompt, which it comes back to" {
+    var ed: Editor = try .init(gpa, null, "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, "ix");
     try ed.key(.ctrl('z'));
-    try expect(!ed.takeSuspend());
+    try expect(ed.takeSuspend());
+    try typeKeys(&ed, "y");
     try expectEqual(.insert, ed.mode);
+    try typeKeys(&ed, "\x1b:w half");
+    try ed.key(.ctrl('z'));
+    try expect(ed.takeSuspend());
+    try expectEqual(.prompt, ed.mode);
+    try expectEqualStrings("w half", ed.prompt.text());
+    try typeKeys(&ed, "\x1bu");
+    // The typing before and after it is one change.
+    try expectText(&ed, "abc\n");
 }
 
 test "editor: undo with nothing to undo says so" {

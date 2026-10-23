@@ -103,7 +103,7 @@ none of them has one, the message line says "no object here".
 | `I` / `A` | insert at the line start (first non-blank) / line end |
 | `o` / `O` | open a new line below / above and insert |
 | `:` | command prompt |
-| `Ctrl-z` | suspend: give the terminal back to the shell until `fg` |
+| `Ctrl-z` | suspend: give the terminal back to the shell until `fg` (in every mode, which `fg` comes back to) |
 
 ## Insert mode
 
@@ -116,6 +116,7 @@ none of them has one, the message line says "no object here".
 | arrows, Home, End | move every cursor |
 | Esc | back to normal mode (the insert session is one undo step) |
 | bracketed paste | inserted literally at every cursor |
+| `Ctrl-z` | suspend, as in normal mode |
 
 ## Prompt
 
@@ -124,6 +125,8 @@ none of them has one, the message line says "no object here".
 | text, Backspace, Left, Right, Home, End | edit the prompt line |
 | Enter | run it |
 | Esc | cancel |
+| `Ctrl-u` | clear the prompt line |
+| `Ctrl-z` | suspend, keeping the prompt as typed |
 
 ### Commands
 
