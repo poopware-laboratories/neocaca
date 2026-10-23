@@ -33,13 +33,16 @@ zig build -Doptimize=safe                   # ReleaseSafe: the shipping build
 zig build test -Doptimize=safe --summary all  # the tests as shipped
 zig build bench                             # SIMD kernels against scalar (ReleaseFast)
 zig build bench -Dbench-optimize=safe       # the same, as shipped
+zig build compare -Dflow=path/to/flow       # neocaca against flow on a pseudo-terminal
+zig build compare-build                     # compile its driver only, as CI does per target
 zig build -Dtarget=aarch64-macos            # cross-compile; also x86_64-macos, x86_64-freebsd
 zig build run -- path/to/file               # run the editor
 ```
 
 Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 `ReleaseSafe`-style names are deprecated), `-Dtest-filter=…`,
-`-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`.
+`-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`,
+`-Dflow=…` (the flow binary `zig build compare` runs).
 
 - **Toolchain:** Zig 0.17.0, pinned by `minimum_zig_version` in
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
@@ -66,7 +69,8 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
   `fmt-check`; the tests in Debug and ReleaseSafe on Ubuntu, macOS (Apple
   Silicon), Alpine (musl, whose binary must be static) and
   `aarch64-linux-musl` under qemu, with ReleaseSafe again at
-  `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target;
+  `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target, with
+  `zig build compare-build` (the comparison driver, compiled but not run);
   and a benchmark smoke run. Test runs pass `--test-timeout 3m`, each test
   step stops at 15 minutes and each test job at 45. All must pass; run
   them before pushing (`-Dtarget=x86_64-linux-musl` for musl,
@@ -266,7 +270,8 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
 | `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
 | `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`, `plain.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
-| `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. |
+| `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. `zig build compare`: `compare.zig` runs the measurements and prints the table, `pty.zig` runs one editor on a pseudo-terminal. |
+| `src/compare/` | The pure part of `zig build compare`: `replies.zig`, the answers a terminal gives to an editor's queries; `wait.zig`, when the frame answering a key or a launch has come; `files.zig`, the files both editors open; `report.zig`, the table of results. |
 | `src/unicode/` | `utf8.zig`: decoding that never fails; `width.zig`: display width from UAX #11; `chars.zig`: characters with their combining marks; `class.zig`: word and space classes; `display.zig`: how a character is drawn (`^[` for controls). |
 | `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass. No I/O, no terminal. |
 | `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig` (forwards, and reversed for backward search), run by the Pike VM in `vm.zig` within a step budget, skipping to the pattern's first byte; `regex.zig`: the public `Regex`. |
