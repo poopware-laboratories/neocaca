@@ -40,6 +40,7 @@ test {
     _ = @import("app/layout_test.zig");
     _ = session;
     _ = @import("app/session_test.zig");
+    _ = @import("app/session_open_test.zig");
     _ = @import("app/session_save_test.zig");
     _ = @import("app/session_load_test.zig");
     _ = @import("app/saving_test.zig");

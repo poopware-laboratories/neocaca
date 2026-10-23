@@ -3,7 +3,6 @@
 //! words, never as an error's name.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const Harness = @import("harness.zig").Harness;
 
 const io = std.testing.io;
@@ -21,20 +20,24 @@ fn expectAbout(h: *const Harness, verb: []const u8) !void {
     try expect(std.mem.startsWith(u8, text[verb.len..], " \"" ++ long[0..100]));
 }
 
-test "messages: opening a path through a file says a part is not a directory" {
+test "messages: opening a path through a file opens it new, and says its directory is missing" {
     var h: Harness = undefined;
     try h.init("f", "keep\n", 60, 4);
     defer h.deinit();
     try h.typeKeys(":e f/x\r");
-    if (builtin.target.os.tag.isDarwin()) {
-        // macOS finds no such file, so it opens as a new one and fails at
-        // `:w`; saying so when it opens is a piece in `TODO.md`.
-        try h.expectMessage("\"f/x\" new file");
-        return;
-    }
-    try h.expectMessage("cannot open \"f/x\": a part of the path is not a directory");
-    try h.expectText("keep\n");
+    try h.expectMessage("\"f/x\" new file; its directory does not exist");
     try expect(h.session.ed.message.is_error);
+    try h.expectText("\n");
+    var buf: [16]u8 = undefined;
+    try std.testing.expectEqualStrings("keep\n", try h.file("f", &buf));
+}
+
+test "messages: opening a file in a missing directory says so" {
+    var h: Harness = undefined;
+    try h.init(null, null, 60, 4);
+    defer h.deinit();
+    try h.typeKeys(":e gone/f\r");
+    try h.expectRow(3, "\"gone/f\" new file; its directory does not exist             ");
 }
 
 test "messages: opening a name that is too long fails without a crash" {

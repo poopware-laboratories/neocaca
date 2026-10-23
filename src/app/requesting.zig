@@ -64,7 +64,8 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{Out
 }
 
 /// Reports how the load of `path` went: the file's contents (owned by
-/// the editor from here), null for a missing file, or the error.
+/// the editor from here), null for a missing file, or the error. A file
+/// whose directory is missing opens new, with a warning.
 pub fn finishLoad(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) void {
     loaded(ed, path, result) catch ed.outOfMemory();
 }
@@ -72,9 +73,12 @@ pub fn finishLoad(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8
 /// As `finishLoad`, but out of memory is returned, with the editor
 /// unchanged.
 pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) error{OutOfMemory}!void {
-    const contents = result catch |e| {
-        ed.message.set(true, "cannot open \"{s}\": {s}", .{ path, fs.describe(e) });
-        return;
+    const contents = result catch |e| switch (e) {
+        error.NoDirectory => null,
+        else => {
+            ed.message.set(true, "cannot open \"{s}\": {s}", .{ path, fs.describe(e) });
+            return;
+        },
     };
     defer if (contents) |t| ed.gpa.free(t);
     var doc: Document = try .init(ed.gpa, contents orelse "");
@@ -85,7 +89,9 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) er
     if (ed.path) |p| ed.gpa.free(p);
     ed.path = owned;
     ed.view = .{};
-    if (contents == null) {
+    if (std.meta.isError(result)) {
+        ed.message.set(true, "\"{s}\" new file; its directory does not exist", .{path});
+    } else if (contents == null) {
         ed.message.set(false, "\"{s}\" new file", .{path});
     } else {
         const lines = ed.doc.buffer.lineCount();

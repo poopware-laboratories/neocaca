@@ -231,3 +231,22 @@ test "file: a long name is refused in any part of the path" {
     try expectError(error.NameTooLong, file.save(io, tmp.dir, over ++ "/f", "x\n"));
     try expectError(error.NameTooLong, file.create(io, tmp.dir, "./" ++ over, "x\n"));
 }
+
+test "file: a file whose directory is missing is told apart from a new file" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDir(io, "d", .default_dir);
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "x" });
+    try std.testing.expectEqual(null, try file.load(io, gpa, tmp.dir, "d/new", file.max_file));
+    try expectError(error.NoDirectory, file.load(io, gpa, tmp.dir, "gone/new", file.max_file));
+    try expectError(error.NoDirectory, file.load(io, gpa, tmp.dir, "d/gone/new", file.max_file));
+    // A path through a file: Linux and macOS report it differently.
+    try expectError(error.NoDirectory, file.load(io, gpa, tmp.dir, "f/new", file.max_file));
+}
+
+test "file: an absolute path in a missing directory is told apart too" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try expectError(error.NoDirectory, file.load(io, gpa, std.Io.Dir.cwd(), "/neocaca-no-such-directory/f", file.max_file));
+    try std.testing.expectEqual(null, try file.load(io, gpa, tmp.dir, "./new", file.max_file));
+}

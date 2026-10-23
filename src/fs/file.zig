@@ -16,16 +16,20 @@ pub const max_file = 256 << 20;
 /// (`NAME_MAX`), in bytes.
 pub const max_name = 255;
 
-pub const LoadError = Dir.ReadFileAllocError || Dir.StatFileError || error{ FileTooBig, NotAFile };
+pub const LoadError = Dir.ReadFileAllocError || Dir.StatFileError || error{ FileTooBig, NotAFile, NoDirectory };
 
-/// The contents of `path`, or null when it does not exist (a new file).
+/// The contents of `path`, or null when it does not exist (a new file);
+/// `error.NoDirectory` when the directory it would be saved in does not
+/// exist either.
 /// Files over `limit` bytes fail with `error.FileTooBig`; pipes, devices
 /// and sockets, whose reads may wait or never end, with `error.NotAFile`.
 /// Caller owns the returned slice.
 pub fn load(io: Io, gpa: std.mem.Allocator, dir: Dir, path: []const u8, limit: usize) LoadError!?[]u8 {
     try checkNames(path);
     const st = dir.statFile(io, path, .{}) catch |e| switch (e) {
-        error.FileNotFound => return null,
+        // A path through a file is not found on macOS, and not a
+        // directory on Linux.
+        error.FileNotFound, error.NotDir => return if (try inDirectory(io, dir, path)) null else error.NoDirectory,
         else => return e,
     };
     if (st.kind != .file and st.kind != .directory) return error.NotAFile;
@@ -34,6 +38,16 @@ pub fn load(io: Io, gpa: std.mem.Allocator, dir: Dir, path: []const u8, limit: u
         error.StreamTooLong => error.FileTooBig,
         else => e,
     };
+}
+
+/// Whether the directory `path` names its file in exists.
+fn inDirectory(io: Io, dir: Dir, path: []const u8) Dir.StatFileError!bool {
+    const parent = std.fs.path.dirname(path) orelse return true;
+    const st = dir.statFile(io, parent, .{}) catch |e| switch (e) {
+        error.FileNotFound, error.NotDir => return false,
+        else => return e,
+    };
+    return st.kind == .directory;
 }
 
 pub const SaveError = link.Error || Dir.CreateFileAtomicError || Dir.StatFileError || File.SetPermissionsError ||

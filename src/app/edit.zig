@@ -27,19 +27,24 @@ pub const fallback_size: term.Size = .{ .width = 80, .height = 24 };
 /// Edits the first of `files` (none: a scratch buffer) until the editor
 /// quits or the terminal goes away. Errors are reported on `err`.
 pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code {
+    // The file is read before the terminal is touched, so a file that
+    // cannot be opened is said plainly on the shell's own screen.
+    const path: ?[]const u8 = if (files.len > 0) files[0] else null;
+    var session = Session.init(env.gpa, env.io, env.dir, path, fallback_size.width, fallback_size.height) catch |e| {
+        switch (e) {
+            error.OutOfMemory => try err.writeAll("neocaca: out of memory\n"),
+            else => try err.print("neocaca: cannot open \"{s}\": {s}\n", .{ path.?, fs.describe(e) }),
+        }
+        return .failure;
+    };
+    defer session.deinit();
     var tty = term.Tty.open(env.in, env.out) catch |e| {
         try err.print("neocaca: {s}\n", .{describeOpen(e)});
         return .failure;
     };
     defer tty.restore();
     const size = tty.size() orelse fallback_size;
-    const path: ?[]const u8 = if (files.len > 0) files[0] else null;
-    var session = Session.init(env.gpa, env.io, env.dir, path, size.width, size.height) catch {
-        tty.restore();
-        try err.writeAll("neocaca: out of memory\n");
-        return .failure;
-    };
-    defer session.deinit();
+    session.resize(size.width, size.height);
     session.notify = tty.wakeFd();
     if (files.len > 1) session.ed.message.set(false, "editing the first of {d} files", .{files.len});
 
@@ -187,5 +192,43 @@ test "edit: standard input that is not a terminal is a failure, said plainly" {
     var err: std.Io.Writer = .fixed(&err_buf);
     const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = std.Io.Dir.cwd(), .in = p[0], .out = p[1] };
     try std.testing.expectEqual(.failure, try edit(env, &.{"x"}, &err));
+    try std.testing.expectEqualStrings("neocaca: standard input is not a terminal\n", err.buffered());
+}
+
+test "edit: a file that cannot be read is refused before the terminal is touched" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDir(std.testing.io, "d", .default_dir);
+    var p: [2]std.posix.fd_t = undefined;
+    try std.testing.expectEqual(0, std.c.pipe(&p));
+    defer _ = std.c.close(p[0]);
+    defer _ = std.c.close(p[1]);
+    var err_buf: [256]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = tmp.dir, .in = p[0], .out = p[1] };
+    try std.testing.expectEqual(.failure, try edit(env, &.{"d"}, &err));
+    try std.testing.expectEqualStrings("neocaca: cannot open \"d\": is a directory\n", err.buffered());
+}
+
+test "edit: a name too long to open is refused with its reason whole" {
+    const long: []const u8 = &@as([300]u8, @splat('n'));
+    var err_buf: [512]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = std.Io.Dir.cwd(), .in = -1, .out = -1 };
+    try std.testing.expectEqual(.failure, try edit(env, &.{long}, &err));
+    try std.testing.expectEqualStrings("neocaca: cannot open \"" ++ long ++ "\": the name is too long\n", err.buffered());
+}
+
+test "edit: a file in a missing directory is not refused, it goes on to the terminal" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var p: [2]std.posix.fd_t = undefined;
+    try std.testing.expectEqual(0, std.c.pipe(&p));
+    defer _ = std.c.close(p[0]);
+    defer _ = std.c.close(p[1]);
+    var err_buf: [256]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = tmp.dir, .in = p[0], .out = p[1] };
+    try std.testing.expectEqual(.failure, try edit(env, &.{"gone/f"}, &err));
     try std.testing.expectEqualStrings("neocaca: standard input is not a terminal\n", err.buffered());
 }

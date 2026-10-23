@@ -77,20 +77,6 @@ test "session: without a file, a scratch buffer" {
     try expectMessage(&s, "");
 }
 
-test "session: a file that cannot be read keeps its name and says why" {
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    try tmp.dir.createDir(io, "d", .default_dir);
-    var s: Session = try .init(gpa, io, tmp.dir, "d", 20, 5);
-    defer s.deinit();
-    try expectText(&s, "\n");
-    try expectEqualStrings("d", s.ed.path.?);
-    try expectMessage(&s, "cannot open \"d\": is a directory");
-    try typeKeys(&s, ":w\r");
-    try expectMessage(&s, "cannot write \"d\": is a directory");
-    try expect(!s.done());
-}
-
 test "session: Ctrl-z is taken once, and the next frame is drawn whole" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();

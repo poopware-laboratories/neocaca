@@ -48,7 +48,9 @@ pub const Session = struct {
     pub const default_max_held = input.decoder.default_max_paste + (64 << 10);
 
     /// A session on `path` (null for a scratch buffer), loaded from `dir`,
-    /// for a terminal of `width` by `height` cells.
+    /// for a terminal of `width` by `height` cells. Fails when `path`
+    /// cannot be read, rather than open an empty buffer that `:w` would
+    /// save over it; a missing file, or a missing directory, opens new.
     pub fn init(
         gpa: std.mem.Allocator,
         io: std.Io,
@@ -56,15 +58,15 @@ pub const Session = struct {
         path: ?[]const u8,
         width: usize,
         height: usize,
-    ) error{OutOfMemory}!Session {
+    ) fs.file.LoadError!Session {
         var ed: Editor = try .init(gpa, path, "");
         errdefer ed.deinit();
         const size = rendering.screen.fit(width, height);
         ed.resize(size.width, size.height);
         if (path) |p| {
             const result = fs.load(io, gpa, dir, p, fs.max_file) catch |e| switch (e) {
-                error.OutOfMemory => return error.OutOfMemory,
-                else => |other| other,
+                error.NoDirectory => |other| other,
+                else => |other| return other,
             };
             try ed.loaded(p, result);
         }

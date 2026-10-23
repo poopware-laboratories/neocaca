@@ -163,11 +163,17 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         words (`fs.describe`, `regex.describe`). Testing it found a
         crash: a path part over 255 bytes made the standard library
         panic in Debug builds; `fs/file.zig` now refuses it first.
-  - [ ] S: `neocaca <directory>` opens an empty buffer named after the
+  - [x] S: `neocaca <directory>` opens an empty buffer named after the
         directory; refuse it at startup with an exit code instead. A file
         in a directory that does not exist says "new file" and fails only
         at `:w`; say so when it opens. So does a path through a file
-        (`:e f/x`) on macOS, where Linux says it is not a directory.
+        (`:e f/x`) on macOS, where Linux says it is not a directory. Any
+        file that cannot be read (a directory, one over the size limit,
+        an unreadable one) now stops `neocaca` before the terminal is
+        touched, with exit code 1, since `:w` on the empty buffer would
+        have replaced it; a missing directory, or a path through a file,
+        opens new and says "its directory does not exist" on every
+        system.
   - [ ] S: a message wider than the window is cut mid-word with no mark
         (`unsaved changes; :q! dis` at 24 columns); end it with `…`.
         A message over its 256 bytes loses its end too, so a long path
