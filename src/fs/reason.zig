@@ -20,6 +20,7 @@ pub fn describe(e: anyerror) []const u8 {
         error.OutOfMemory => "out of memory",
         error.PathAlreadyExists => "the file already exists",
         error.ProcessFdQuotaExceeded, error.SystemFdQuotaExceeded => "too many open files",
+        error.ReadOnly => "the file is read-only",
         error.ReadOnlyFileSystem => "the file system is read-only",
         error.SymLinkLoop => "too many symbolic links",
         error.SystemResources => "the system is out of resources",

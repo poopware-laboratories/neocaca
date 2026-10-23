@@ -25,7 +25,7 @@ pub fn ask(ed: *Editor, r: Request) error{OutOfMemory}!void {
     try ed.request_path.appendSlice(ed.gpa, path);
     const own = ed.request_path.items;
     ed.request = switch (r) {
-        .save => |s| .{ .save = .{ .path = own, .quit = s.quit, .lines = ed.doc.buffer.lineCount() } },
+        .save => |s| .{ .save = .{ .path = own, .quit = s.quit, .force = s.force, .lines = ed.doc.buffer.lineCount() } },
         .load => .{ .load = own },
     };
     if (r == .save) {
@@ -51,7 +51,8 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{Out
     ed.quitting = false;
     result catch |e| {
         ed.doc.endSave(false);
-        ed.message.set(true, "cannot write \"{f}\": {s}", .{ editor.Message.path(s.path), fs.describe(e) });
+        const hint = if (e == error.ReadOnly) "; :w! writes it anyway" else "";
+        ed.message.set(true, "cannot write \"{f}\": {s}{s}", .{ editor.Message.path(s.path), fs.describe(e), hint });
         return;
     };
     if (ed.path == null) ed.path = ed.gpa.dupe(u8, s.path) catch |e| {

@@ -12,6 +12,7 @@ test "reason: the errors people meet read as words" {
     try expectEqualStrings("permission denied", reason.describe(error.PermissionDenied));
     try expectEqualStrings("no space left on the device", reason.describe(error.NoSpaceLeft));
     try expectEqualStrings("the file system is read-only", reason.describe(error.ReadOnlyFileSystem));
+    try expectEqualStrings("the file is read-only", reason.describe(error.ReadOnly));
     try expectEqualStrings("the file is too big", reason.describe(error.FileTooBig));
     try expectEqualStrings("not a regular file", reason.describe(error.NotAFile));
     try expectEqualStrings("a part of the path is not a directory", reason.describe(error.NotDir));

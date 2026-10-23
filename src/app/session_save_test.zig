@@ -278,3 +278,25 @@ test "session: keys typed after a mapping that saves run after the keys it held"
     try expectEqualStrings("a\n", try readFile(tmp.dir, "f", &buf));
     try expect(s.ed.doc.isModified());
 }
+
+test "session: :w refuses a read-only file, and :w! writes it" {
+    if (!std.Io.File.Permissions.has_executable_bit) return error.SkipZigTest;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "r", .data = "a\n" });
+    try tmp.dir.setFilePermissions(io, "r", .fromMode(0o444), .{});
+    var s: Session = try .init(gpa, io, tmp.dir, "r", 60, 5);
+    defer s.deinit();
+    try feedKeys(&s, "ix\x1b:w\r");
+    s.settle();
+    try expectEqualStrings("cannot write \"r\": the file is read-only; :w! writes it anyway", s.ed.message.text());
+    try expect(s.ed.message.is_error);
+    try expect(s.ed.doc.isModified());
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("a\n", try readFile(tmp.dir, "r", &buf));
+    try feedKeys(&s, ":w!\r");
+    s.settle();
+    try expectEqualStrings("\"r\" written, 1 line", s.ed.message.text());
+    try expect(!s.ed.doc.isModified());
+    try expectEqualStrings("xa\n", try readFile(tmp.dir, "r", &buf));
+}

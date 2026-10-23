@@ -70,7 +70,8 @@ already lists is noted once with its item, not reported again.
    draw over its neighbor.
 8. **Paths that are not plain files.** Open `a-directory`,
    `link-to-unicode.txt` (saving keeps the link), `dangling-link.txt`,
-   `read-only.txt` (saving must fail and say why), `unreadable.txt`, and a
+   `read-only.txt` (`:w` must refuse and say why, `:w!` must write it
+   and leave it read-only), `unreadable.txt`, and a
    file in a directory that does not exist.
 9. **The terminal misbehaves.** Resize down to one cell and back; paste a
    large block; close the terminal window with unsaved changes (the

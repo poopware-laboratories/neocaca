@@ -210,11 +210,13 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         file is too large, as a full disk already does. Done: `term.Tty`
         ignores `SIGXFSZ` while it is open, and the save fails with
         "the file is too big".
-  - [ ] S: `:w` replaces a read-only file. `read-only.txt` (mode 0444,
+  - [x] S: `:w` replaces a read-only file. `read-only.txt` (mode 0444,
         owned by the user, in a writable directory) is saved without a
         word, since the save renames a new file over it, and keeps its
         mode 0444. Refuse it ("the file is read-only") and let `:w!`
-        write it anyway.
+        write it anyway. Done: a file nobody may write (no write bit) is
+        refused, as root too, with "the file is read-only; :w! writes it
+        anyway"; `:w!` replaces it and keeps its mode.
   - [ ] S: `Ctrl-z` suspends only from normal mode. In insert mode or a
         prompt it does nothing, so the next keys go to the buffer or the
         prompt: `:w half-typed`, `Ctrl-z`, then `fg` Enter wrote a file

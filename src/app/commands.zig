@@ -10,13 +10,15 @@ const keyname = input.keyname;
 pub const Command = union(enum) {
     /// An empty line.
     none,
-    /// `:w [file]`, `:wq [file]`, `:x`.
+    /// `:w [file]`, `:w! [file]`, `:wq [file]`, `:x`.
     write: struct {
         /// Borrowed from the parsed line.
         path: ?[]const u8 = null,
         quit: bool = false,
         /// `:x` writes only when there are unsaved changes.
         only_if_modified: bool = false,
+        /// `:w!` writes a read-only file too.
+        force: bool = false,
     },
     /// `:q`, `:q!`.
     quit: struct { force: bool = false },
@@ -94,10 +96,11 @@ pub fn parse(line: []const u8) ParseError!Command {
         if (arg != null) return error.TooManyArguments;
         return .{ .goto_line = std.fmt.parseInt(usize, name, 10) catch return error.BadLine };
     }
-    const Name = enum { w, write, wq, x, q, quit, @"q!", e, edit, @"e!" };
+    const Name = enum { w, write, @"w!", wq, x, q, quit, @"q!", e, edit, @"e!" };
     const which = std.meta.stringToEnum(Name, name) orelse return error.UnknownCommand;
     switch (which) {
         .w, .write => return .{ .write = .{ .path = arg } },
+        .@"w!" => return .{ .write = .{ .path = arg, .force = true } },
         .wq => return .{ .write = .{ .path = arg, .quit = true } },
         .x, .q, .quit, .@"q!" => if (arg != null) return error.TooManyArguments,
         .e, .edit => return .{ .edit = .{ .path = arg orelse return error.MissingFile } },

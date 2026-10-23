@@ -129,7 +129,8 @@ none of them has one, the message line says "no object here".
 
 | Command | Action |
 |---------|--------|
-| `:w [file]`, `:write` | write the buffer (atomically), optionally to `file` |
+| `:w [file]`, `:write` | write the buffer (atomically), optionally to `file`; refused for a read-only file |
+| `:w! [file]` | write, a read-only file too (it stays read-only) |
 | `:q`, `:quit` | quit; refused while there are unsaved changes |
 | `:q!` | quit, discarding changes |
 | `:wq [file]` | write, optionally to `file`, then quit |

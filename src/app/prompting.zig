@@ -120,7 +120,7 @@ fn command(ed: *Editor, line: []const u8) Error!void {
                 return;
             }
             const path = w.path orelse ed.path orelse return noFileName(ed);
-            try ed.ask(.{ .save = .{ .path = path, .quit = w.quit } });
+            try ed.ask(.{ .save = .{ .path = path, .quit = w.quit, .force = w.force } });
         },
         .edit => |e| {
             if (!e.force and ed.doc.isSaving()) return stillWriting(ed);

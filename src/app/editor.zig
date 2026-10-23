@@ -49,6 +49,8 @@ pub const Request = union(enum) {
     pub const Save = struct {
         path: []const u8,
         quit: bool,
+        /// Write a read-only file too.
+        force: bool = false,
         /// The lines of the text to write, set by `ask`.
         lines: usize = 0,
     };

@@ -50,7 +50,7 @@ pub const Saving = struct {
     }
 
     fn run(self: *Saving) void {
-        self.result = fs.save(self.io, self.dir, self.save.path, self.text);
+        self.result = fs.save(self.io, self.dir, self.save.path, self.text, .{ .force = self.save.force });
         self.finished.store(true, .release);
         if (self.notify) |fd| {
             // A full pipe already holds a wakeup; the loop collects every
