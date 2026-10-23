@@ -316,7 +316,9 @@ pub const Editor = struct {
             },
             .rotate_main => |d| selecting.rotateMain(doc, d),
             .copy_to_line => |c| _ = try selecting.copyToLine(doc, c.down, c.count, tw),
-            .select_object => |o| _ = try selecting.selectObject(doc, o.kind, o.inner),
+            .select_object => |o| if (!try selecting.selectObject(doc, o.kind, o.inner)) {
+                self.message.set(true, "no object here", .{});
+            },
             .split_lines => try selecting.splitLines(doc),
             .trim_lines => if (!try selecting.trimLines(doc)) {
                 self.message.set(true, "no selection holds a whole line", .{});

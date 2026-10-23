@@ -238,6 +238,39 @@ test "editor: objects" {
     try expectMain(&ed, 1, 6);
 }
 
+test "editor: an object found nowhere says so and keeps the selections" {
+    var ed: Editor = try .init(gpa, null, "say hi\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "w");
+    try ed.key(.alt('i'));
+    try typeKeys(&ed, "\"");
+    try expectMessage(&ed, "no object here", true);
+    try expectMain(&ed, 0, 3);
+    try ed.key(.alt('a'));
+    try typeKeys(&ed, "(");
+    try expectMessage(&ed, "no object here", true);
+    try expectMain(&ed, 0, 3);
+    // The next key clears it.
+    try typeKeys(&ed, "l");
+    try expectMessage(&ed, "", false);
+}
+
+test "editor: an object found around any selection says nothing" {
+    var ed: Editor = try .init(gpa, null, "a \"b\" c\n");
+    defer ed.deinit();
+    try typeKeys(&ed, "%s[ac]\r");
+    try expectEqual(2, ed.doc.sels().len);
+    // Inside quotes: found around neither selection.
+    try ed.key(.alt('i'));
+    try typeKeys(&ed, "\"");
+    try expectMessage(&ed, "no object here", true);
+    try typeKeys(&ed, "%sb|c\r");
+    try ed.key(.alt('i'));
+    try typeKeys(&ed, "\"");
+    try expectMessage(&ed, "", false);
+    try expectEqual(2, ed.doc.sels().len);
+}
+
 test "editor: Alt-s splits the selections into lines" {
     var ed: Editor = try .init(gpa, null, "a\nb\nc\n");
     defer ed.deinit();

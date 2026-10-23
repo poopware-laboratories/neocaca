@@ -71,7 +71,8 @@ upper-case key, or Shift with an arrow) **extends** it from its anchor.
 
 Objects: `w` word, `W` WORD, `(` `)` `b` parentheses, `[` `]` brackets,
 `{` `}` `B` braces, `<` `>` angle brackets, `"` `'` `` ` `` quotes, `p`
-paragraph.
+paragraph. A selection with no such object around it stays as it is; when
+none of them has one, the message line says "no object here".
 
 ### Search
 

@@ -183,9 +183,11 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         window too narrow, it loses its start to `…`, so its file name
         and the reason stay. A message too wide even then, or one
         without a path, ends with `…` in the last column.
-  - [ ] S: `Alt-i` or `Alt-a` with no such object around the cursor
+  - [x] S: `Alt-i` or `Alt-a` with no such object around the cursor
         (`Alt-i"` outside quotes) changes nothing and says nothing, so the
-        next verb acts on the old selection; say "no object here".
+        next verb acts on the old selection; say "no object here". It
+        now says so, as an error, when no selection has the object
+        around it; one found around any selection says nothing.
 - **PR: the dogfood pass that closes Phase 1**
   - [ ] M: every scenario of `docs/dogfooding.md` on its corpus, once the
         fixes above are in; its findings become pieces, and Phase 1 is done
