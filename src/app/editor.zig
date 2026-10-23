@@ -16,6 +16,7 @@ const layout = @import("layout.zig");
 const prompting = @import("prompting.zig");
 const viewing = @import("viewing.zig");
 const requesting = @import("requesting.zig");
+const Disk = @import("../fs.zig").disk.Disk;
 
 const Action = input.Action;
 const Document = edit.Document;
@@ -49,6 +50,10 @@ pub const Request = union(enum) {
     pub const Save = struct {
         path: []const u8,
         quit: bool,
+        /// Write a read-only file, or one changed on disk, too.
+        force: bool = false,
+        /// What the file was when read or last written, set by the shell.
+        expect: Disk = .unknown,
         /// The lines of the text to write, set by `ask`.
         lines: usize = 0,
     };
@@ -137,6 +142,8 @@ pub const Editor = struct {
     options: Options = .{},
     /// Owned; null for a buffer without a file.
     path: ?[]u8 = null,
+    /// What the file at `path` was when it was read or last written.
+    disk: Disk = .unknown,
     message: Message = .{},
     /// The last search pattern, compiled.
     search: ?Regex = null,
@@ -278,7 +285,7 @@ pub const Editor = struct {
         switch (self.mode) {
             .normal => if (self.keymap.normal(k)) |a| try self.apply(a),
             .insert => if (input.keymap.insertKey(k)) |a| try self.apply(a),
-            .prompt => switch (try self.prompt.key(k)) {
+            .prompt => if (input.keymap.isSuspend(k)) try self.apply(.@"suspend") else switch (try self.prompt.key(k)) {
                 .edited, .ignored => {},
                 .cancel => self.mode = .normal,
                 .submit => {

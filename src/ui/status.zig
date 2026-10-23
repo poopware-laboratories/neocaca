@@ -90,8 +90,9 @@ pub const Span = struct { start: usize, end: usize };
 
 /// Draws `text` on row `y`, in the error style when `is_error`. A message
 /// wider than the row loses the start of its `path` to an ellipsis, so the
-/// reason after it stays; one too wide even then ends with an ellipsis in
-/// its last column.
+/// reason after it stays; one too wide even then loses its start too,
+/// after an ellipsis in the first column. A message without a path ends
+/// with an ellipsis in its last column.
 pub fn message(screen: *Screen, y: usize, text: []const u8, path: ?Span, is_error: bool, theme: *const Theme) void {
     if (y >= screen.height or screen.width == 0) return;
     screen.fill(0, y, screen.width, ' ', theme.text);
@@ -112,7 +113,22 @@ pub fn message(screen: *Screen, y: usize, text: []const u8, path: ?Span, is_erro
             _ = screen.text(col, y, tail, style);
             return;
         }
+        return endOfPath(screen, y, head, tail, style);
     }
     _ = screen.textUntil(0, y, text, style, screen.width - 1);
     _ = screen.text(screen.width - 1, y, "…", style);
+}
+
+/// The end of `head`, a path cut to `…` and `tail` after an ellipsis, when
+/// they do not fit whole. The path's ellipsis goes with the last of `head`.
+fn endOfPath(screen: *Screen, y: usize, head: []const u8, tail: []const u8, style: render.Style) void {
+    const room = screen.width - 1;
+    var col = screen.text(0, y, "…", style);
+    const tail_cols = render.screen.textColumns(tail);
+    const from = if (tail_cols < room) tailFitting(head, room - tail_cols - 1) else head.len;
+    if (from < head.len) {
+        col += screen.text(col, y, head[from..], style);
+        col += screen.text(col, y, "…", style);
+    }
+    _ = screen.text(col, y, tail[tailFitting(tail, room)..], style);
 }

@@ -64,11 +64,12 @@ pub const Session = struct {
         const size = rendering.screen.fit(width, height);
         ed.resize(size.width, size.height);
         if (path) |p| {
+            const disk = Loading.stamp(io, dir, p);
             const result = fs.load(io, gpa, dir, p, fs.max_file) catch |e| switch (e) {
                 error.NoDirectory => |other| other,
                 else => |other| return other,
             };
-            try ed.loaded(p, result);
+            try ed.loaded(p, result, disk);
         }
         var front: Screen = try .init(gpa, size.width, size.height);
         errdefer front.deinit();
@@ -172,7 +173,12 @@ pub const Session = struct {
         const request = self.ed.takeRequest() orelse return;
         self.settle();
         switch (request) {
-            .save => |s| {
+            .save => |asked| {
+                // Only now, with the save before it reported: it expects
+                // the file that one wrote.
+                var s = asked;
+                const open = self.ed.path orelse "";
+                s.expect = if (std.mem.eql(u8, open, s.path)) self.ed.disk else .unknown;
                 self.saving = Saving.start(self.gpa, self.io, self.dir, s, self.ed.doc.text(), self.notify) catch {
                     self.ed.abandonSave();
                     return;
@@ -214,7 +220,7 @@ pub const Session = struct {
         job.wait();
         self.loading = null;
         defer job.destroy();
-        self.ed.finishLoad(job.path, job.take());
+        self.ed.finishLoad(job.path, job.take(), job.disk);
     }
 
     fn report(self: *Session, job: *Saving) void {

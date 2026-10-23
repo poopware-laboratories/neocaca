@@ -21,6 +21,12 @@ test "commands: write, with or without a file" {
     try expectParse("x", .{ .write = .{ .quit = true, .only_if_modified = true } });
 }
 
+test "commands: w! writes a read-only file too" {
+    try expectParse("w!", .{ .write = .{ .force = true } });
+    try expectParse("w! out.txt", .{ .write = .{ .path = "out.txt", .force = true } });
+    try std.testing.expectError(error.TooManyArguments, commands.parse("w! a b"));
+}
+
 test "commands: quit, forced or not" {
     try expectParse("q", .{ .quit = .{} });
     try expectParse("quit", .{ .quit = .{} });
@@ -47,7 +53,7 @@ test "commands: an empty line does nothing" {
 
 test "commands: errors" {
     try std.testing.expectError(error.UnknownCommand, commands.parse("frobnicate"));
-    try std.testing.expectError(error.UnknownCommand, commands.parse("w!"));
+    try std.testing.expectError(error.UnknownCommand, commands.parse("x!"));
     try std.testing.expectError(error.UnknownCommand, commands.parse("wx"));
     try std.testing.expectError(error.MissingFile, commands.parse("e"));
     try std.testing.expectError(error.TooManyArguments, commands.parse("q now"));

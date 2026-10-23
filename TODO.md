@@ -200,36 +200,64 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
 - **PR: fixes from the second dogfood pass.** The crash goes first;
   Phase 1 is done once this pull request is in and its short pass is
   clean.
-  - [ ] S: a save past the file size limit kills the editor. `ulimit -f 1`
+  - [x] S: a save past the file size limit kills the editor. `ulimit -f 1`
         in the shell, then `:w` on `unicode.txt` (9 KB): `SIGXFSZ` ends
         neocaca with exit code 153, the unsaved edit is lost, the
         terminal is left in raw mode without echo, and a 512-byte
         temporary file (`4efc61bb66dd3e91`) stays beside the original,
         which is untouched. Ignore `SIGXFSZ`, so the write fails with
         `EFBIG`, the temporary file is removed and the message says the
-        file is too large, as a full disk already does.
-  - [ ] S: `:w` replaces a read-only file. `read-only.txt` (mode 0444,
+        file is too large, as a full disk already does. Done: `term.Tty`
+        ignores `SIGXFSZ` while it is open, and the save fails with
+        "the file is too big".
+  - [x] S: `:w` replaces a read-only file. `read-only.txt` (mode 0444,
         owned by the user, in a writable directory) is saved without a
         word, since the save renames a new file over it, and keeps its
         mode 0444. Refuse it ("the file is read-only") and let `:w!`
-        write it anyway.
-  - [ ] S: `Ctrl-z` suspends only from normal mode. In insert mode or a
+        write it anyway. Done: a file nobody may write (no write bit) is
+        refused, as root too, with "the file is read-only; :w! writes it
+        anyway"; `:w!` replaces it and keeps its mode.
+  - [x] S: `Ctrl-z` suspends only from normal mode. In insert mode or a
         prompt it does nothing, so the next keys go to the buffer or the
         prompt: `:w half-typed`, `Ctrl-z`, then `fg` Enter wrote a file
         named `half-typedfg`. Suspend from every mode and come back to it.
-  - [ ] S: on a narrow window, a message with a path loses its reason when
+        Done: `keymap.isSuspend` is Ctrl-z in insert mode and the prompt
+        too; the mode, the prompt line and the insert session are kept.
+  - [x] S: on a narrow window, a message with a path loses its reason when
         its start and its reason do not fit beside even a shortened path:
         at 30 columns, `:w` to a missing directory shows `cannot write
         "a-very-long-dir…` and `:e` there shows the path but not "its
         directory does not exist". Keep the reason: the path goes to `…`
-        first, then the start of the message.
-  - [ ] S: a temporary file left by a save that never finished (the
+        first, then the start of the message. Done: at 30 columns they
+        read `…": no such file or directory` and `… its directory does
+        not exist`.
+  - [x] S: a temporary file left by a save that never finished (the
         editor killed, the power cut) has a bare random name nobody can
         connect to the file. Name it after the file and hide it
-        (`.unicode.txt.<random>.tmp`).
-  - [ ] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
+        (`.unicode.txt.<random>.tmp`). Done: `fs/temp.zig` names it
+        `.unicode.txt.4efc61bb66dd3e91.tmp` beside the file, a hidden
+        file keeping its one dot and a long name cut between characters
+        to fit 255 bytes; one left by an earlier save is never touched.
+  - [x] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
         again; Phase 1 is done when it finds no crash, lost data or raw
-        terminal bytes.
+        terminal bytes. Run on 2026-10-23 on a fresh corpus, in ReleaseSafe
+        as a user who is not root, under tmux. Nothing new: every path of
+        scenario 8 is refused or saved as documented (`read-only.txt`
+        refused, then written by `:w!` and still 0444); a resize to one
+        cell and back, a 220 KB paste (0.12 s, one undo), a hang-up (the
+        `.recovered` file holds the edit) and Ctrl-z from a prompt and
+        insert mode all held; a full 64 KB tmpfs and `ulimit -f 1` left the
+        original byte for byte and no temporary file; `kill -9` mid-save
+        left `server.log` whole beside `.server.log.<random>.tmp`. One gap
+        is lost data: a line appended from another shell was overwritten
+        by `:w` without a word. It is fixed below, ahead of Phase 2.
+  - [x] S: `:w` refuses to overwrite a file changed on disk and says so;
+        `:w!` forces. Done: `fs/disk.zig` stamps the file (inode, size,
+        modification time) just before it is read and after every save;
+        a save whose file no longer matches fails with "the file changed
+        on disk; :w! writes it anyway", and so does one of a new file
+        that something else made meanwhile. A file deleted since is
+        written again; `:w other` is not checked.
 
 ## Phase 2: everyday comfort
 
@@ -253,11 +281,11 @@ Safety first, then the biggest daily gains.
         shows as a replacement glyph at the start of the file
   - [ ] S: a file without a final newline is saved without one; today the
         buffer adds one on load and `:w` writes it
-- **PR: never overwrite a change made on disk.** Today a line appended
-  from another shell is lost at the next `:w`, without a word.
-  - [ ] S: notice when the file changed on disk (size and modification
-        time), checked on focus and before `:w`
-  - [ ] S: `:w` refuses to overwrite it and says so; `:w!` forces
+- **PR: notice a change made on disk while the file is open.** `:w`
+  already refuses to write over one (Phase 1); nothing says so sooner.
+  - [ ] S: when the terminal reports focus (xterm focus events, mode
+        1004), compare the file with its stamp and say it changed, before
+        any edit is made on the old text
 - **PR: soft wrap of long lines**
   - [ ] M: wrapped line layout, pure and tested
   - [ ] M: draw it, with the cursor and scrolling over wrapped lines

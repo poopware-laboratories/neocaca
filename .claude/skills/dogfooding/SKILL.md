@@ -46,8 +46,9 @@ The traps, each of which looks like an editor bug the first time:
 - **Set `GIT_EDITOR`, not `EDITOR`,** for the Git scenario: a session
   may export `GIT_EDITOR=true`, which makes `git commit` abort at once
   without starting neocaca.
-- **Root ignores file permissions.** As root, `read-only.txt` and
-  `unreadable.txt` behave like plain files. Make a user and run the
+- **Root ignores file permissions.** As root, `unreadable.txt` behaves
+  like a plain file (`read-only.txt` is refused by its mode, even for
+  root, but nothing else about permissions is). Make a user and run the
   corpus script, the editor and tmux as that user, or say in the report
   that these were not checked:
 

@@ -17,8 +17,9 @@ pub const Saving = struct {
     text: []u8,
     /// Written a byte once the save has finished; borrowed.
     notify: ?std.posix.fd_t,
-    /// Set by the thread before `finished`.
-    result: fs.file.SaveError!void = {},
+    /// Set by the thread before `finished`: what the file is once
+    /// written.
+    result: fs.file.SaveError!fs.disk.Disk = .unknown,
     finished: std.atomic.Value(bool) = .init(false),
     thread: ?std.Thread = null,
 
@@ -50,7 +51,8 @@ pub const Saving = struct {
     }
 
     fn run(self: *Saving) void {
-        self.result = fs.save(self.io, self.dir, self.save.path, self.text);
+        const how: fs.file.SaveOptions = .{ .force = self.save.force, .expect = self.save.expect };
+        self.result = if (fs.save(self.io, self.dir, self.save.path, self.text, how)) |st| .{ .stamp = st } else |e| e;
         self.finished.store(true, .release);
         if (self.notify) |fd| {
             // A full pipe already holds a wakeup; the loop collects every

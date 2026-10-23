@@ -241,8 +241,6 @@ test "keymap: Ctrl-z suspends, dropping a count or register" {
     _ = map.normal(.char('5'));
     try std.testing.expectEqual(Action.@"suspend", map.normal(.ctrl('z')).?);
     try std.testing.expect(!map.isPending());
-    // Insert mode types no Control chords, Ctrl-z included.
-    try expectInsert("<c-z>", null);
 }
 
 test "keymap: shaping the selections" {
@@ -357,6 +355,11 @@ test "keymap: insert mode moves with the arrows" {
     try expectInsert("<down>", move(.down, 1, false));
     try expectInsert("<home>", move(.line_start, 1, false));
     try expectInsert("<end>", move(.line_end, 1, false));
+}
+
+test "keymap: Ctrl-z suspends in insert mode too" {
+    try expectInsert("<c-z>", .@"suspend");
+    try expectInsert("<a-z>", null);
 }
 
 test "keymap: insert mode ignores Control and Alt chords" {

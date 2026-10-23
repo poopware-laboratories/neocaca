@@ -118,6 +118,28 @@ test "tty: a hang-up wakes the wait instead of ending the process" {
     try expect(!handlesHangUp());
 }
 
+fn ignoresFileSizeLimit() bool {
+    var old: posix.Sigaction = undefined;
+    posix.sigaction(posix.SIG.XFSZ, null, &old);
+    return old.handler.handler == posix.SIG.IGN;
+}
+
+test "tty: a write past the file size limit fails instead of ending the process" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    try expect(ignoresFileSizeLimit());
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const limit = try posix.getrlimit(.FSIZE);
+    try posix.setrlimit(.FSIZE, .{ .cur = 4096, .max = limit.max });
+    const written = tmp.dir.writeFile(std.testing.io, .{ .sub_path = "big", .data = &@as([8192]u8, @splat('x')) });
+    try posix.setrlimit(.FSIZE, limit);
+    try std.testing.expectError(error.FileTooBig, written);
+    t.restore();
+    try expect(!ignoresFileSizeLimit());
+}
+
 test "tty: no hang-up without the signal" {
     const pty: Pty = try .open();
     defer pty.close();

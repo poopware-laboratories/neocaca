@@ -70,16 +70,22 @@ already lists is noted once with its item, not reported again.
    draw over its neighbor.
 8. **Paths that are not plain files.** Open `a-directory`,
    `link-to-unicode.txt` (saving keeps the link), `dangling-link.txt`,
-   `read-only.txt` (saving must fail and say why), `unreadable.txt`, and a
+   `read-only.txt` (`:w` must refuse and say why, `:w!` must write it
+   and leave it read-only), `unreadable.txt`, and a
    file in a directory that does not exist.
 9. **The terminal misbehaves.** Resize down to one cell and back; paste a
    large block; close the terminal window with unsaved changes (the
-   recovery file must hold them); suspend in the middle of a prompt.
+   recovery file must hold them); suspend in the middle of a prompt and
+   in insert mode (`fg` must come back to the same mode, nothing typed).
 10. **Disk and filesystem trouble.** Save while the disk is full or a size
     limit applies (`ulimit -f 1` in the shell that starts neocaca; its
     `SIGXFSZ` must not kill the editor): the original file must be
-    untouched and the error shown. Change a file from another shell while
-    it is open.
+    untouched and the error shown. Kill the editor (`kill -9`) while it
+    saves `server.log`: the original must be whole, and a temporary file
+    left beside it must be named after it (`.server.log.<random>.tmp`).
+    Append a line to an open file from another shell: `:w` must refuse
+    and say the file changed on disk, keeping the line, and `:w!` must
+    write over it.
 11. **What this phase added.** Every pass also works through the features
     merged since the last one, in the same task-first way.
 
@@ -105,3 +111,4 @@ to. A scenario that no longer applies is rewritten, not left to rot.
 |------|-------|---------------------|-------------------|--------------------------|----------|
 | 2026-10-22 | 1 | 50 MB: under 1 s | 50 on 50 MB, instant on small files | 9.6 million selections, 5 s frozen, 830 MB | 5 rough edges ([#12](https://github.com/poopware-laboratories/neocaca/pull/12)); this guide written after it, from a hand-made corpus |
 | 2026-10-23 | 1 | 100 MB: 1.0 s, 231 MB | 100 on 100 MB, 35 on the 31 MB CSV, 50 there with 1000 cursors | `a`: 2.8 million selections, 1.5 s, 457 MB | 1 crash (`SIGXFSZ`), 4 rough edges ([#14](https://github.com/poopware-laboratories/neocaca/pull/14)); tmux only, as a user who is not root |
+| 2026-10-23 | 1 (short: 8, 9, 10) | not measured | not measured | not measured | nothing new; the known change-on-disk overwrite (Phase 2) seen again ([#15](https://github.com/poopware-laboratories/neocaca/pull/15)); a fresh corpus, tmux, as a user who is not root |

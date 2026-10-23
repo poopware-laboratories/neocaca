@@ -242,12 +242,12 @@ test "editor: a mapping that asks twice waits for the first request" {
     try expectEqualStrings("f.txt", first.save.path);
     // The keys after the first request wait for the shell to serve it.
     try expect(ed.hasRest());
-    ed.finishSave(first.save, {});
+    ed.finishSave(first.save, .unknown);
     try ed.resumeKeys();
     try expect(!ed.hasRest());
     const second = ed.takeRequest().?;
     try expectEqualStrings("g.txt", second.save.path);
-    ed.finishSave(second.save, {});
+    ed.finishSave(second.save, .unknown);
     try expectMessage(&ed, "\"g.txt\" written, 1 line", false);
 }
 
@@ -257,7 +257,7 @@ test "editor: the keys of a mapping after a request run once it is served" {
     try typeKeys(&ed, ":map normal Q :w<ret>ix<esc>\r");
     try typeKeys(&ed, "Q");
     try expectEqualStrings("abc\n", ed.doc.text());
-    ed.finishSave(ed.takeRequest().?.save, {});
+    ed.finishSave(ed.takeRequest().?.save, .unknown);
     try ed.resumeKeys();
     try expectEqualStrings("xabc\n", ed.doc.text());
     try expectEqual(.normal, ed.mode);
@@ -274,7 +274,7 @@ test "editor: the keys of a mapping after a save that quits are dropped" {
     try ed.resumeKeys();
     try expect(!ed.hasRest());
     try expectEqualStrings("abc\n", ed.doc.text());
-    ed.finishSave(r.save, {});
+    ed.finishSave(r.save, .unknown);
     try expect(ed.quit);
 }
 
@@ -285,7 +285,7 @@ test "editor: a mapping whose last key asks leaves nothing to resume" {
     try typeKeys(&ed, "Q");
     try expect(!ed.hasRest());
     try expectEqualStrings("xabc\n", ed.doc.text());
-    ed.finishSave(ed.takeRequest().?.save, {});
+    ed.finishSave(ed.takeRequest().?.save, .unknown);
 }
 
 test "editor: a mapping that asks survives an allocation failure at any point" {
@@ -300,7 +300,7 @@ test "editor: a mapping that asks survives an allocation failure at any point" {
         try typeKeys(&ed, ":map normal Q :w<ret>ix<esc>\r");
         failing.fail_index = failing.alloc_index + n;
         try typeKeys(&ed, "Q");
-        if (ed.takeRequest()) |r| ed.finishSave(r.save, {});
+        if (ed.takeRequest()) |r| ed.finishSave(r.save, .unknown);
         try ed.resumeKeys();
         if (!failing.has_induced_failure) break;
         try expectMessage(&ed, "out of memory", true);

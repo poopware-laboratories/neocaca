@@ -194,8 +194,26 @@ test "status: a path cut to nothing keeps only the ellipsis before the reason" {
     try expectPathRow(13, "\"", "abc/def", "\" new file", "\"…f\" new file");
 }
 
-test "status: a message too wide even without its path is cut at its end" {
-    try expectPathRow(11, "\"", "abc/def", "\" new file", "\"abc/def\" …");
+test "status: a message too wide even without its path loses its start, never its end" {
+    try expectPathRow(11, "\"", "abc/def", "\" new file", "…\" new file");
+    try expectPathRow(10, "\"", "abc/def", "\" new file", "… new file");
+}
+
+test "status: the reasons of the dogfood pass stay at 30 columns" {
+    const missing = "\": no such file or directory";
+    try expectPathRow(30, "cannot write \"", "a-very-long-dir/new.txt", missing, "…\": no such file or directory ");
+    // A column more brings back the end of the start, and the path's own
+    // ellipsis after it.
+    try expectPathRow(31, "cannot write \"", "a-very-long-dir/new.txt", missing, "…\"…\": no such file or directory");
+    try expectPathRow(30, "\"", "a-very-long-dir/new.txt", "\" new file; its directory does not exist", "… its directory does not exist");
+}
+
+test "status: a wide character at the cut start is left out whole" {
+    // 日本語 takes six columns; with five, 日 is left out and the last
+    // column stays blank.
+    try expectPathRow(9, "\"", "abc", "\": 日本語", "…: 日本語");
+    try expectPathRow(6, "\"", "abc", "\": 日本語", "…本語 ");
+    try expectPathRow(1, "\"", "abc", "\": 日本語", "…");
 }
 
 test "status: a path already shortened keeps one ellipsis" {
@@ -208,4 +226,25 @@ test "status: a wide character the path cannot fit is left out whole" {
     // that would need one more is left out and its column stays blank.
     try expectPathRow(8, "\"", "日日/日", "\" new", "\"…\" new ");
     try expectPathRow(11, "\"", "日日/日", "\" new", "\"…/日\" new ");
+}
+
+test "status: a control byte at the cut start is left out whole, never raw" {
+    // ESC is drawn as ^[, two columns, kept or left out together.
+    try expectPathRow(6, "\"", "pp", "\": a\x1bb", "… a^[b");
+    try expectPathRow(4, "\"", "pp", "\": a\x1bb", "…^[b");
+    try expectPathRow(3, "\"", "pp", "\": a\x1bb", "…b ");
+}
+
+test "status: both ellipses of a cut start are drawn in the message's style" {
+    var s: Screen = try .init(gpa, 8, 1);
+    defer s.deinit();
+    const span: status.Span = .{ .start = 3, .end = 6 };
+    status.message(&s, 0, "ab\"xyz\": no", span, true, &theme);
+    var buf: [64]u8 = undefined;
+    try std.testing.expectEqualStrings("…\"…\": no", row(&s, 0, &buf));
+    try std.testing.expect(s.at(0, 0).style.eql(theme.@"error"));
+    try std.testing.expect(s.at(2, 0).style.eql(theme.@"error"));
+    status.message(&s, 0, "ab\"xyz\": no", span, false, &theme);
+    try std.testing.expect(s.at(0, 0).style.eql(theme.message));
+    try std.testing.expect(s.at(2, 0).style.eql(theme.message));
 }

@@ -136,11 +136,24 @@ test "editor: Ctrl-z asks the shell to suspend, once, and changes nothing else" 
     try expectMain(&ed, 1, 1);
     try expectText(&ed, "abc\n");
     try expectEqual(null, ed.takeRequest());
-    // In insert mode it is not a key.
-    try typeKeys(&ed, "i");
+}
+
+test "editor: Ctrl-z suspends from insert mode and a prompt, which it comes back to" {
+    var ed: Editor = try .init(gpa, null, "abc");
+    defer ed.deinit();
+    try typeKeys(&ed, "ix");
     try ed.key(.ctrl('z'));
-    try expect(!ed.takeSuspend());
+    try expect(ed.takeSuspend());
+    try typeKeys(&ed, "y");
     try expectEqual(.insert, ed.mode);
+    try typeKeys(&ed, "\x1b:w half");
+    try ed.key(.ctrl('z'));
+    try expect(ed.takeSuspend());
+    try expectEqual(.prompt, ed.mode);
+    try expectEqualStrings("w half", ed.prompt.text());
+    try typeKeys(&ed, "\x1bu");
+    // The typing before and after it is one change.
+    try expectText(&ed, "abc\n");
 }
 
 test "editor: undo with nothing to undo says so" {
@@ -338,10 +351,10 @@ test "editor: a session survives an allocation failure at any point" {
         defer ed.deinit();
         failing.fail_index = failing.alloc_index + n;
         try typeKeys(&ed, "Cwdix\x1b/c\r:w\r");
-        if (ed.takeRequest()) |r| ed.finishSave(r.save, {});
+        if (ed.takeRequest()) |r| ed.finishSave(r.save, .unknown);
         try ed.paste("p");
         try typeKeys(&ed, "uU:e g\r");
-        if (ed.takeRequest()) |r| ed.finishLoad(r.load, null);
+        if (ed.takeRequest()) |r| ed.finishLoad(r.load, null, .unknown);
         if (!failing.has_induced_failure) break;
         failing.fail_index = std.math.maxInt(usize);
         try typeKeys(&ed, "%y");
@@ -357,9 +370,9 @@ test "editor: a save asked while one is written marks only what the first wrote"
     try typeKeys(&ed, "iY\x1b:w\r");
     const second = ed.takeRequest().?.save;
     // The shell reports each save once the one before it is over.
-    ed.finishSave(first, {});
+    ed.finishSave(first, .unknown);
     try expect(ed.doc.isModified());
-    ed.finishSave(second, {});
+    ed.finishSave(second, .unknown);
     try expect(!ed.doc.isModified());
 }
 
@@ -373,8 +386,8 @@ test "editor: a save to another file while one is written leaves the text modifi
     defer gpa.free(first.path);
     try typeKeys(&ed, "iY\x1b:w b.txt\r");
     const second = ed.takeRequest().?.save;
-    ed.finishSave(first, {});
-    ed.finishSave(second, {});
+    ed.finishSave(first, .unknown);
+    ed.finishSave(second, .unknown);
     // a.txt holds "Xone": `:q` must not quit.
     try expect(ed.doc.isModified());
     try typeKeys(&ed, ":q\r");

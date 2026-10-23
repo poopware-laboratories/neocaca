@@ -2,6 +2,7 @@
 //! of the text, and the byte that wakes the loop.
 
 const std = @import("std");
+const fs = @import("../fs.zig");
 const Saving = @import("saving.zig").Saving;
 
 const io = std.testing.io;
@@ -17,7 +18,8 @@ test "saving: writes the text and says it has finished" {
     job.wait();
     defer job.destroy();
     try expect(job.isFinished());
-    try job.result;
+    // What the file is once written, for the next save to expect.
+    try expectEqual(try fs.disk.read(io, tmp.dir, "f"), try job.result);
     try expectEqualStrings("f", job.save.path);
     try expect(job.save.quit);
     try expectEqual(2, job.save.lines);
@@ -36,7 +38,7 @@ test "saving: writes the copy taken when it began" {
     path[0] = 'g';
     job.wait();
     defer job.destroy();
-    try job.result;
+    _ = try job.result;
     try expectEqualStrings("f", job.save.path);
     var buf: [16]u8 = undefined;
     try expectEqualStrings("old\n", try tmp.dir.readFile(io, "f", &buf));
@@ -108,4 +110,22 @@ test "saving: out of memory on each copy starts no save" {
     }
     var buf: [16]u8 = undefined;
     try std.testing.expectError(error.FileNotFound, tmp.dir.readFile(io, "f", &buf));
+}
+
+test "saving: a save expecting the file as it was is refused once it changed, unless forced" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "old\n" });
+    const was = try fs.disk.read(io, tmp.dir, "f");
+    try tmp.dir.writeFile(io, .{ .sub_path = "f", .data = "theirs\n" });
+    const refused = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .expect = was }, "mine\n", null);
+    refused.wait();
+    defer refused.destroy();
+    try std.testing.expectError(error.ChangedOnDisk, refused.result);
+    const forced = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .force = true, .expect = was }, "mine\n", null);
+    forced.wait();
+    defer forced.destroy();
+    _ = try forced.result;
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("mine\n", try tmp.dir.readFile(io, "f", &buf));
 }

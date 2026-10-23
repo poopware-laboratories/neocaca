@@ -204,7 +204,7 @@ test "layout: a loaded file starts at its top" {
     f.draw();
     try typeKeys(&f.ed, ":e g\r");
     const r = f.ed.takeRequest().?;
-    f.ed.finishLoad(r.load, try gpa.dupe(u8, "new\n"));
+    f.ed.finishLoad(r.load, try gpa.dupe(u8, "new\n"), .unknown);
     f.draw();
     try expectRow(&f.screen, 0, " 1 new      ");
 }

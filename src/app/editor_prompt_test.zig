@@ -114,7 +114,7 @@ test "editor: :w asks the shell to save the buffer to its file" {
     try expectEqualStrings("f.txt", r.save.path);
     try expect(!r.save.quit);
     try expectEqual(null, ed.takeRequest());
-    ed.finishSave(r.save, {});
+    ed.finishSave(r.save, .unknown);
     try expect(!ed.doc.isModified());
     try expectMessage(&ed, "\"f.txt\" written, 1 line", false);
 }
@@ -133,7 +133,7 @@ test "editor: :w <file> names a buffer that had no file" {
     try typeKeys(&ed, ":w new.txt\r");
     const r = ed.takeRequest().?;
     try expectEqualStrings("new.txt", r.save.path);
-    ed.finishSave(r.save, {});
+    ed.finishSave(r.save, .unknown);
     try expectEqualStrings("new.txt", ed.path.?);
     try expectMessage(&ed, "\"new.txt\" written, 2 lines", false);
 }
@@ -143,7 +143,7 @@ test "editor: :w <file> to another file keeps the buffer's own name and state" {
     defer ed.deinit();
     try typeKeys(&ed, "d:w copy\r");
     const r = ed.takeRequest().?;
-    ed.finishSave(r.save, {});
+    ed.finishSave(r.save, .unknown);
     try expectEqualStrings("mine", ed.path.?);
     try expect(ed.doc.isModified());
 }
@@ -166,7 +166,7 @@ test "editor: :wq quits once the save succeeds" {
     try typeKeys(&ed, ":wq\r");
     const r = ed.takeRequest().?;
     try expect(!ed.quit);
-    ed.finishSave(r.save, {});
+    ed.finishSave(r.save, .unknown);
     try expect(ed.quit);
 }
 
@@ -203,7 +203,7 @@ test "editor: :x writes only when there are changes" {
     defer ed2.deinit();
     try typeKeys(&ed2, "d:x\r");
     const r = ed2.takeRequest().?;
-    ed2.finishSave(r.save, {});
+    ed2.finishSave(r.save, .unknown);
     try expect(ed2.quit);
 }
 
@@ -214,7 +214,7 @@ test "editor: :e asks for a file and takes its contents" {
     const r = ed.takeRequest().?;
     try expectEqualStrings("b.txt", r.load);
     const text = try gpa.dupe(u8, "one\ntwo\n");
-    ed.finishLoad(r.load, text);
+    ed.finishLoad(r.load, text, .unknown);
     try expectText(&ed, "one\ntwo\n");
     try expectEqualStrings("b.txt", ed.path.?);
     try expectMain(&ed, 0, 0);
@@ -226,7 +226,7 @@ test "editor: :e of a missing file opens a new, empty buffer" {
     defer ed.deinit();
     try typeKeys(&ed, ":e new\r");
     const r = ed.takeRequest().?;
-    ed.finishLoad(r.load, null);
+    ed.finishLoad(r.load, null, .unknown);
     try expectText(&ed, "\n");
     try expectMessage(&ed, "\"new\" new file", false);
 }
@@ -236,7 +236,7 @@ test "editor: a failed load keeps the buffer" {
     defer ed.deinit();
     try typeKeys(&ed, ":e big\r");
     const r = ed.takeRequest().?;
-    ed.finishLoad(r.load, error.FileTooBig);
+    ed.finishLoad(r.load, error.FileTooBig, .unknown);
     try expectText(&ed, "old\n");
     try expectEqualStrings("a", ed.path.?);
     try expectMessage(&ed, "cannot open \"big\": the file is too big", true);

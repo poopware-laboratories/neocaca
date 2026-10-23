@@ -129,3 +129,23 @@ test "messages: writing a long name that is allowed keeps the line count on scre
     var buf: [16]u8 = undefined;
     try std.testing.expectEqualStrings("x\n", try h.file(name, &buf));
 }
+
+test "messages: on a narrow window a failed write keeps its reason on screen" {
+    var h: Harness = undefined;
+    try h.init(null, null, 30, 4);
+    defer h.deinit();
+    try h.typeKeys("ix\x1b:w a-very-long-dir/new.txt\r");
+    // The message itself is whole; only its drawing is cut.
+    try h.expectMessage("cannot write \"a-very-long-dir/new.txt\": no such file or directory");
+    try h.expectRow(3, "…\": no such file or directory ");
+    try h.expectText("x\n");
+}
+
+test "messages: on a narrow window a new file keeps the end of its warning on screen" {
+    var h: Harness = undefined;
+    try h.init(null, null, 30, 4);
+    defer h.deinit();
+    try h.typeKeys(":e a-very-long-dir/new.txt\r");
+    try h.expectMessage("\"a-very-long-dir/new.txt\" new file; its directory does not exist");
+    try h.expectRow(3, "… its directory does not exist");
+}
