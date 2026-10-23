@@ -125,6 +125,8 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "neocaca", .module = safe_lib }},
         }),
     });
+    // Compiled on every target in CI, since nothing else uses the driver.
+    b.step("compare-build", "Compile zig build compare's driver without running it").dependOn(&compare.step);
     const compare_step = b.step("compare", "Measure neocaca against flow (-Dflow=<path>)");
     if (flow) |path| {
         const compare_cmd = b.addRunArtifact(compare);

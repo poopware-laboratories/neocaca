@@ -89,3 +89,110 @@ test "replies: a reply that does not fit is an error, not a lost reply" {
     var w: std.Io.Writer = .fixed(&buf);
     try std.testing.expectError(error.WriteFailed, r.feed("\x1b[c", &w));
 }
+
+test "replies: parameters up to the limit are read, one more is too many" {
+    // `?`, fourteen digits and `$` are the sixteen bytes kept.
+    try expectReplies("\x1b[?00000000002026;0$y", "\x1b[?00000000002026$p");
+    try expectReplies("", "\x1b[?000000000002026$p");
+}
+
+test "replies: the same replies wherever the output is cut in two" {
+    const output = "\x1b[?1049h\x1b[?2027$p\x1b[6n\x1b]2;t\x07\x1b[?u\x1b[38;5;1mtext\x1b[c\x1b[5n";
+    var want_buf: [256]u8 = undefined;
+    const want = try answer(output, output.len, &want_buf);
+    try expectEqualStrings("\x1b[?2027;0$y\x1b[1;1R\x1b[?0u\x1b[?62;22c\x1b[0n", want);
+    for (0..output.len + 1) |cut| {
+        var r: Replies = .{};
+        var buf: [256]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&buf);
+        try r.feed(output[0..cut], &w);
+        try r.feed(output[cut..], &w);
+        try expectEqualStrings(want, w.buffered());
+    }
+    // And in pieces of every size.
+    var buf: [256]u8 = undefined;
+    for (1..output.len) |step| try expectEqualStrings(want, try answer(output, step, &buf));
+}
+
+test "replies: an escape that starts no sequence leaves the next one whole" {
+    try expectReplies("\x1b[0n", "\x1b7\x1b[5n");
+    try expectReplies("\x1b[0n", "\x1b(B\x1b[5n");
+    try expectReplies("\x1b[?62;22c", "\x1b\x1b[c");
+}
+
+test "replies: control bytes inside a sequence leave it going" {
+    try expectReplies("\x1b[0n", "\x1b[\n5n");
+    try expectReplies("\x1b[1;1R", "\x1b[6\x07\x7fn");
+}
+
+test "replies: a C1 control byte is not a control sequence in UTF-8 output" {
+    try expectReplies("", "\xc2\x9bc\x9b6n");
+}
+
+test "replies: mode requests with anything but a number are not answered" {
+    try expectReplies("", "\x1b[?1;2$p\x1b[1 $p\x1b[??1$p\x1b[?1$$p\x1b[2026p");
+}
+
+test "replies: kitty keyboard settings that are not the query ask nothing" {
+    try expectReplies("", "\x1b[?1u\x1b[u\x1b[>1u\x1b[<u\x1b[=1;2u");
+}
+
+test "replies: after a reply that did not fit, the next query is answered" {
+    var r: Replies = .{};
+    var small: [4]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&small);
+    try std.testing.expectError(error.WriteFailed, r.feed("\x1b[c", &w));
+    var buf: [16]u8 = undefined;
+    var v: std.Io.Writer = .fixed(&buf);
+    try r.feed("\x1b[5n", &v);
+    try expectEqualStrings("\x1b[0n", v.buffered());
+}
+
+test "replies: random runs of queries and drawing, cut at random" {
+    const Fragment = struct { output: []const u8, reply: []const u8 };
+    const fragments = [_]Fragment{
+        .{ .output = "\x1b[c", .reply = "\x1b[?62;22c" },
+        .{ .output = "\x1b[0c", .reply = "\x1b[?62;22c" },
+        .{ .output = "\x1b[5n", .reply = "\x1b[0n" },
+        .{ .output = "\x1b[6n", .reply = "\x1b[1;1R" },
+        .{ .output = "\x1b[?2026$p", .reply = "\x1b[?2026;0$y" },
+        .{ .output = "\x1b[?u", .reply = "\x1b[?0u" },
+        .{ .output = "\x1b[1;1H", .reply = "" },
+        .{ .output = "\x1b[0;7m", .reply = "" },
+        .{ .output = "\x1b]2;title [c\x07", .reply = "" },
+        .{ .output = "\x1b_Gi=1,a=q;\x1b\\", .reply = "" },
+        .{ .output = "text [6n \xe2\x94\x82", .reply = "" },
+        .{ .output = "\x1b[>31u", .reply = "" },
+    };
+    const seed = 0xfeed_beef;
+    errdefer std.debug.print("seed {x}\n", .{seed});
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    for (0..500) |_| {
+        var output: [512]u8 = undefined;
+        var want: [512]u8 = undefined;
+        var out_len: usize = 0;
+        var want_len: usize = 0;
+        for (0..random.uintAtMost(usize, 16)) |_| {
+            const f = fragments[random.uintLessThan(usize, fragments.len)];
+            @memcpy(output[out_len..][0..f.output.len], f.output);
+            out_len += f.output.len;
+            @memcpy(want[want_len..][0..f.reply.len], f.reply);
+            want_len += f.reply.len;
+        }
+        var r: Replies = .{};
+        var buf: [512]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&buf);
+        var rest = output[0..out_len];
+        while (rest.len > 0) {
+            const n = random.intRangeAtMost(usize, 1, rest.len);
+            try r.feed(rest[0..n], &w);
+            rest = rest[n..];
+        }
+        try expectEqualStrings(want[0..want_len], w.buffered());
+    }
+}
+
+test "replies: UTF-8 text around the queries is only text" {
+    try expectReplies("\x1b[0n\x1b[?0u", "\xe2\x94\x82 caf\xc3\xa9 \x1b[5n\xf0\x9f\x98\x80\x1b[?u\xff\xfe");
+}

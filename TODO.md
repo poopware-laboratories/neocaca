@@ -46,7 +46,8 @@ behavior, never its source.
 | Mouse on every element, scrollbars, animated scrolling | Phase 2: mouse; Phase 4: scrollbars |
 | Command palette and key hints | Phase 2: key hints; Phase 4: command palette |
 | Clipboard history | Phase 2: system clipboard |
-| Very large files, thousands of cursors | Phase 2: large files, selection cap |
+| Files past 256 MiB (it opens 1 GiB in 44 s, in 7.1 GiB) | Phase 2: large files |
+| Less memory at startup (7.7 MiB, neocaca 11.0) | Phase 2: startup memory |
 | Smart-case search | Phase 2: smart-case search |
 | Paragraph reflow | Phase 2: reflow |
 | `file:line` and `+line` on the command line | Phase 2: command line |
@@ -64,14 +65,42 @@ behavior, never its source.
 development in flow (its README roadmap); neocaca's undo tree and
 persistent undo would beat it once they land (Phase 2 and Phase 4).
 
-- **PR: measured against flow.** flow claims frame times of 6 ms or
-  less. Running flow's release binary in a session needs the
-  maintainer's permission.
-  - [ ] M: `zig build compare -Dflow=<path>` runs both editors on a
+**Measured.** `zig build compare -Dflow=<path>` runs both editors on a
+120x40 pseudo-terminal with the same files and answers the queries a
+terminal would (x86_64 Linux, neocaca's ReleaseSafe build against flow
+0.7.2's release binary at its default frame rate; medians, with p90 and
+max). A frame is timed to its last byte, once the screen has been quiet
+for 60 ms:
+
+| | neocaca | flow |
+|---|---:|---:|
+| startup to first frame (10 runs) | 3.37 ms (p90 6.77 ms, max 49.8 ms) | 13.3 ms (p90 19.4 ms, max 19.7 ms) |
+| memory at startup | 11.0 MiB | 7.7 MiB |
+| keypress to frame (200 Down, 1 MiB file) | 0.66 ms (p90 0.91 ms, max 4.29 ms) | 1.94 ms (p90 2.73 ms, max 33.4 ms) |
+| open 1 MiB (5 runs) | 7.26 ms (p90 64.3 ms, max 64.3 ms) | 19.9 ms (p90 20.4 ms, max 20.4 ms) |
+| memory, 1 MiB | 17.9 MiB | 15.6 MiB |
+| open 100 MiB (3 runs) | 403.0 ms (p90 1.34 s, max 1.34 s) | 875.9 ms (p90 3.78 s, max 3.78 s) |
+| memory, 100 MiB | 231.9 MiB | 702.6 MiB |
+| open 1 GiB | refused | 43.61 s |
+| memory, 1 GiB | refused | 7091.5 MiB |
+| open a 10 MiB line (3 runs) | 17.1 ms (p90 18.5 ms, max 18.5 ms) | 94.7 ms (p90 188.1 ms, max 188.1 ms) |
+| memory, 10 MiB line | 27.8 MiB | 77.3 MiB |
+| make 10,000 selections | 4.81 ms | 93.2 ms |
+| type at 10,000 selections: first key | 2.18 ms | 1.24 s |
+| type at 10,000 selections: next 10 keys | 4.72 ms (p90 22.6 ms, max 26.9 ms) | 495.8 ms (p90 830.0 ms, max 887.7 ms) |
+| memory, 10,000 selections | 55.5 MiB | 152.3 MiB |
+
+neocaca is ahead on time everywhere it runs, and on memory from 100 MiB
+up. It is behind in two places, each an item below: it refuses files
+past `max_file` (256 MiB), which flow opens (Phase 2: large files), and
+it starts in 3.3 MiB more memory (Phase 2: startup memory).
+
+- **PR: measured against flow.**
+  - [x] M: `zig build compare -Dflow=<path>` runs both editors on a
         pseudo-terminal with the same files and reports, for each: startup
         to the first frame, keypress to frame, open time and peak memory on
         1 MB, 100 MB and 1 GB files, a 10 MB single line, and 10,000
-        selections. The numbers go in the PR and in this section.
+        selections. The numbers are in the table above.
 
 ## Phase 0: foundations
 
@@ -337,6 +366,15 @@ Safety first, then the biggest daily gains.
   - [ ] M: its line index; `Buffer`'s API is unchanged, so `edit/` does
         not change
   - [ ] S: the benchmark again, with the numbers in the PR
+  - [ ] M: open files past `max_file` (256 MiB, so a 1 GiB file is
+        refused today; flow opens it in 44 s and 7.1 GiB, see "Measured"),
+        with the new limit tested at it and one past it, and the
+        `zig build compare` row again
+- **PR: startup memory.** neocaca starts in 11.0 MiB, flow in 7.7 MiB
+  ("Measured").
+  - [ ] S: find where the 11 MiB goes (mimalloc's reservations, the two
+        screens, the line index) and cut what is not needed, measured with
+        `zig build compare`
 - **PR: grapheme clusters per UAX #29** (emoji ZWJ sequences, regional
   indicators) instead of code point and combining marks. Under tmux,
   which draws a ZWJ sequence or an emoji with its skin tone as one

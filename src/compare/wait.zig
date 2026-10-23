@@ -38,16 +38,12 @@ pub const Find = struct {
             self.found = true;
             return true;
         }
-        const keep = text.len - 1;
-        if (bytes.len >= keep) {
-            @memcpy(self.tail_buf[0..keep], bytes[bytes.len - keep ..]);
-            self.tail_len = keep;
-        } else {
-            const old = @min(self.tail_len, keep - bytes.len);
-            std.mem.copyForwards(u8, self.tail_buf[0..old], self.tail_buf[self.tail_len - old .. self.tail_len]);
-            @memcpy(self.tail_buf[old..][0..bytes.len], bytes);
-            self.tail_len = old + bytes.len;
-        }
+        // Kept for the next piece: the end of these bytes, or of the old
+        // ones and these when these are fewer.
+        const seen = if (bytes.len > head.len) bytes else both;
+        const kept = seen[seen.len - @min(seen.len, text.len - 1) ..];
+        std.mem.copyForwards(u8, self.tail_buf[0..kept.len], kept);
+        self.tail_len = kept.len;
         return false;
     }
 };

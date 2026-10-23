@@ -105,3 +105,84 @@ test "files: a file that does not fit is an error" {
     try std.testing.expectError(error.WriteFailed, files.lines(&w, 1000));
     try std.testing.expectError(error.WriteFailed, files.words(&w, 100));
 }
+
+test "files: lines at every size from the smallest up, exact and numbered" {
+    const smallest = try make(.lines, files.top.len + 1);
+    defer gpa.free(smallest);
+    try expectEqualStrings(files.top ++ "\n", smallest);
+    for (files.top.len + 2..files.top.len + 300) |size| {
+        const text = try make(.lines, size);
+        defer gpa.free(text);
+        try expectEqual(size, text.len);
+        try expect(std.mem.startsWith(u8, text, files.top ++ "\n"));
+        try expect(std.mem.endsWith(u8, text, "\n"));
+        // Numbered from 1 with no gap; only the last line may be cut short.
+        var it = std.mem.splitScalar(u8, text[files.top.len + 1 .. text.len - 1], '\n');
+        var n: usize = 1;
+        var want: [80]u8 = undefined;
+        while (it.next()) |line| : (n += 1) {
+            const full = try std.fmt.bufPrint(&want, "line {d}: the quick brown fox jumps over the lazy dog", .{n});
+            if (it.peek() != null) try expectEqualStrings(full, line) else try expect(std.mem.startsWith(u8, full, line));
+        }
+    }
+}
+
+test "files: one line at every size from the smallest up, the words repeating" {
+    const words_text = "lorem ipsum dolor sit amet consectetur adipiscing elit ";
+    for (files.top.len + 2..files.top.len + 200) |size| {
+        const text = try make(.one_line, size);
+        defer gpa.free(text);
+        try expectEqual(size, text.len);
+        try expectEqual(1, std.mem.countScalar(u8, text, '\n'));
+        const body = text[files.top.len + 1 .. text.len - 1];
+        for (body, 0..) |b, i| try expectEqual(words_text[i % words_text.len], b);
+    }
+}
+
+test "files: no words is the top line alone" {
+    var out: std.Io.Writer.Allocating = .init(gpa);
+    defer out.deinit();
+    try files.words(&out.writer, 0);
+    try expectEqualStrings(files.top ++ "\n", out.written());
+    try files.words(&out.writer, 1);
+    try expectEqualStrings(files.top ++ "\n" ++ files.top ++ "\nword 1\n", out.written());
+}
+
+test "files: a writer one byte short fails, one of the size does not" {
+    var buf: [600]u8 = undefined;
+    for ([_]u64{ files.top.len + 1, 100, 599 }) |size| {
+        var short: std.Io.Writer = .fixed(buf[0 .. size - 1]);
+        try std.testing.expectError(error.WriteFailed, files.lines(&short, size));
+        var exact: std.Io.Writer = .fixed(buf[0..size]);
+        try files.lines(&exact, size);
+        var short_line: std.Io.Writer = .fixed(buf[0..size]);
+        try std.testing.expectError(error.WriteFailed, files.oneLine(&short_line, size + 1));
+        var exact_line: std.Io.Writer = .fixed(buf[0 .. size + 1]);
+        try files.oneLine(&exact_line, size + 1);
+    }
+}
+
+test "files: the marker shows once, at the top, so only the top frame has it" {
+    const big = try make(.lines, 1 << 20);
+    defer gpa.free(big);
+    try expectEqual(1, std.mem.count(u8, big, files.marker));
+    const line = try make(.one_line, 1 << 20);
+    defer gpa.free(line);
+    try expectEqual(1, std.mem.count(u8, line, files.marker));
+    var out: std.Io.Writer.Allocating = .init(gpa);
+    defer out.deinit();
+    try files.words(&out.writer, 10_000);
+    try expectEqual(1, std.mem.count(u8, out.written(), files.marker));
+}
+
+test "files: the bytes measured stay the bytes measured" {
+    // Numbers in TODO.md were taken on these files: a change to them is a
+    // new measurement, so it shows here first.
+    const text = try make(.lines, 1 << 20);
+    defer gpa.free(text);
+    try expectEqual(8866223100451619444, std.hash.Wyhash.hash(0, text));
+    try expectEqual(18924, std.mem.countScalar(u8, text, '\n'));
+    const line = try make(.one_line, 10 << 20);
+    defer gpa.free(line);
+    try expectEqual(16876633536796132287, std.hash.Wyhash.hash(0, line));
+}
