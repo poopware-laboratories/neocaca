@@ -223,12 +223,14 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         named `half-typedfg`. Suspend from every mode and come back to it.
         Done: `keymap.isSuspend` is Ctrl-z in insert mode and the prompt
         too; the mode, the prompt line and the insert session are kept.
-  - [ ] S: on a narrow window, a message with a path loses its reason when
+  - [x] S: on a narrow window, a message with a path loses its reason when
         its start and its reason do not fit beside even a shortened path:
         at 30 columns, `:w` to a missing directory shows `cannot write
         "a-very-long-dir…` and `:e` there shows the path but not "its
         directory does not exist". Keep the reason: the path goes to `…`
-        first, then the start of the message.
+        first, then the start of the message. Done: at 30 columns they
+        read `…": no such file or directory` and `… its directory does
+        not exist`.
   - [ ] S: a temporary file left by a save that never finished (the
         editor killed, the power cut) has a bare random name nobody can
         connect to the file. Name it after the file and hide it
