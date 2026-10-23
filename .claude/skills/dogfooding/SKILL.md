@@ -70,10 +70,24 @@ Every scenario in `docs/dogfooding.md`, as tasks, plus what the phase
 added. Note each surprise with its file, its keys from a fresh start,
 what happened and what should have.
 
-## 4. Report
+## 4. Against flow (phase or release passes)
+
+Download flow's latest release, check its checksum, unpack it in its own
+empty directory under `$SCRATCH`, and run:
+
+```sh
+zig build compare -Dflow="$SCRATCH/flow/flow"
+```
+
+Then follow "Against flow" in `docs/dogfooding.md`: the "Measured" table
+in `TODO.md` replaced, "Still behind" updated from flow's documentation
+(never its source), and an item for every row neocaca loses.
+
+## 5. Report
 
 - Each finding a `TODO.md` piece; numbers into the items they measure;
-  a line in the log of `docs/dogfooding.md`; the pass ticked in `TODO.md`.
+  a line in the log of `docs/dogfooding.md`, its flow column included;
+  the pass ticked in `TODO.md`.
 - Crashes, lost data and raw bytes on the terminal go first, before any
   other piece.
 - Fix nothing during the pass. The pull request is docs only.

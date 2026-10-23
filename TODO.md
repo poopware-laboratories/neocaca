@@ -90,8 +90,11 @@ for 60 ms:
 | type at 10,000 selections: next 10 keys | 4.72 ms (p90 22.6 ms, max 26.9 ms) | 495.8 ms (p90 830.0 ms, max 887.7 ms) |
 | memory, 10,000 selections | 55.5 MiB | 152.3 MiB |
 
-neocaca is ahead on time everywhere it runs, and on memory from 100 MiB
-up. It is behind in two places, each an item below: it refuses files
+The pass that closes each phase, and every pass before a release,
+measures again against flow's latest release and replaces this table
+("Against flow" in `docs/dogfooding.md`); the aim is a table with no row
+neocaca loses. neocaca is ahead on time everywhere it runs, and on memory
+from 100 MiB up. It is behind in two places, each an item below: it refuses files
 past `max_file` (256 MiB), which flow opens (Phase 2: large files), and
 it starts in 3.3 MiB more memory (Phase 2: startup memory).
 
@@ -370,8 +373,8 @@ Safety first, then the biggest daily gains.
         refused today; flow opens it in 44 s and 7.1 GiB, see "Measured"),
         with the new limit tested at it and one past it, and the
         `zig build compare` row again
-- **PR: startup memory.** neocaca starts in 11.0 MiB, flow in 7.7 MiB
-  ("Measured").
+- **PR: startup memory.** neocaca starts in 11.0 MiB, flow in 7.7 MiB,
+  and holds a 1 MiB file in 17.9 MiB to flow's 15.6 ("Measured").
   - [ ] S: find where the 11 MiB goes (mimalloc's reservations, the two
         screens, the line index) and cut what is not needed, measured with
         `zig build compare`
@@ -396,6 +399,9 @@ Safety first, then the biggest daily gains.
         file, in ReleaseSafe, reported on every run
 - **PR: the dogfood pass that closes Phase 2**
   - [ ] M: every scenario of `docs/dogfooding.md`, with those Phase 2 added
+  - [ ] S: against flow's latest release ("Against flow" in
+        `docs/dogfooding.md`): "Measured" and "Still behind" redone, an
+        item for every row neocaca loses
 
 ## Phase 3: code awareness
 
@@ -417,7 +423,8 @@ Safety first, then the biggest daily gains.
 - [ ] Git: change markers in the gutter against `HEAD`, and blame for the
       current line, off the loop
 - [ ] Auto-pairing of brackets and quotes
-- [ ] The dogfood pass that closes Phase 3 (`docs/dogfooding.md`)
+- [ ] The dogfood pass that closes Phase 3 (`docs/dogfooding.md`), with
+      its measurement against flow
 
 ## Phase 4: polish
 
@@ -446,5 +453,6 @@ Safety first, then the biggest daily gains.
 - [ ] Command palette: every `:` command and key action, searchable by
       name, showing its binding
 - [ ] Packaging and releases, each release after a dogfood pass with the
-      1 GB log (`BIG=1`)
-- [ ] The dogfood pass that closes Phase 4 (`docs/dogfooding.md`)
+      1 GB log (`BIG=1`) and a measurement against flow
+- [ ] The dogfood pass that closes Phase 4 (`docs/dogfooding.md`), with
+      its measurement against flow

@@ -13,7 +13,8 @@ A pass is a piece of its own (M, about an hour), listed in `TODO.md`:
 
 - **before a phase is ticked done**: the last item of every phase is its
   dogfood pass;
-- **before every release**;
+- **before every release**. These two passes also measure neocaca
+  against flow ("Against flow" below);
 - **after a piece that changes how files are opened, saved or shown**, a
   shorter pass over the scenarios that piece touched. A rendering change
   alone is covered by "Verifying UI changes" in `AGENTS.md`.
@@ -94,6 +95,31 @@ command, a mode, a file type, a protocol) adds its scenario here in the
 same pull request, so the next pass covers it without anyone remembering
 to. A scenario that no longer applies is rewritten, not left to rot.
 
+## Against flow
+
+neocaca aims to be ahead of [flow](https://flow-control.dev) in every
+way, and "ahead" is a measurement, not a feeling. A pass that closes a
+phase, and every pass before a release, also measures the two against
+each other; a short pass after a single piece does not.
+
+1. **Run the comparison** against flow's latest release binary (from its
+   releases page, its checksum checked): `zig build compare
+   -Dflow=path/to/flow`, on the same machine as the last pass when you
+   can, which builds neocaca in ReleaseSafe on its own.
+2. **Replace the "Measured" table** in the yardstick section of `TODO.md`
+   with the new numbers and flow's version, and say under it which rows
+   moved since the last pass, and why if you know.
+3. **Bring "Still behind" up to date** from flow's user-facing
+   documentation only (its README, manual, devlog and release notes since
+   the last pass; never its source): a feature flow added becomes a row
+   with its item, one neocaca shipped moves to "Already ahead".
+4. **Every row neocaca loses gets an item.** A measurement where it is
+   slower, uses more memory or refuses what flow opens, and a row that got
+   worse since the last pass, becomes a piece in the current phase under a
+   "behind flow" pull request, unless an item already covers it. A
+   feature only flow has gets its row in "Still behind". A phase is not
+   closed with a lost row that has no item.
+
 ## Reporting
 
 - Every finding becomes a piece in `TODO.md`, under a "fixes from the
@@ -103,12 +129,15 @@ to. A scenario that no longer applies is rewritten, not left to rot.
 - A crash, lost data or bytes reaching the terminal raw is never a rough
   edge: it is fixed before anything else on the roadmap.
 - The pass adds a line to the log below, so the numbers can be compared
-  across passes. Measure in ReleaseSafe on the same corpus.
+  across passes. Measure in ReleaseSafe on the same corpus. The flow
+  column says which flow release the pass measured against and how many
+  rows of "Measured" neocaca still loses, or "not run" for a short pass.
 
 ## Log
 
-| Date | Phase | Open 100 MB / 50 MB | Typing (ms a key) | `%` `s` on the big file | Findings |
-|------|-------|---------------------|-------------------|--------------------------|----------|
-| 2026-10-22 | 1 | 50 MB: under 1 s | 50 on 50 MB, instant on small files | 9.6 million selections, 5 s frozen, 830 MB | 5 rough edges ([#12](https://github.com/poopware-laboratories/neocaca/pull/12)); this guide written after it, from a hand-made corpus |
-| 2026-10-23 | 1 | 100 MB: 1.0 s, 231 MB | 100 on 100 MB, 35 on the 31 MB CSV, 50 there with 1000 cursors | `a`: 2.8 million selections, 1.5 s, 457 MB | 1 crash (`SIGXFSZ`), 4 rough edges ([#14](https://github.com/poopware-laboratories/neocaca/pull/14)); tmux only, as a user who is not root |
-| 2026-10-23 | 1 (short: 8, 9, 10) | not measured | not measured | not measured | nothing new; the known change-on-disk overwrite (Phase 2) seen again ([#15](https://github.com/poopware-laboratories/neocaca/pull/15)); a fresh corpus, tmux, as a user who is not root |
+| Date | Phase | Open 100 MB / 50 MB | Typing (ms a key) | `%` `s` on the big file | Against flow | Findings |
+|------|-------|---------------------|-------------------|--------------------------|--------------|----------|
+| 2026-10-22 | 1 | 50 MB: under 1 s | 50 on 50 MB, instant on small files | 9.6 million selections, 5 s frozen, 830 MB | not run | 5 rough edges ([#12](https://github.com/poopware-laboratories/neocaca/pull/12)); this guide written after it, from a hand-made corpus |
+| 2026-10-23 | 1 | 100 MB: 1.0 s, 231 MB | 100 on 100 MB, 35 on the 31 MB CSV, 50 there with 1000 cursors | `a`: 2.8 million selections, 1.5 s, 457 MB | not run | 1 crash (`SIGXFSZ`), 4 rough edges ([#14](https://github.com/poopware-laboratories/neocaca/pull/14)); tmux only, as a user who is not root |
+| 2026-10-23 | 1 (short: 8, 9, 10) | not measured | not measured | not measured | not run | nothing new; the known change-on-disk overwrite (Phase 2) seen again ([#15](https://github.com/poopware-laboratories/neocaca/pull/15)); a fresh corpus, tmux, as a user who is not root |
+| 2026-10-23 | 1 (flow only) | 100 MB: 403 ms, 232 MB | 0.66 on 1 MB | 10,000 selections: 4.8 ms, 2.2 ms the first key | flow 0.7.2: 4 of 15 rows lost (memory at startup and on 1 MB, the 1 GB file refused) | the first measurement, no scenarios ([#16](https://github.com/poopware-laboratories/neocaca/pull/16)) |
