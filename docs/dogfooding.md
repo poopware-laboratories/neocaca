@@ -80,8 +80,10 @@ already lists is noted once with its item, not reported again.
 10. **Disk and filesystem trouble.** Save while the disk is full or a size
     limit applies (`ulimit -f 1` in the shell that starts neocaca; its
     `SIGXFSZ` must not kill the editor): the original file must be
-    untouched and the error shown. Change a file from another shell while
-    it is open.
+    untouched and the error shown. Kill the editor (`kill -9`) while it
+    saves `server.log`: the original must be whole, and a temporary file
+    left beside it must be named after it (`.server.log.<random>.tmp`).
+    Change a file from another shell while it is open.
 11. **What this phase added.** Every pass also works through the features
     merged since the last one, in the same task-first way.
 

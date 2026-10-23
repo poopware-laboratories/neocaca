@@ -186,6 +186,53 @@ test "file: a save past the file size limit fails, keeps the original and leaves
     while (try it.next(io)) |entry| try expectEqualStrings("f", entry.name);
 }
 
+test "file: a save in a subdirectory writes its temporary file there, and leaves none" {
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    try tmp.dir.createDir(io, "sub", .default_dir);
+    try file.save(io, tmp.dir, "sub/f", "new\n", .{});
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("new\n", try tmp.dir.readFile(io, "sub/f", &buf));
+    var it = tmp.dir.iterate();
+    while (try it.next(io)) |entry| try expectEqualStrings("sub", entry.name);
+    var sub = try tmp.dir.openDir(io, "sub", .{ .iterate = true });
+    defer sub.close(io);
+    var sub_it = sub.iterate();
+    while (try sub_it.next(io)) |entry| try expectEqualStrings("f", entry.name);
+}
+
+test "file: a save over a directory fails and leaves no temporary file" {
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    try tmp.dir.createDir(io, "d", .default_dir);
+    try std.testing.expect(std.meta.isError(file.save(io, tmp.dir, "d", "x\n", .{})));
+    var it = tmp.dir.iterate();
+    while (try it.next(io)) |entry| try expectEqualStrings("d", entry.name);
+}
+
+test "file: saving a hidden file with the longest name leaves only it" {
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    const longest: []const u8 = "." ++ &@as([file.max_name - 1]u8, @splat('h'));
+    try file.save(io, tmp.dir, longest, "x\n", .{});
+    try file.save(io, tmp.dir, longest, "y\n", .{});
+    var buf: [4]u8 = undefined;
+    try expectEqualStrings("y\n", try tmp.dir.readFile(io, longest, &buf));
+    var it = tmp.dir.iterate();
+    while (try it.next(io)) |entry| try expectEqualStrings(longest, entry.name);
+}
+
+test "file: a temporary file left by a save that never finished is left alone" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const left = ".f.0000000000000000.tmp";
+    try tmp.dir.writeFile(io, .{ .sub_path = left, .data = "the unfinished save\n" });
+    try file.save(io, tmp.dir, "f", "new\n", .{});
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("new\n", try tmp.dir.readFile(io, "f", &buf));
+    try expectEqualStrings("the unfinished save\n", try tmp.dir.readFile(io, left, &buf));
+}
+
 test "file: save into a missing directory fails" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();

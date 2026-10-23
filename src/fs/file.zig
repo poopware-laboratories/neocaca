@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const link = @import("link.zig");
+const temp = @import("temp.zig");
 
 const Io = std.Io;
 const Dir = Io.Dir;
@@ -50,7 +51,7 @@ fn inDirectory(io: Io, dir: Dir, path: []const u8) Dir.StatFileError!bool {
     return st.kind == .directory;
 }
 
-pub const SaveError = link.Error || Dir.CreateFileAtomicError || Dir.StatFileError || File.SetPermissionsError ||
+pub const SaveError = link.Error || temp.CreateError || Dir.StatFileError || File.SetPermissionsError ||
     File.WritePositionalError || File.SyncError || Dir.RenameError || error{ReadOnly};
 
 pub const SaveOptions = struct {
@@ -59,7 +60,7 @@ pub const SaveOptions = struct {
 };
 
 /// Replaces `path` with `bytes` atomically: they go to a temporary file in
-/// the same directory, which is synced, given the permissions of the file
+/// the same directory (`temp.zig`), which is synced, given the permissions of the file
 /// it replaces, and renamed over it. A link is kept: the file it names is
 /// replaced. A read-only file, one nobody may write, fails with
 /// `error.ReadOnly` unless `how.force`. On any error the original is left
@@ -73,13 +74,17 @@ pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8, how: SaveOpti
         else => return e,
     };
     if (old) |p| if (p.readOnly() and !how.force) return error.ReadOnly;
-    var af = try dir.createFileAtomic(io, target, .{ .replace = true });
-    defer af.deinit(io);
+    var tmp_buf: [Dir.max_path_bytes]u8 = undefined;
+    const tmp = try temp.create(io, dir, target, &tmp_buf);
+    defer tmp.file.close(io);
+    // Nothing more can be done when removing it fails too; the error that
+    // stopped the save is the one to report.
+    errdefer dir.deleteFile(io, tmp.path) catch {};
     // Set after creation, so the umask does not narrow them.
-    if (old) |p| try af.file.setPermissions(io, p);
-    try af.file.writePositionalAll(io, bytes, 0);
-    try af.file.sync(io);
-    try af.replace(io);
+    if (old) |p| try tmp.file.setPermissions(io, p);
+    try tmp.file.writePositionalAll(io, bytes, 0);
+    try tmp.file.sync(io);
+    try dir.rename(tmp.path, dir, target, io);
 }
 
 pub const CreateError = File.OpenError || File.WritePositionalError || File.SyncError;

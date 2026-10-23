@@ -231,10 +231,13 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         first, then the start of the message. Done: at 30 columns they
         read `…": no such file or directory` and `… its directory does
         not exist`.
-  - [ ] S: a temporary file left by a save that never finished (the
+  - [x] S: a temporary file left by a save that never finished (the
         editor killed, the power cut) has a bare random name nobody can
         connect to the file. Name it after the file and hide it
-        (`.unicode.txt.<random>.tmp`).
+        (`.unicode.txt.<random>.tmp`). Done: `fs/temp.zig` names it
+        `.unicode.txt.4efc61bb66dd3e91.tmp` beside the file, a hidden
+        file keeping its one dot and a long name cut between characters
+        to fit 255 bytes; one left by an earlier save is never touched.
   - [ ] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
         again; Phase 1 is done when it finds no crash, lost data or raw
         terminal bytes.
