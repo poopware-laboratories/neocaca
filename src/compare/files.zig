@@ -1,6 +1,6 @@
 //! The files a comparison opens, the same bytes for every editor and every
-//! run. Each starts with `marker`, which shows at the top of the first
-//! frame drawn once the file is open.
+//! run. Each starts with `top`, whose `marker` shows at the top of the
+//! first frame drawn once the file is open.
 
 const std = @import("std");
 
@@ -8,14 +8,19 @@ const Writer = std.Io.Writer;
 
 pub const marker = "neocaca-compare-top";
 
+/// The start of every file: the marker after one character, since an
+/// editor draws the character under its cursor or selection in a style of
+/// its own, which would split the marker on the screen.
+pub const top = "# " ++ marker;
+
 pub const Error = Writer.Error || error{SizeTooSmall};
 
-/// `size` bytes of numbered lines as long as lines of source, the marker
+/// `size` bytes of numbered lines as long as lines of source, the top
 /// line first and the last line cut short to fit.
 pub fn lines(w: *Writer, size: u64) Error!void {
-    if (size < marker.len + 1) return error.SizeTooSmall;
-    try w.writeAll(marker ++ "\n");
-    var left = size - (marker.len + 1);
+    if (size < top.len + 1) return error.SizeTooSmall;
+    try w.writeAll(top ++ "\n");
+    var left = size - (top.len + 1);
     var n: u64 = 1;
     var buf: [80]u8 = undefined;
     while (left > 0) : (n += 1) {
@@ -32,12 +37,12 @@ pub fn lines(w: *Writer, size: u64) Error!void {
     }
 }
 
-/// `size` bytes on one line: the marker, then words, then a newline.
+/// `size` bytes on one line: the top, then words, then a newline.
 pub fn oneLine(w: *Writer, size: u64) Error!void {
-    if (size < marker.len + 2) return error.SizeTooSmall;
-    try w.writeAll(marker ++ " ");
+    if (size < top.len + 2) return error.SizeTooSmall;
+    try w.writeAll(top ++ " ");
     const words_text = "lorem ipsum dolor sit amet consectetur adipiscing elit ";
-    var left = size - (marker.len + 2);
+    var left = size - (top.len + 2);
     while (left > 0) {
         const n = @min(left, words_text.len);
         try w.writeAll(words_text[0..n]);
@@ -46,8 +51,8 @@ pub fn oneLine(w: *Writer, size: u64) Error!void {
     try w.writeAll("\n");
 }
 
-/// The marker line, then `count` lines `word 1` to `word <count>`.
+/// The top line, then `count` lines `word 1` to `word <count>`.
 pub fn words(w: *Writer, count: usize) Writer.Error!void {
-    try w.writeAll(marker ++ "\n");
+    try w.writeAll(top ++ "\n");
     for (1..count + 1) |n| try w.print("word {d}\n", .{n});
 }

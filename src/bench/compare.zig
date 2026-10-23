@@ -355,7 +355,7 @@ pub fn main(init: std.process.Init) !void {
     const d = try cwd.openDir(io, dir, .{});
     defer d.close(io);
     std.debug.print("writing the files in {s}\n", .{dir});
-    try makeFile(io, d, "tiny.txt", .lines, files.marker.len + 1);
+    try makeFile(io, d, "tiny.txt", .lines, files.top.len + 1);
     try makeFile(io, d, "1mib.txt", .lines, 1 << 20);
     try makeFile(io, d, "100mib.txt", .lines, 100 << 20);
     try makeFile(io, d, "1gib.txt", .lines, 1 << 30);
