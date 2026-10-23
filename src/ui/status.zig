@@ -85,9 +85,34 @@ fn writeRight(s: Status, w: *std.Io.Writer) std.Io.Writer.Error!void {
     try w.print("{d}:{d} ", .{ s.line, s.col });
 }
 
-/// Draws `text` on row `y`, in the error style when `is_error`.
-pub fn message(screen: *Screen, y: usize, text: []const u8, is_error: bool, theme: *const Theme) void {
-    if (y >= screen.height) return;
+/// Where a message's path lies in its bytes.
+pub const Span = struct { start: usize, end: usize };
+
+/// Draws `text` on row `y`, in the error style when `is_error`. A message
+/// wider than the row loses the start of its `path` to an ellipsis, so the
+/// reason after it stays; one too wide even then ends with an ellipsis in
+/// its last column.
+pub fn message(screen: *Screen, y: usize, text: []const u8, path: ?Span, is_error: bool, theme: *const Theme) void {
+    if (y >= screen.height or screen.width == 0) return;
     screen.fill(0, y, screen.width, ' ', theme.text);
-    _ = screen.text(0, y, text, if (is_error) theme.@"error" else theme.message);
+    const style = if (is_error) theme.@"error" else theme.message;
+    if (render.screen.textColumns(text) <= screen.width) {
+        _ = screen.text(0, y, text, style);
+        return;
+    }
+    if (path) |p| {
+        const head = text[0..p.start];
+        const tail = text[p.end..];
+        const kept = render.screen.textColumns(head) + 1 + render.screen.textColumns(tail);
+        if (kept <= screen.width) {
+            var col = screen.text(0, y, head, style);
+            col += screen.text(col, y, "…", style);
+            const name = text[p.start..p.end];
+            col += screen.text(col, y, name[tailFitting(name, screen.width - kept)..], style);
+            _ = screen.text(col, y, tail, style);
+            return;
+        }
+    }
+    _ = screen.textUntil(0, y, text, style, screen.width - 1);
+    _ = screen.text(screen.width - 1, y, "…", style);
 }

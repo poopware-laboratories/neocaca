@@ -108,13 +108,104 @@ test "status: the mode badge has its own style" {
 test "status: messages, and errors in their own style" {
     var s: Screen = try .init(gpa, 12, 1);
     defer s.deinit();
-    status.message(&s, 0, "written", false, &theme);
+    status.message(&s, 0, "written", null, false, &theme);
     var buf: [64]u8 = undefined;
     try std.testing.expectEqualStrings("written     ", row(&s, 0, &buf));
     try std.testing.expect(s.at(0, 0).style.eql(theme.message));
-    status.message(&s, 0, "no such file here", true, &theme);
-    try std.testing.expectEqualStrings("no such file", row(&s, 0, &buf));
+    status.message(&s, 0, "no such file here", null, true, &theme);
+    try std.testing.expectEqualStrings("no such fil…", row(&s, 0, &buf));
     try std.testing.expect(s.at(0, 0).style.eql(theme.@"error"));
-    status.message(&s, 0, "", false, &theme);
+    status.message(&s, 0, "", null, false, &theme);
     try std.testing.expectEqualStrings("            ", row(&s, 0, &buf));
+}
+
+fn expectMessageRow(width: usize, text: []const u8, want: []const u8) !void {
+    var s: Screen = try .init(gpa, width, 1);
+    defer s.deinit();
+    status.message(&s, 0, text, null, true, &theme);
+    var buf: [512]u8 = undefined;
+    try std.testing.expectEqualStrings(want, row(&s, 0, &buf));
+}
+
+test "status: a message that fits exactly is not cut" {
+    try expectMessageRow(24, "unsaved changes; :q! dis", "unsaved changes; :q! dis");
+    try expectMessageRow(25, "unsaved changes; :q! dis", "unsaved changes; :q! dis ");
+}
+
+test "status: a message one column too wide ends with an ellipsis" {
+    try expectMessageRow(23, "unsaved changes; :q! dis", "unsaved changes; :q! d…");
+    try expectMessageRow(24, "unsaved changes; :q! discards them", "unsaved changes; :q! di…");
+}
+
+test "status: the ellipsis is drawn in the message's own style" {
+    var s: Screen = try .init(gpa, 4, 1);
+    defer s.deinit();
+    status.message(&s, 0, "written", null, true, &theme);
+    try std.testing.expectEqualStrings("…", s.at(3, 0).text());
+    try std.testing.expect(s.at(3, 0).style.eql(theme.@"error"));
+    status.message(&s, 0, "written", null, false, &theme);
+    try std.testing.expect(s.at(3, 0).style.eql(theme.message));
+}
+
+test "status: a wide character cut by the ellipsis leaves a space before it" {
+    // Each 日 takes two columns: two of them and the ellipsis fill five.
+    try expectMessageRow(5, "日日日", "日日…");
+    try expectMessageRow(4, "日日日", "日 …");
+}
+
+test "status: a control byte in a message is cut as the text is" {
+    // ESC is drawn as ^[, two columns; cut, it keeps its caret, as at the
+    // right edge of the text, and never reaches the terminal raw.
+    try expectMessageRow(4, "a\x1bbc", "a^[…");
+    try expectMessageRow(3, "a\x1bbc", "a^…");
+}
+
+test "status: a window one column wide shows only the ellipsis" {
+    try expectMessageRow(1, "written", "…");
+    try expectMessageRow(1, "w", "w");
+}
+
+fn expectPathRow(width: usize, head: []const u8, path: []const u8, tail: []const u8, want: []const u8) !void {
+    var s: Screen = try .init(gpa, width, 1);
+    defer s.deinit();
+    var text: [256]u8 = undefined;
+    const all = try std.fmt.bufPrint(&text, "{s}{s}{s}", .{ head, path, tail });
+    const span: status.Span = .{ .start = head.len, .end = head.len + path.len };
+    status.message(&s, 0, all, span, true, &theme);
+    var buf: [512]u8 = undefined;
+    try std.testing.expectEqualStrings(want, row(&s, 0, &buf));
+}
+
+test "status: a message too wide loses the start of its path, never its reason" {
+    try expectPathRow(40, "cannot write \"", "aaaa/bbbb/cccc/file.txt", "\": permission denied", "cannot write \"…e.txt\": permission denied");
+    // One column more keeps one more byte of the path.
+    try expectPathRow(41, "cannot write \"", "aaaa/bbbb/cccc/file.txt", "\": permission denied", "cannot write \"…le.txt\": permission denied");
+}
+
+test "status: a message with a path that fits is drawn whole" {
+    try expectPathRow(20, "\"", "a/f", "\" new file", "\"a/f\" new file      ");
+    try expectPathRow(14, "\"", "a/f", "\" new file", "\"a/f\" new file");
+}
+
+test "status: a path cut to nothing keeps only the ellipsis before the reason" {
+    // Head, ellipsis and reason take the whole row; one column more shows
+    // the last byte of the path.
+    try expectPathRow(12, "\"", "abc/def", "\" new file", "\"…\" new file");
+    try expectPathRow(13, "\"", "abc/def", "\" new file", "\"…f\" new file");
+}
+
+test "status: a message too wide even without its path is cut at its end" {
+    try expectPathRow(11, "\"", "abc/def", "\" new file", "\"abc/def\" …");
+}
+
+test "status: a path already shortened keeps one ellipsis" {
+    try expectPathRow(12, "\"", "…nnnn/f", "\": gone", "\"…n/f\": gone");
+    try expectPathRow(13, "\"", "…nnnn/f", "\": gone", "\"…nn/f\": gone");
+}
+
+test "status: a wide character the path cannot fit is left out whole" {
+    // 日 takes two columns: with one column or four for the path, the 日
+    // that would need one more is left out and its column stays blank.
+    try expectPathRow(8, "\"", "日日/日", "\" new", "\"…\" new ");
+    try expectPathRow(11, "\"", "日日/日", "\" new", "\"…/日\" new ");
 }

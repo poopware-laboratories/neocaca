@@ -327,7 +327,7 @@ test "session: a frame short of memory draws what its cells allow, then grows" {
     try expectEqual(9, s.front.height);
     try expectEqual(4, s.ed.width);
     try expectEqual(9, s.ed.height);
-    try expect(std.mem.indexOf(u8, short, "out ") != null); // cut to 4 columns
+    try expect(std.mem.indexOf(u8, short, "out…") != null); // cut to 4 columns
     _ = try frame(&s, &buf);
     try expectEqual(4, s.front.width);
     // Wider: all 30 columns, in the one row the 36 cells allow.

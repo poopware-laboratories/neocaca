@@ -23,7 +23,7 @@ pub fn draw(ed: *Editor, screen: *Screen) void {
     if (ed.mode == .prompt) {
         ed.prompt.draw(screen, h - 1, label(ed.prompt_kind), &ed.theme);
     } else {
-        ui.status.message(screen, h - 1, ed.message.text(), ed.message.is_error, &ed.theme);
+        ui.status.message(screen, h - 1, ed.message.text(), ed.message.path_span, ed.message.is_error, &ed.theme);
     }
 }
 

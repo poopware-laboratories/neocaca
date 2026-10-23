@@ -177,14 +177,14 @@ pub const Session = struct {
                     self.ed.abandonSave();
                     return;
                 };
-                self.ed.message.set(false, "writing \"{s}\"", .{s.path});
+                self.ed.message.set(false, "writing \"{f}\"", .{editor.Message.path(s.path)});
             },
             .load => |p| {
                 self.loading = Loading.start(self.gpa, self.io, self.dir, p, fs.max_file, self.notify) catch {
                     self.ed.message.set(true, "out of memory", .{});
                     return;
                 };
-                self.ed.message.set(false, "reading \"{s}\"", .{p});
+                self.ed.message.set(false, "reading \"{f}\"", .{editor.Message.path(p)});
             },
         }
     }

@@ -174,11 +174,15 @@ persistent undo would beat it once they land (Phase 2 and Phase 4).
         have replaced it; a missing directory, or a path through a file,
         opens new and says "its directory does not exist" on every
         system.
-  - [ ] S: a message wider than the window is cut mid-word with no mark
+  - [x] S: a message wider than the window is cut mid-word with no mark
         (`unsaved changes; :q! dis` at 24 columns); end it with `…`.
         A message over its 256 bytes loses its end too, so a long path
         hides the reason (`cannot open "nnn…` with no "the name is too
-        long"); shorten the path, never the reason.
+        long"); shorten the path, never the reason. A path in a message
+        (`Message.path`) now gives way first: past 256 bytes, and on a
+        window too narrow, it loses its start to `…`, so its file name
+        and the reason stay. A message too wide even then, or one
+        without a path, ends with `…` in the last column.
   - [ ] S: `Alt-i` or `Alt-a` with no such object around the cursor
         (`Alt-i"` outside quotes) changes nothing and says nothing, so the
         next verb acts on the old selection; say "no object here".

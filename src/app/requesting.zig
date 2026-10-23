@@ -51,7 +51,7 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{Out
     ed.quitting = false;
     result catch |e| {
         ed.doc.endSave(false);
-        ed.message.set(true, "cannot write \"{s}\": {s}", .{ s.path, fs.describe(e) });
+        ed.message.set(true, "cannot write \"{f}\": {s}", .{ editor.Message.path(s.path), fs.describe(e) });
         return;
     };
     if (ed.path == null) ed.path = ed.gpa.dupe(u8, s.path) catch |e| {
@@ -59,7 +59,7 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!void) error{Out
         return e;
     };
     ed.doc.endSave(std.mem.eql(u8, ed.path.?, s.path));
-    ed.message.set(false, "\"{s}\" written, {d} line{s}", .{ s.path, s.lines, plural(s.lines) });
+    ed.message.set(false, "\"{f}\" written, {d} line{s}", .{ editor.Message.path(s.path), s.lines, plural(s.lines) });
     if (s.quit) ed.quit = true;
 }
 
@@ -76,7 +76,7 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) er
     const contents = result catch |e| switch (e) {
         error.NoDirectory => null,
         else => {
-            ed.message.set(true, "cannot open \"{s}\": {s}", .{ path, fs.describe(e) });
+            ed.message.set(true, "cannot open \"{f}\": {s}", .{ editor.Message.path(path), fs.describe(e) });
             return;
         },
     };
@@ -90,12 +90,12 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8) er
     ed.path = owned;
     ed.view = .{};
     if (std.meta.isError(result)) {
-        ed.message.set(true, "\"{s}\" new file; its directory does not exist", .{path});
+        ed.message.set(true, "\"{f}\" new file; its directory does not exist", .{editor.Message.path(path)});
     } else if (contents == null) {
-        ed.message.set(false, "\"{s}\" new file", .{path});
+        ed.message.set(false, "\"{f}\" new file", .{editor.Message.path(path)});
     } else {
         const lines = ed.doc.buffer.lineCount();
-        ed.message.set(false, "\"{s}\" {d} line{s}", .{ path, lines, plural(lines) });
+        ed.message.set(false, "\"{f}\" {d} line{s}", .{ editor.Message.path(path), lines, plural(lines) });
     }
 }
 
