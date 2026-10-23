@@ -122,9 +122,10 @@ none of them has one, the message line says "no object here".
 
 | Keys | Action |
 |------|--------|
-| text, Backspace, Left, Right, Home, End | edit the prompt line |
+| text, Backspace, Delete, Left, Right, Home, End | edit the prompt line (Tab types a space) |
+| bracketed paste | inserted at the prompt's cursor, line ends and tabs as spaces, other control characters dropped |
 | Enter | run it |
-| Esc | cancel |
+| Esc, Backspace on an empty prompt | cancel |
 | `Ctrl-u` | clear the prompt line |
 | `Ctrl-z` | suspend, keeping the prompt as typed |
 

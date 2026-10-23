@@ -107,6 +107,8 @@ it starts in 3.3 MiB more memory (Phase 2: startup memory).
 
 ## Phase 0: foundations
 
+Done on 2026-10-22.
+
 - [x] Build, test, fmt and bench steps
 - [x] CI on Ubuntu (glibc) and Alpine (musl, static), release artifacts
       for every target, and an early-warning job on the newest stable Zig
@@ -133,6 +135,9 @@ it starts in 3.3 MiB more memory (Phase 2: startup memory).
         build runner, or a test binary's start or exit.
 
 ## Phase 1: a usable modal editor
+
+Done on 2026-10-23, when the short pass of the second dogfood pass came
+back clean and the change-on-disk fix it led to was in (#15).
 
 - [x] `unicode/`: UTF-8 decoding that never fails on invalid bytes, display
       width (wide, zero width, combining), character boundaries

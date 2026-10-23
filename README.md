@@ -65,6 +65,15 @@ cloud machine, so expect a spread of a few GiB/s):
 ReleaseFast runs at about the same speed: the kernels' loops let the
 compiler prove their bounds checks redundant, so it removes them itself.
 
+Against [flow](https://flow-control.dev), the Zig terminal editor
+neocaca measures itself by (`zig build compare`, on a pseudo-terminal,
+against flow 0.7.2), neocaca draws its first frame in 3.4 ms to flow's
+13.3, answers a key in 0.66 ms to 1.94, opens a 100 MiB file in 403 ms
+and 232 MiB to 876 ms and 703 MiB, and types at 10,000 cursors in under
+5 ms to flow's half a second. It still loses on memory at startup and on
+files past 256 MiB, which it refuses. The full table, and what flow still
+has that neocaca does not, are in "The yardstick" in [`TODO.md`](TODO.md).
+
 What is treated as untrusted, the limits on it, and how to report a
 vulnerability are in [`SECURITY.md`](SECURITY.md).
 
