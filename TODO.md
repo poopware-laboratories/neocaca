@@ -323,6 +323,12 @@ Safety first, then the biggest daily gains.
   - [ ] S: when the terminal reports focus (xterm focus events, mode
         1004), compare the file with its stamp and say it changed, before
         any edit is made on the old text
+- **PR: quit after a save in flight.**
+  - [ ] S: `:q` (and `:e`) typed while a save is still being written
+        waits for it to finish, then quits (or opens), instead of
+        refusing with "a save is still being written". Today `:w` then
+        `:q` typed quickly, or mapped to one key, is refused; the
+        pseudo-terminal test hit it under load.
 - **PR: soft wrap of long lines**
   - [ ] M: wrapped line layout, pure and tested
   - [ ] M: draw it, with the cursor and scrolling over wrapped lines

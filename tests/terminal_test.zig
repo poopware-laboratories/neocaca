@@ -98,10 +98,25 @@ const Run = struct {
     }
 
     /// Types `keys` one at a time, as a person types, reading the frames.
+    /// After an Escape it waits until the editor shows normal mode, so the
+    /// next key never arrives within the Escape timeout and reads as Alt
+    /// plus that key, however slowly the editor runs.
     fn typeKeys(self: *Run, keys: []const u8) !void {
         for (0..keys.len) |i| {
+            const before = self.seen.items.len;
             _ = std.c.write(self.master, keys[i..].ptr, 1);
             try self.drain(60);
+            if (keys[i] == 0x1b) try self.waitFor(before, "NORMAL");
+        }
+    }
+
+    /// Reads until `needle` appears in what the editor wrote from `from` on,
+    /// failing after 10 seconds.
+    fn waitFor(self: *Run, from: usize, needle: []const u8) !void {
+        const deadline = std.Io.Clock.awake.now(io).addDuration(.fromSeconds(10));
+        while (std.mem.indexOf(u8, self.seen.items[from..], needle) == null) {
+            if (std.Io.Clock.awake.now(io).compare(.gte, deadline)) return error.Timeout;
+            try self.drain(20);
         }
     }
 
@@ -170,7 +185,9 @@ test "terminal: Enter, Backspace and Ctrl keys arrive untranslated" {
     // Enter as CR must become a newline, not be turned into LF by the
     // terminal; Ctrl-C must reach the editor, not stop it.
     try r.typeKeys("iab\rcdx\x7f\x03\x1b");
-    try r.typeKeys(":w\r:q\r");
+    // `:wq`, not `:w` then `:q`: a `:q` typed while the save is still
+    // being written is refused.
+    try r.typeKeys(":wq\r");
     try expectEqual(.ok, try r.finish());
     var buf: [64]u8 = undefined;
     try expectEqualStrings("ab\ncd\n", try r.tmp.dir.readFile(io, "new.txt", &buf));
