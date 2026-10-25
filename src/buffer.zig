@@ -1,7 +1,7 @@
 //! Text storage: `Buffer` (`buffer.zig`), the change sets it applies
 //! (`change.zig`), its line index (`lines.zig`), and the form of the file
-//! it came from (`form.zig`): its byte order mark and line ends
-//! (`endings.zig`). No I/O, no terminal.
+//! it came from (`form.zig`): its byte order mark, line ends
+//! (`endings.zig`) and final newline. No I/O, no terminal.
 
 const buffer = @import("buffer/buffer.zig");
 pub const change = @import("buffer/change.zig");

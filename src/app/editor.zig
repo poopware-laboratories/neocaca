@@ -57,8 +57,8 @@ pub const Request = union(enum) {
         expect: Disk = .unknown,
         /// The lines of the text to write, set by `ask`.
         lines: usize = 0,
-        /// The form to write them in (line ends, byte order mark), set by
-        /// `ask`.
+        /// The form to write them in (line ends, byte order mark, final
+        /// newline), set by `ask`.
         form: Form = .{},
     };
 };
@@ -149,7 +149,8 @@ pub const Editor = struct {
     /// What the file at `path` was when it was read or last written.
     disk: Disk = .unknown,
     /// The form `path` is written in: its line ends (the text has `\n`
-    /// ones) and byte order mark (the text has none).
+    /// ones), byte order mark (the text has none) and whether its last
+    /// line ends (the text's always does).
     form: Form = .{},
     message: Message = .{},
     /// The last search pattern, compiled.

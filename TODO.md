@@ -326,8 +326,15 @@ Safety first, then the biggest daily gains.
         byte order mark at the very start is now taken off on load and
         written back first on save and in the recovery file, with CRLF
         line ends too (`buffer/form.zig`); one later in the text is text.
-  - [ ] S: a file without a final newline is saved without one; today the
-        buffer adds one on load and `:w` writes it
+  - [x] S: a file without a final newline is saved without one; before,
+        the buffer added one on load and `:w` wrote it. The buffer still
+        ends in one, so every line has an end to edit; the file's form
+        remembers there was none and a save, or the recovery file, drops
+        it again (`buffer/form.zig`). Lines added after the last one end
+        in a newline, all but the new last. A carriage return that ends a
+        CRLF file is now text, shown as `^M` and kept.
+  - [ ] S: an empty file saved untouched gets a newline; it should stay
+        empty, while text typed into it still ends in one
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
   - [ ] S: when the terminal reports focus (xterm focus events, mode

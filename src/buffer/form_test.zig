@@ -1,5 +1,5 @@
-//! Tests for `form.zig`: a file's byte order mark and line ends taken off
-//! on load and put back on save, byte for byte.
+//! Tests for `form.zig`: a file's byte order mark, line ends and missing
+//! final newline taken off on load and put back on save, byte for byte.
 
 const std = @import("std");
 const form = @import("form.zig");
@@ -43,11 +43,27 @@ test "form: a byte order mark with CRLF line ends takes off both" {
 
 test "form: only a whole mark at the very start counts" {
     // Cut short, it is two bytes of text (shown as invalid UTF-8).
-    try expectDecode("\xef\xbb", .{}, "\xef\xbb");
+    try expectDecode("\xef\xbb", .{ .final_newline = false }, "\xef\xbb");
     try expectDecode("\xef\xbba\n", .{}, "\xef\xbba\n");
     try expectDecode("a\xef\xbb\xbf\n", .{}, "a\xef\xbb\xbf\n");
     // A second mark is text, kept.
     try expectDecode("\xef\xbb\xbfa\n", .{ .bom = true }, "\xef\xbb\xbf\xef\xbb\xbfa\n");
+}
+
+test "form: a file whose last line has no line end is remembered" {
+    try expectDecode("a\nb", .{ .final_newline = false }, "a\nb");
+    try expectDecode("a", .{ .final_newline = false }, "a");
+    try expectDecode("a\nb", .{ .ending = .crlf, .final_newline = false }, "a\r\nb");
+    try expectDecode("a", .{ .bom = true, .final_newline = false }, "\xef\xbb\xbfa");
+}
+
+test "form: an empty file, or one with only a mark, has no last line to end" {
+    try expectDecode("", .{}, "");
+    try expectDecode("", .{ .bom = true }, "\xef\xbb\xbf");
+}
+
+test "form: a carriage return ending a CRLF file is text, its line has no end" {
+    try expectDecode("a\nb\r", .{ .ending = .crlf, .final_newline = false }, "a\r\nb\r");
 }
 
 test "form: decode works in place, inside its input" {
@@ -66,6 +82,14 @@ test "form: encode puts back the mark and the line ends" {
     try expectEncode("\xef\xbb\xbf", "", .{ .bom = true });
 }
 
+test "form: encode drops the buffer's final newline when the file had none" {
+    try expectEncode("a\nb", "a\nb\n", .{ .final_newline = false });
+    try expectEncode("", "\n", .{ .final_newline = false });
+    try expectEncode("a\n", "a\n\n", .{ .final_newline = false });
+    try expectEncode("\xef\xbb\xbfa\r\nb", "a\nb\n", .{ .ending = .crlf, .bom = true, .final_newline = false });
+    try expectEncode("\xef\xbb\xbf", "\n", .{ .bom = true, .final_newline = false });
+}
+
 test "form: every file round-trips byte for byte" {
     const files = [_][]const u8{
         "a\nb\n",
@@ -75,12 +99,22 @@ test "form: every file round-trips byte for byte" {
         "\xef\xbbx\r\n",
         "a\r\nb\n",
         "\xef\xbb\xbfa\r\nb\n",
+        "a\nb",
+        "a\r\nb",
+        "a\r\nb\r",
+        "\xef\xbb\xbfa\r\nb",
+        "a\r\nb\n\r",
     };
     for (files) |file| {
         const copy = try gpa.dupe(u8, file);
         defer gpa.free(copy);
         const got = form.decode(copy);
         try expectEncode(file, got.text, got.form);
+        // As the buffer holds it, with a newline added where none ends it.
+        const held = try std.mem.concat(gpa, u8, &.{ got.text, "\n" });
+        defer gpa.free(held);
+        const text = if (std.mem.endsWith(u8, got.text, "\n")) got.text else held;
+        try expectEncode(file, text, got.form);
     }
 }
 
@@ -91,6 +125,12 @@ test "form: encoding that cannot allocate leaks nothing" {
             a.free(got);
         }
     };
-    const forms = [_]form.Form{ .{}, .{ .bom = true }, .{ .ending = .crlf }, .{ .ending = .crlf, .bom = true } };
+    const forms = [_]form.Form{
+        .{},
+        .{ .bom = true },
+        .{ .ending = .crlf },
+        .{ .ending = .crlf, .bom = true },
+        .{ .ending = .crlf, .bom = true, .final_newline = false },
+    };
     for (forms) |f| try std.testing.checkAllAllocationFailures(gpa, T.run, .{f});
 }

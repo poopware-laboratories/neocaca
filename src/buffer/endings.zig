@@ -20,8 +20,8 @@ pub fn detect(bytes: []const u8) Ending {
 }
 
 /// The text of a CRLF file (see `detect`) with `\n` line ends, made in
-/// place: the carriage return before each line feed goes, and a final one,
-/// whose line feed the buffer adds. Returns the front of `bytes`.
+/// place: the carriage return before each line feed goes. Returns the
+/// front of `bytes`.
 pub fn strip(bytes: []u8) []u8 {
     var from: usize = 0;
     var to: usize = 0;
@@ -33,10 +33,8 @@ pub fn strip(bytes: []u8) []u8 {
         to += 1;
         from += i + 1;
     }
-    const tail = bytes.len - from;
-    const keep = if (tail > 0 and bytes[bytes.len - 1] == '\r') tail - 1 else tail;
-    std.mem.copyForwards(u8, bytes[to..], bytes[from..][0..keep]);
-    return bytes[0 .. to + keep];
+    std.mem.copyForwards(u8, bytes[to..], bytes[from..]);
+    return bytes[0 .. to + bytes.len - from];
 }
 
 /// How long `text` is once written with `ending`.

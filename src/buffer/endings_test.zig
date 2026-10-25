@@ -71,9 +71,9 @@ test "endings: strip keeps carriage returns that end no line" {
     try expectStrip("\ra\n", "\ra\r\n");
 }
 
-test "endings: strip takes a final carriage return for a line end begun" {
-    try expectStrip("a\nb", "a\r\nb\r");
-    try expectStrip("a\nb\r", "a\r\nb\r\r");
+test "endings: strip keeps a carriage return that ends the file" {
+    try expectStrip("a\nb\r", "a\r\nb\r");
+    try expectStrip("a\nb\r\r", "a\r\nb\r\r");
 }
 
 test "endings: strip works in place and returns the front of its input" {

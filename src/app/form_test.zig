@@ -1,5 +1,5 @@
-//! Tests for the form of the open file (its line ends and byte order
-//! mark): a load takes it from the file (`requesting.zig`), a save asks
+//! Tests for the form of the open file (its line ends, byte order mark
+//! and final newline): a load takes it from the file (`requesting.zig`), a save asks
 //! for it and writes it (`saving.zig`), and the recovery file keeps it
 //! (`session.zig`).
 
@@ -134,4 +134,30 @@ test "bom: a save writes the byte order mark first" {
     _ = try job.result;
     var buf: [16]u8 = undefined;
     try expectEqualStrings("\xef\xbb\xbfa\n", try tmp.dir.readFile(io, "f", &buf));
+}
+
+test "final newline: a load remembers a last line without one, and its save asks for that" {
+    var ed: Editor = try .init(gpa, null, "");
+    defer ed.deinit();
+    try load(&ed, "a\nb");
+    try expectEqualStrings("a\nb\n", ed.doc.text());
+    try expectEqual(false, ed.form.final_newline);
+    try expectEqualStrings("\"f\" 2 lines", ed.message.text());
+    try typeKeys(&ed, ":w\r");
+    const r = ed.takeRequest().?;
+    try expectEqual(false, r.save.form.final_newline);
+    ed.finishSave(r.save, .unknown);
+    try load(&ed, "c\n");
+    try expectEqual(true, ed.form.final_newline);
+}
+
+test "final newline: a save of a file that had none writes none" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const job = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .form = .{ .final_newline = false } }, "a\nb\n", null);
+    job.wait();
+    defer job.destroy();
+    _ = try job.result;
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("a\nb", try tmp.dir.readFile(io, "f", &buf));
 }

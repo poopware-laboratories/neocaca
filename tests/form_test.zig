@@ -1,7 +1,8 @@
-//! CRLF files and byte order marks from the first key to the bytes on
-//! disk: lines show no `^M` and the mark is not shown, the lines typed
-//! into a CRLF file end in CRLF, the mark cannot be deleted, and a file
-//! that mixes line ends is written as it was read.
+//! CRLF files, byte order marks and missing final newlines from the first
+//! key to the bytes on disk: lines show no `^M` and the mark is not shown,
+//! the lines typed into a CRLF file end in CRLF, the mark cannot be
+//! deleted, a file that mixes line ends is written as it was read, and one
+//! whose last line had no newline is written without one.
 
 const std = @import("std");
 const Harness = @import("harness.zig").Harness;
@@ -68,19 +69,19 @@ test "endings: a CRLF file is written back byte for byte" {
     try expectFile(&h, "f", bytes);
 }
 
-test "endings: a CRLF file without a final line end gets a CRLF one" {
+test "endings: a CRLF file without a final line end is written without one" {
     var h: Harness = undefined;
     try h.init("f", "a\r\nb", 12, 4);
     defer h.deinit();
-    try h.typeKeys(":w\r");
-    try expectFile(&h, "f", "a\r\nb\r\n");
-    // A carriage return that ends the file begins that line end.
+    try h.typeKeys("jox\x1b:w\r");
+    try expectFile(&h, "f", "a\r\nb\r\nx");
+    // A carriage return that ends the file is text, shown and kept.
     var g: Harness = undefined;
     try g.init("g", "a\r\nb\r", 12, 4);
     defer g.deinit();
-    try g.expectRow(1, " 2 b        ");
+    try g.expectRow(1, " 2 b^M      ");
     try g.typeKeys(":w\r");
-    try expectFile(&g, "g", "a\r\nb\r\n");
+    try expectFile(&g, "g", "a\r\nb\r");
 }
 
 test "endings: a file mixing line ends is edited and written as it is" {
@@ -186,4 +187,77 @@ test "bom: the recovery file keeps the byte order mark" {
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
     try expectFile(&h, "f.recovered", "\xef\xbb\xbfa\nx\n");
+}
+
+test "final newline: a file without one is written back without one" {
+    var h: Harness = undefined;
+    try h.init("f", "ab\ncd", 12, 4);
+    defer h.deinit();
+    try h.expectRow(1, " 2 cd       ");
+    try h.typeKeys(":w\r");
+    try expectFile(&h, "f", "ab\ncd");
+    try h.typeKeys("jglax\x1b:w\r");
+    try expectFile(&h, "f", "ab\ncdx");
+}
+
+test "final newline: lines added after the last one end, all but the last" {
+    var h: Harness = undefined;
+    try h.init("f", "a", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("ob\rc\x1b:w\r");
+    try expectFile(&h, "f", "a\nb\nc");
+}
+
+test "final newline: deleting all the text leaves the file empty" {
+    var h: Harness = undefined;
+    try h.init("f", "a\nb", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("%d:w\r");
+    try expectFile(&h, "f", "");
+}
+
+test "final newline: a file with one keeps it, and an empty file gets one once typed in" {
+    var h: Harness = undefined;
+    try h.init("f", "a\n", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("ob\x1b:w\r");
+    try expectFile(&h, "f", "a\nb\n");
+    var g: Harness = undefined;
+    try g.init("g", "", 12, 4);
+    defer g.deinit();
+    try g.typeKeys("ix\x1b:w\r");
+    try expectFile(&g, "g", "x\n");
+}
+
+test "final newline: the mark, CRLF and no final newline are all kept" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbfa\r\nb", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("Ox\x1b:w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbfx\r\na\r\nb");
+}
+
+test "final newline: :w to another name and :e keep each file's own" {
+    var h: Harness = undefined;
+    try h.init("f", "a", 12, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "g", .data = "b\n" });
+    try h.typeKeys(":w copy\r");
+    try expectFile(&h, "copy", "a");
+    try h.typeKeys(":e g\r");
+    try h.typeKeys("ox\x1b:w\r");
+    try expectFile(&h, "g", "b\nx\n");
+    try h.typeKeys(":e f\r");
+    try h.typeKeys("oy\x1b:w\r");
+    try expectFile(&h, "f", "a\ny");
+}
+
+test "final newline: the recovery file has none when the file had none" {
+    var h: Harness = undefined;
+    try h.init("f", "a", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("ox\x1b");
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectFile(&h, "f.recovered", "a\nx");
 }

@@ -137,7 +137,7 @@ The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/bench/` | `zig build bench`: kernels against their scalar references; `zig build compare`: neocaca against flow |
 | `src/compare/` | The pure part of `zig build compare`: terminal replies, frame waits, test files, the table |
 | `src/unicode/` | UTF-8 that never fails, display widths, characters with combining marks |
-| `src/buffer/` | Text with a line index, change sets, CRLF line ends and the byte order mark |
+| `src/buffer/` | Text with a line index, change sets, and a file's CRLF line ends, byte order mark and missing final newline |
 | `src/regex/` | A linear-time, bounded regex engine (Pike VM) |
 | `src/edit/` | Selections, motions, text objects, verbs, registers, search, undo |
 | `src/input/` | Terminal bytes to keys, and the Kakoune-style keymap |
