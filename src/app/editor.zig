@@ -17,6 +17,7 @@ const prompting = @import("prompting.zig");
 const viewing = @import("viewing.zig");
 const requesting = @import("requesting.zig");
 const Disk = @import("../fs.zig").disk.Disk;
+const Form = @import("../buffer.zig").form.Form;
 
 const Action = input.Action;
 const Document = edit.Document;
@@ -56,6 +57,9 @@ pub const Request = union(enum) {
         expect: Disk = .unknown,
         /// The lines of the text to write, set by `ask`.
         lines: usize = 0,
+        /// The form to write them in (line ends, byte order mark, final
+        /// newline), set by `ask`.
+        form: Form = .{},
     };
 };
 
@@ -144,6 +148,10 @@ pub const Editor = struct {
     path: ?[]u8 = null,
     /// What the file at `path` was when it was read or last written.
     disk: Disk = .unknown,
+    /// The form `path` is written in: its line ends (the text has `\n`
+    /// ones), byte order mark (the text has none) and whether its last
+    /// line ends (the text's always does).
+    form: Form = .{},
     message: Message = .{},
     /// The last search pattern, compiled.
     search: ?Regex = null,

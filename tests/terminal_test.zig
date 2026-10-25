@@ -221,8 +221,11 @@ test "terminal: the terminal closing keeps the file and recovers the changes bes
     try r.tmp.dir.writeFile(io, .{ .sub_path = "keep", .data = "safe\n" });
     try r.start(&.{"keep"});
     try r.drain(200);
+    const before = r.seen.items.len;
     try r.typeKeys("ix");
-    try r.drain(200);
+    // Hang up only once the edit shows (`[+]`): keys the editor has not
+    // read yet are lost with the terminal, however slow the machine.
+    try r.waitFor(before, "[+]");
     r.hangUp();
     r.thread.?.join();
     r.thread = null;

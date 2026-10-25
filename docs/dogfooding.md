@@ -62,7 +62,12 @@ already lists is noted once with its item, not reported again.
    20 MB line and change it.
 5. **Files from elsewhere.** Edit `windows.txt`, `bom.txt`,
    `no-final-newline.txt` and the `Makefile`, save, and compare the bytes
-   with `cmp` or `od -c`: only your edit may differ.
+   with `cmp` or `od -c`: only your edit may differ. In `windows.txt` no
+   `^M` shows, and the lines you add (Enter, `o`, a paste) end in CRLF
+   like the others. In `bom.txt` no glyph shows before the first
+   character, and the mark is still first on disk after `%d` and `:w`.
+   `no-final-newline.txt` still ends without a newline after an edit,
+   and an empty file saved untouched stays empty.
 6. **Hostile files.** Open `escapes.txt` and `binary`: nothing may reach
    the terminal raw (the title, colors and screen stay as they were), and
    moving through them must not crash.

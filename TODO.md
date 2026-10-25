@@ -312,19 +312,44 @@ Safety first, then the biggest daily gains.
         against the 232 MB the open file takes.
 - **PR: respect line endings, the BOM and a missing final newline.**
   The bytes of a file are kept as loaded, but:
-  - [ ] M: CRLF files show no `^M` at each line end, and the lines added
+  - [x] M: CRLF files show no `^M` at each line end, and the lines added
         to them (Enter, `o`, `O`, paste) end in CRLF, not a bare `\n`.
-        Today `gl` then `a` on a CRLF line puts the text between the
-        `\r` and the `\n`.
-  - [ ] S: a BOM is hidden and cannot be deleted by accident; today it
-        shows as a replacement glyph at the start of the file
-  - [ ] S: a file without a final newline is saved without one; today the
-        buffer adds one on load and `:w` writes it
+        Before, `gl` then `a` on a CRLF line put the text between the
+        `\r` and the `\n`. A file whose every line ends in CRLF is now
+        edited with `\n` and written (and recovered) with CRLF, byte for
+        byte; a file that mixes the two is kept as it is, `^M` and all
+        (`buffer/endings.zig`). In ReleaseSafe the 100 MB log with CRLF
+        opens in 0.25 s against 0.17 s with LF, peaking at 250 MB against
+        244 MB; saves take as long either way.
+  - [x] S: a BOM is hidden and cannot be deleted by accident; before, it
+        showed as a replacement glyph at the start of the file. A UTF-8
+        byte order mark at the very start is now taken off on load and
+        written back first on save and in the recovery file, with CRLF
+        line ends too (`buffer/form.zig`); one later in the text is text.
+  - [x] S: a file without a final newline is saved without one; before,
+        the buffer added one on load and `:w` wrote it. The buffer still
+        ends in one, so every line has an end to edit; the file's form
+        remembers there was none and a save, or the recovery file, drops
+        it again (`buffer/form.zig`). Lines added after the last one end
+        in a newline, all but the new last. A carriage return that ends a
+        CRLF file is now text, shown as `^M` and kept.
+  - [x] S: an empty file saved untouched gets a newline; it should stay
+        empty, while text typed into it still ends in one. Now the form
+        remembers a file with no text, and while the buffer holds none
+        either a save writes it empty (a byte order mark alone stays
+        alone). A new file saved untouched still gets its newline.
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
   - [ ] S: when the terminal reports focus (xterm focus events, mode
         1004), compare the file with its stamp and say it changed, before
         any edit is made on the old text
+- **PR: keys typed during a load keep their pauses.**
+  - [ ] S: an Escape typed while `:e` is still reading the file, then
+        `:` or another key, is read as Alt plus that key when the held
+        bytes are decoded after the load, because the pause after the
+        Escape is lost (`session.zig` holds raw bytes). `:e f` then
+        `ox`, Esc, `:w` typed quickly inserts `xw`. Hold the decoded keys,
+        or the timeout, instead. Found by the CRLF tests.
 - **PR: quit after a save in flight.**
   - [ ] S: `:q` (and `:e`) typed while a save is still being written
         waits for it to finish, then quits (or opens), instead of

@@ -1,6 +1,7 @@
 //! Integration tests: whole editor sessions driven from scripted input
 //! bytes, asserting on the final screen, the buffers and the files written
-//! (`editing_test.zig` and `commands_test.zig`, through `harness.zig`), and
+//! (`editing_test.zig`, `commands_test.zig`, `form_test.zig` and the
+//! others, through `harness.zig`), and
 //! the editor run on a pseudo-terminal end to end (`terminal_test.zig`).
 
 test {
@@ -9,6 +10,7 @@ test {
     _ = @import("commands_test.zig");
     _ = @import("messages_test.zig");
     _ = @import("display_test.zig");
+    _ = @import("form_test.zig");
     _ = @import("counts_test.zig");
     _ = @import("random_test.zig");
     _ = @import("terminal_test.zig");

@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const fs = @import("../fs.zig");
+const form = @import("../buffer.zig").form;
 const editor = @import("editor.zig");
 
 const Editor = editor.Editor;
@@ -25,7 +26,7 @@ pub fn ask(ed: *Editor, r: Request) error{OutOfMemory}!void {
     try ed.request_path.appendSlice(ed.gpa, path);
     const own = ed.request_path.items;
     ed.request = switch (r) {
-        .save => |s| .{ .save = .{ .path = own, .quit = s.quit, .force = s.force, .lines = ed.doc.buffer.lineCount() } },
+        .save => |s| .{ .save = .{ .path = own, .quit = s.quit, .force = s.force, .lines = ed.doc.buffer.lineCount(), .form = ed.form } },
         .load => .{ .load = own },
     };
     if (r == .save) {
@@ -85,7 +86,8 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8, di
         },
     };
     defer if (contents) |t| ed.gpa.free(t);
-    var doc: Document = try .init(ed.gpa, contents orelse "");
+    const decoded: form.Decoded = if (contents) |t| form.decode(t) else .{ .text = "", .form = .{} };
+    var doc: Document = try .init(ed.gpa, decoded.text);
     errdefer doc.deinit();
     const owned = try ed.gpa.dupe(u8, path);
     ed.doc.deinit();
@@ -93,6 +95,7 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8, di
     if (ed.path) |p| ed.gpa.free(p);
     ed.path = owned;
     ed.disk = disk;
+    ed.form = decoded.form;
     ed.view = .{};
     if (std.meta.isError(result)) {
         ed.message.set(true, "\"{f}\" new file; its directory does not exist", .{editor.Message.path(path)});
