@@ -12,6 +12,7 @@ const editor = @import("editor.zig");
 const Saving = @import("saving.zig").Saving;
 const Loading = @import("loading.zig").Loading;
 const recovery = @import("recovery.zig");
+const endings = @import("../buffer.zig").endings;
 
 const Editor = editor.Editor;
 const Screen = rendering.Screen;
@@ -101,12 +102,17 @@ pub const Session = struct {
         failed: recovery.Error,
     };
 
-    /// Writes unsaved changes to a recovery file (see `recovery.zig`),
-    /// once a save in flight is over; for a terminal that went away.
+    /// Writes unsaved changes to a recovery file (see `recovery.zig`) with
+    /// the file's line ends, once a save in flight is over; for a terminal
+    /// that went away. Without the memory to change the line ends, the
+    /// text is written with `\n` ones: the changes matter more.
     pub fn recover(self: *Session, buf: *[recovery.max_name]u8) Recovery {
         self.settle();
         if (!self.ed.doc.isModified()) return .none;
-        const where = recovery.write(self.io, self.dir, self.ed.path, self.ed.doc.text(), buf) catch |e| return .{ .failed = e };
+        const text = self.ed.doc.text();
+        const encoded = if (self.ed.ending == .crlf) endings.encode(self.gpa, text, .crlf) catch null else null;
+        defer if (encoded) |t| self.gpa.free(t);
+        const where = recovery.write(self.io, self.dir, self.ed.path, encoded orelse text, buf) catch |e| return .{ .failed = e };
         return .{ .written = where };
     }
 

@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const fs = @import("../fs.zig");
+const endings = @import("../buffer.zig").endings;
 const Save = @import("editor.zig").Request.Save;
 
 pub const Saving = struct {
@@ -13,7 +14,8 @@ pub const Saving = struct {
     dir: std.Io.Dir,
     /// What was asked for; its path is owned.
     save: Save,
-    /// Owned: the text as it was when the save began.
+    /// Owned: the text as it was when the save began, with the line ends
+    /// of `save.ending`.
     text: []u8,
     /// Written a byte once the save has finished; borrowed.
     notify: ?std.posix.fd_t,
@@ -23,9 +25,10 @@ pub const Saving = struct {
     finished: std.atomic.Value(bool) = .init(false),
     thread: ?std.Thread = null,
 
-    /// Starts writing a copy of `text` to `save.path` in `dir`. When no thread
-    /// can be started the file is written before this returns. Caller owns
-    /// the result: `wait` for it, then `destroy` it.
+    /// Starts writing a copy of `text`, with `save.ending` line ends, to
+    /// `save.path` in `dir`. When no thread can be started the file is
+    /// written before this returns. Caller owns the result: `wait` for it,
+    /// then `destroy` it.
     pub fn start(
         gpa: std.mem.Allocator,
         io: std.Io,
@@ -38,7 +41,7 @@ pub const Saving = struct {
         errdefer gpa.destroy(self);
         const own_path = try gpa.dupe(u8, save.path);
         errdefer gpa.free(own_path);
-        const own_text = try gpa.dupe(u8, text);
+        const own_text = try endings.encode(gpa, text, save.ending);
         var own = save;
         own.path = own_path;
         self.* = .{ .gpa = gpa, .io = io, .dir = dir, .save = own, .text = own_text, .notify = notify };

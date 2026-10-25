@@ -48,6 +48,7 @@ test {
     _ = @import("app/saving_test.zig");
     _ = @import("app/loading_test.zig");
     _ = @import("app/recovery_test.zig");
+    _ = @import("app/endings_test.zig");
     _ = loop;
     _ = @import("app/loop_test.zig");
     _ = edit;

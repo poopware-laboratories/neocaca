@@ -1,0 +1,57 @@
+//! Line endings: a file whose every line ends in CRLF is edited with `\n`
+//! line ends and written back with CRLF, so its lines show no `^M` and the
+//! lines typed into it end like the others. A file that mixes the two is
+//! edited as it is.
+
+const std = @import("std");
+const simd = @import("../simd.zig");
+
+pub const Ending = enum { lf, crlf };
+
+/// `.crlf` when `bytes` has a line feed and a carriage return comes before
+/// every one, else `.lf`.
+pub fn detect(bytes: []const u8) Ending {
+    var at: usize = 0;
+    while (simd.indexOfByte(bytes[at..], '\n')) |i| {
+        if (at + i == 0 or bytes[at + i - 1] != '\r') return .lf;
+        at += i + 1;
+    }
+    return if (at == 0) .lf else .crlf;
+}
+
+/// The text of a CRLF file (see `detect`) with `\n` line ends, made in
+/// place: the carriage return before each line feed goes, and a final one,
+/// whose line feed the buffer adds. Returns the front of `bytes`.
+pub fn strip(bytes: []u8) []u8 {
+    var from: usize = 0;
+    var to: usize = 0;
+    while (simd.indexOfByte(bytes[from..], '\n')) |i| {
+        // A line of `i - 1` bytes, then its carriage return and line feed.
+        std.mem.copyForwards(u8, bytes[to..], bytes[from..][0 .. i - 1]);
+        to += i - 1;
+        bytes[to] = '\n';
+        to += 1;
+        from += i + 1;
+    }
+    const tail = bytes.len - from;
+    const keep = if (tail > 0 and bytes[bytes.len - 1] == '\r') tail - 1 else tail;
+    std.mem.copyForwards(u8, bytes[to..], bytes[from..][0..keep]);
+    return bytes[0 .. to + keep];
+}
+
+/// `text` as a file with `ending` holds it: a copy, with a carriage return
+/// before every line feed for `.crlf`. Caller owns the result.
+pub fn encode(gpa: std.mem.Allocator, text: []const u8, ending: Ending) error{OutOfMemory}![]u8 {
+    if (ending == .lf) return gpa.dupe(u8, text);
+    const out = try gpa.alloc(u8, text.len + simd.count(text, '\n'));
+    var from: usize = 0;
+    var to: usize = 0;
+    while (simd.indexOfByte(text[from..], '\n')) |i| {
+        @memcpy(out[to..][0..i], text[from..][0..i]);
+        out[to + i ..][0..2].* = "\r\n".*;
+        to += i + 2;
+        from += i + 1;
+    }
+    @memcpy(out[to..], text[from..]);
+    return out;
+}
