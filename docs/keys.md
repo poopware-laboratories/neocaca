@@ -74,6 +74,11 @@ Objects: `w` word, `W` WORD, `(` `)` `b` parentheses, `[` `]` brackets,
 paragraph. A selection with no such object around it stays as it is; when
 none of them has one, the message line says "no object here".
 
+There are at most 1,048,576 selections, one for every line of a CSV of a
+million rows and its header. `s`, `S`, `Alt-s`, `C` and `N` that would
+make more change nothing, and the message line says "too many selections
+(more than 1048576)".
+
 ### Search
 
 | Keys | Action |

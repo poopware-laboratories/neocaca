@@ -30,6 +30,9 @@ pub const Document = struct {
     /// each began, or null once no undo or redo can get back there.
     saving_at: [max_saves]?usize = undefined,
     saves: usize = 0,
+    /// The most selections the commands that make more of them may make;
+    /// lowered only by tests.
+    selection_limit: usize = selection.max_selections,
 
     /// The most saves in flight: one written, one waiting for it.
     pub const max_saves = 2;

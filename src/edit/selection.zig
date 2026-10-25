@@ -47,6 +47,12 @@ pub const Selection = struct {
 
 pub const Range = struct { start: usize, end: usize };
 
+/// The most selections a document holds: 2^20, room for one on every line
+/// of a CSV of a million rows and its header. Each is 32 bytes, so a
+/// command that would make millions (`s` on a huge file) is refused
+/// instead of freezing the editor.
+pub const max_selections = 1 << 20;
+
 pub const Selections = struct {
     /// Sorted by `min`, never overlapping, never empty.
     list: std.ArrayList(Selection),

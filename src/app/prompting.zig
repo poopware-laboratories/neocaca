@@ -40,6 +40,7 @@ pub fn submit(ed: *Editor) Error!void {
                 else => selecting.keepMatching(&ed.doc, &re, false),
             } catch |e| switch (e) {
                 error.TooCostly => return stopped(ed),
+                error.TooManySelections => return tooMany(ed),
                 error.OutOfMemory => |oom| return oom,
             };
             // Drop fails only when every selection matches, and split
@@ -67,6 +68,11 @@ fn stopped(ed: *Editor) void {
     ed.message.set(true, "stopped: too much work for this regex", .{});
 }
 
+/// Says a command was refused for making more selections than allowed.
+pub fn tooMany(ed: *Editor) void {
+    ed.message.set(true, "too many selections (more than {d})", .{ed.doc.selection_limit});
+}
+
 /// Selects the next match of the last pattern in `dir`.
 pub fn searchNext(ed: *Editor, dir: edit.search.Direction, add: bool) Error!void {
     const re = if (ed.search) |*r| r else {
@@ -78,6 +84,7 @@ pub fn searchNext(ed: *Editor, dir: edit.search.Direction, add: bool) Error!void
     switch (try edit.search.next(&ed.doc, re, dir, add)) {
         .found => {},
         .stopped => stopped(ed),
+        .too_many => tooMany(ed),
         .wrapped => ed.message.set(false, "search wrapped", .{}),
         .not_found => {
             const pattern = ed.regs.get(edit.registers.search);
