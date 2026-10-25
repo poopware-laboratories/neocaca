@@ -307,6 +307,12 @@ pub const Editor = struct {
         try edit.insert.text(&self.doc, text);
     }
 
+    /// Says so when a command was refused for making too many selections.
+    fn limited(self: *Editor, e: selecting.LimitError) Error!void {
+        if (e == error.OutOfMemory) return error.OutOfMemory;
+        prompting.tooMany(self);
+    }
+
     fn apply(self: *Editor, a: Action) Error!void {
         const doc = &self.doc;
         const tw = self.options.tab_width;
@@ -322,11 +328,11 @@ pub const Editor = struct {
                 self.message.set(true, "the only selection cannot be dropped", .{});
             },
             .rotate_main => |d| selecting.rotateMain(doc, d),
-            .copy_to_line => |c| _ = try selecting.copyToLine(doc, c.down, c.count, tw),
+            .copy_to_line => |c| _ = selecting.copyToLine(doc, c.down, c.count, tw) catch |e| return self.limited(e),
             .select_object => |o| if (!try selecting.selectObject(doc, o.kind, o.inner)) {
                 self.message.set(true, "no object here", .{});
             },
-            .split_lines => try selecting.splitLines(doc),
+            .split_lines => selecting.splitLines(doc) catch |e| return self.limited(e),
             .trim_lines => if (!try selecting.trimLines(doc)) {
                 self.message.set(true, "no selection holds a whole line", .{});
             },

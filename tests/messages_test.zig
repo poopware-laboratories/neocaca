@@ -149,3 +149,46 @@ test "messages: on a narrow window a new file keeps the end of its warning on sc
     try h.expectMessage("\"a-very-long-dir/new.txt\" new file; its directory does not exist");
     try h.expectRow(3, "… its directory does not exist");
 }
+
+/// A session on `contents` that allows `limit` selections.
+fn limited(h: *Harness, contents: []const u8, limit: usize) !void {
+    try h.init("f", contents, 60, 6);
+    h.session.ed.doc.selection_limit = limit;
+}
+
+test "messages: s, S and Alt-s past the selection limit say so and change nothing" {
+    var h: Harness = undefined;
+    try limited(&h, "a a a\nb\nc\n", 2);
+    defer h.deinit();
+    try h.typeKeys("%sa\r");
+    try h.expectMessage("too many selections (more than 2)");
+    try expect(h.session.ed.message.is_error);
+    try h.expectSelections(&.{"a a a\nb\nc\n"});
+    try h.typeKeys("S\\n\r");
+    try h.expectMessage("too many selections (more than 2)");
+    try h.expectSelections(&.{"a a a\nb\nc\n"});
+    try h.send("\x1bs");
+    try h.expectMessage("too many selections (more than 2)");
+    try h.expectSelections(&.{"a a a\nb\nc\n"});
+    // Within the limit, they work as always.
+    try h.typeKeys("xsa a\r");
+    try h.expectSelections(&.{"a a"});
+}
+
+test "messages: C and N past the selection limit say so and change nothing" {
+    var h: Harness = undefined;
+    try limited(&h, "a\nb\nc\n", 2);
+    defer h.deinit();
+    try h.typeKeys("C");
+    try h.expectSelections(&.{ "a", "b" });
+    try h.typeKeys("C");
+    try h.expectMessage("too many selections (more than 2)");
+    try h.expectSelections(&.{ "a", "b" });
+    try h.typeKeys("/c\r");
+    try h.expectSelections(&.{"c"});
+    try h.typeKeys("kN");
+    try h.expectSelections(&.{ "b", "c" });
+    try h.typeKeys("N");
+    try h.expectMessage("too many selections (more than 2)");
+    try h.expectSelections(&.{ "b", "c" });
+}

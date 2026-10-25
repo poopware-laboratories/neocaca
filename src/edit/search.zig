@@ -14,7 +14,8 @@ const Match = regex.Match;
 pub const Direction = enum { forward, backward };
 
 /// `stopped`: the regex ran out of steps (`Regex.exhausted`) first.
-pub const Result = enum { found, wrapped, not_found, stopped };
+/// `too_many`: adding the match would pass `Document.selection_limit`.
+pub const Result = enum { found, wrapped, not_found, stopped, too_many };
 
 /// The first non-empty match inside `text[from..to]`.
 pub fn nonEmpty(re: *Regex, text: []const u8, from: usize, to: usize) ?Match {
@@ -65,6 +66,7 @@ pub fn next(doc: *Document, re: *Regex, dir: Direction, add: bool) error{OutOfMe
         try doc.select(&.{sel}, 0);
         return result;
     }
+    if (doc.sels().len == doc.selection_limit) return .too_many;
     try doc.selections.list.ensureUnusedCapacity(doc.gpa, 1);
     doc.selections.list.appendAssumeCapacity(sel);
     doc.selections.main = doc.sels().len - 1;

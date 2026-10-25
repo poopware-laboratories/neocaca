@@ -301,13 +301,15 @@ back clean and the change-on-disk fix it led to was in (#15).
 Safety first, then the biggest daily gains.
 
 - **PR: cap the number of selections**
-  - [ ] S: `max_selections`, tested at the limit and one past it. Today
-        `S` or `s` on a huge file can make millions of selections (32
-        bytes each), bounded only by memory: `%` then `s` `a` on a 50 MB
-        file made 9.6 million, froze the editor for 5 seconds and used
-        830 MB. On the 100 MB log of the corpus, `%` `s` `a` made 2.8
+  - [x] S: `max_selections` (2^20), tested at the limit and one past it:
+        `s`, `S`, `Alt-s`, `C` and `N` that would make more stop as they
+        pass it, say so and change nothing. Before, `%` then `s` `a` on a
+        50 MB file made 9.6 million, froze the editor for 5 seconds and
+        used 830 MB; on the 100 MB log of the corpus, `%` `s` `a` made 2.8
         million in 1.5 s (457 MB), and `%` `Alt-s` 1.4 million lines in
-        0.6 s (350 MB).
+        0.6 s (350 MB). Now, in ReleaseSafe on the same log, `%` `s` `a`
+        is refused in 0.69 s and `%` `Alt-s` in 0.07 s, peaking at 252 MB
+        against the 232 MB the open file takes.
 - **PR: respect line endings, the BOM and a missing final newline.**
   The bytes of a file are kept as loaded, but:
   - [ ] M: CRLF files show no `^M` at each line end, and the lines added

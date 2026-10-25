@@ -17,8 +17,11 @@ const moving = @import("moving.zig");
 
 const chars = unicode.chars;
 const Error = error{OutOfMemory};
+/// `TooManySelections`: the command would make more than
+/// `Document.selection_limit` selections, and nothing changed.
+pub const LimitError = Error || error{TooManySelections};
 /// `TooCostly`: the regex ran out of steps, and nothing changed.
-pub const SearchError = Error || error{TooCostly};
+pub const SearchError = LimitError || error{TooCostly};
 
 pub const Motion = moving.Motion;
 pub const Find = moving.Find;
@@ -141,7 +144,7 @@ fn atColumn(buf: *const Buffer, n: usize, col: usize, tab_width: usize) ?usize {
 /// `C` (`down`) and `Alt-C`: adds a copy of the main selection, at the same
 /// display columns, on the nearest line past every selection where it fits,
 /// and makes it main. Repeated `count` times; false when no copy fits.
-pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) Error!bool {
+pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) LimitError!bool {
     const buf = &doc.buffer;
     var copies: std.ArrayList(Selection) = .empty;
     defer copies.deinit(doc.gpa);
@@ -172,6 +175,7 @@ pub fn copyToLine(doc: *Document, down: bool, count: usize, tab_width: usize) Er
             break .span(anchor, cursor);
         };
         m = found orelse break;
+        if (list.len + copies.items.len == doc.selection_limit) return error.TooManySelections;
         try copies.append(doc.gpa, m);
         edge = if (down) buf.lineOf(m.max()) else buf.lineOf(m.min());
     }
@@ -200,6 +204,12 @@ pub fn selectObject(doc: *Document, kind: object.Kind, inner: bool) Error!bool {
     return true;
 }
 
+/// Appends `s` to `out`, refusing to make more than the document allows.
+fn add(doc: *const Document, out: *std.ArrayList(Selection), s: Selection) LimitError!void {
+    if (out.items.len == doc.selection_limit) return error.TooManySelections;
+    try out.append(doc.gpa, s);
+}
+
 /// Replaces the selections with `out`, the first of them made from the
 /// old main one at `main`. False, changing nothing, when `out` is empty.
 fn replaceWith(doc: *Document, out: []const Selection, main: usize) Error!bool {
@@ -221,7 +231,7 @@ pub fn selectMatches(doc: *Document, re: *Regex) SearchError!bool {
         var walk: chars.Walk = .{ .text = text, .at = r.start };
         var from = r.start;
         while (search.nonEmpty(re, text, from, r.end)) |m| {
-            try out.append(doc.gpa, search.over(&walk, m));
+            try add(doc, &out, search.over(&walk, m));
             from = m.end;
         }
     }
@@ -246,18 +256,18 @@ pub fn split(doc: *Document, re: *Regex) SearchError!bool {
         while (search.nonEmpty(re, text, from, r.end)) |m| {
             // The pieces keep out every character a match touches.
             const cut = search.over(&walk, m);
-            if (cut.anchor > start) try out.append(doc.gpa, .span(start, chars.prev(text, cut.anchor)));
+            if (cut.anchor > start) try add(doc, &out, .span(start, chars.prev(text, cut.anchor)));
             start = chars.next(text, cut.cursor);
             from = m.end;
         }
-        if (r.end > start) try out.append(doc.gpa, .span(start, chars.prev(text, r.end)));
+        if (r.end > start) try add(doc, &out, .span(start, chars.prev(text, r.end)));
     }
     if (re.exhausted()) return error.TooCostly;
     return replaceWith(doc, out.items, main);
 }
 
 /// `Alt-s`: splits the selections into one per line, newline included.
-pub fn splitLines(doc: *Document) Error!void {
+pub fn splitLines(doc: *Document) LimitError!void {
     const buf = &doc.buffer;
     const text = doc.text();
     var out: std.ArrayList(Selection) = .empty;
@@ -269,7 +279,7 @@ pub fn splitLines(doc: *Document) Error!void {
         for (buf.lineOf(r.start)..buf.lineOf(r.end - 1) + 1) |n| {
             const start = @max(buf.lineStart(n), r.start);
             const end = @min(buf.lineEnd(n) + 1, r.end);
-            try out.append(doc.gpa, .span(start, chars.prev(text, end)));
+            try add(doc, &out, .span(start, chars.prev(text, end)));
         }
     }
     try doc.select(out.items, main);
