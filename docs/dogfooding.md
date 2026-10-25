@@ -64,7 +64,8 @@ already lists is noted once with its item, not reported again.
    `no-final-newline.txt` and the `Makefile`, save, and compare the bytes
    with `cmp` or `od -c`: only your edit may differ. In `windows.txt` no
    `^M` shows, and the lines you add (Enter, `o`, a paste) end in CRLF
-   like the others.
+   like the others. In `bom.txt` no glyph shows before the first
+   character, and the mark is still first on disk after `%d` and `:w`.
 6. **Hostile files.** Open `escapes.txt` and `binary`: nothing may reach
    the terminal raw (the title, colors and screen stay as they were), and
    moving through them must not crash.

@@ -1,6 +1,7 @@
-//! CRLF files from the first key to the bytes on disk: their lines show no
-//! `^M`, the lines typed into them end in CRLF, and a file that mixes line
-//! ends is written as it was read.
+//! CRLF files and byte order marks from the first key to the bytes on
+//! disk: lines show no `^M` and the mark is not shown, the lines typed
+//! into a CRLF file end in CRLF, the mark cannot be deleted, and a file
+//! that mixes line ends is written as it was read.
 
 const std = @import("std");
 const Harness = @import("harness.zig").Harness;
@@ -126,4 +127,63 @@ test "endings: the recovery file of a CRLF file has CRLF line ends" {
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
     try expectFile(&h, "f.recovered", "a\r\nx\r\n");
+}
+
+test "bom: the byte order mark is not shown, and the cursor starts on the text" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbfab\n", 20, 4);
+    defer h.deinit();
+    try h.expectRow(0, " 1 ab               ");
+    try h.expectSelections(&.{"a"});
+    try h.typeKeys("d:w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbfb\n");
+}
+
+test "bom: deleting all the text keeps the byte order mark" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbfab\ncd\n", 20, 4);
+    defer h.deinit();
+    try h.typeKeys("%d:w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbf\n");
+    try h.typeKeys("ix\x1b:w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbfx\n");
+}
+
+test "bom: a file with a byte order mark and CRLF keeps both" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbfa\r\n", 20, 4);
+    defer h.deinit();
+    try h.expectRow(0, " 1 a                ");
+    try h.typeKeys("Ox\x1b:w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbfx\r\na\r\n");
+}
+
+test "bom: :w to another name keeps the mark, :e of a file without one drops it" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbfa\n", 20, 4);
+    defer h.deinit();
+    try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "plain", .data = "b\n" });
+    try h.typeKeys(":w g\r");
+    try expectFile(&h, "g", "\xef\xbb\xbfa\n");
+    try h.typeKeys(":e plain\r");
+    try h.typeKeys("ox\x1b:w\r");
+    try expectFile(&h, "plain", "b\nx\n");
+}
+
+test "bom: a mark that is not at the start is text, shown and kept" {
+    var h: Harness = undefined;
+    try h.init("f", "a\xef\xbb\xbf\n", 20, 4);
+    defer h.deinit();
+    try h.typeKeys("ox\x1b:w\r");
+    try expectFile(&h, "f", "a\xef\xbb\xbf\nx\n");
+}
+
+test "bom: the recovery file keeps the byte order mark" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbfa\n", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("ox\x1b");
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectFile(&h, "f.recovered", "\xef\xbb\xbfa\nx\n");
 }

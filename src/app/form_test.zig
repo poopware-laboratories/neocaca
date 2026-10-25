@@ -1,6 +1,7 @@
-//! Tests for the line ends of the open file: a load takes them from the
-//! file (`requesting.zig`), a save asks for them and writes them
-//! (`saving.zig`), and the recovery file keeps them (`session.zig`).
+//! Tests for the form of the open file (its line ends and byte order
+//! mark): a load takes it from the file (`requesting.zig`), a save asks
+//! for it and writes it (`saving.zig`), and the recovery file keeps it
+//! (`session.zig`).
 
 const std = @import("std");
 const input = @import("../input.zig");
@@ -35,11 +36,11 @@ test "endings: a CRLF file loads with \\n line ends, and its save asks for CRLF"
     defer ed.deinit();
     try load(&ed, "a\r\nb\r\n");
     try expectEqualStrings("a\nb\n", ed.doc.text());
-    try expectEqual(.crlf, ed.ending);
+    try expectEqual(.crlf, ed.form.ending);
     try expectEqualStrings("\"f\" 2 lines", ed.message.text());
     try typeKeys(&ed, ":w\r");
     const r = ed.takeRequest().?;
-    try expectEqual(.crlf, r.save.ending);
+    try expectEqual(.crlf, r.save.form.ending);
     try expectEqual(2, r.save.lines);
 }
 
@@ -48,9 +49,9 @@ test "endings: an LF or mixed file loads as it is" {
     defer ed.deinit();
     try load(&ed, "a\r\nb\n");
     try expectEqualStrings("a\r\nb\n", ed.doc.text());
-    try expectEqual(.lf, ed.ending);
+    try expectEqual(.lf, ed.form.ending);
     try typeKeys(&ed, ":w\r");
-    try expectEqual(.lf, ed.takeRequest().?.save.ending);
+    try expectEqual(.lf, ed.takeRequest().?.save.form.ending);
 }
 
 test "endings: a missing file is LF, and a failed load keeps the line ends" {
@@ -59,11 +60,11 @@ test "endings: a missing file is LF, and a failed load keeps the line ends" {
     try load(&ed, "a\r\n");
     try typeKeys(&ed, ":e big\r");
     ed.finishLoad(ed.takeRequest().?.load, error.FileTooBig, .unknown);
-    try expectEqual(.crlf, ed.ending);
+    try expectEqual(.crlf, ed.form.ending);
     try expectEqualStrings("a\n", ed.doc.text());
     try typeKeys(&ed, ":e new\r");
     ed.finishLoad(ed.takeRequest().?.load, null, .unknown);
-    try expectEqual(.lf, ed.ending);
+    try expectEqual(.lf, ed.form.ending);
 }
 
 test "endings: a CRLF load out of memory leaves the editor as it was" {
@@ -75,7 +76,7 @@ test "endings: a CRLF load out of memory leaves the editor as it was" {
     const bytes = try failing.allocator().dupe(u8, "a\r\n");
     failing.fail_index = failing.alloc_index;
     ed.finishLoad(r.load, bytes, .unknown);
-    try expectEqual(.lf, ed.ending);
+    try expectEqual(.lf, ed.form.ending);
     try expectEqualStrings("x\n", ed.doc.text());
     try expectEqualStrings("out of memory", ed.message.text());
 }
@@ -83,7 +84,7 @@ test "endings: a CRLF load out of memory leaves the editor as it was" {
 test "endings: a CRLF save writes CRLF, and its copy is all it frees" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    const job = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .ending = .crlf }, "a\n\nb\n", null);
+    const job = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .form = .{ .ending = .crlf } }, "a\n\nb\n", null);
     job.wait();
     defer job.destroy();
     _ = try job.result;
@@ -107,4 +108,30 @@ test "endings: without memory for CRLF the recovery file still holds the changes
     try expectEqualStrings("f.recovered", s.recover(&buf).written);
     var text: [16]u8 = undefined;
     try expectEqualStrings("a\nx\n", try tmp.dir.readFile(io, "f.recovered", &text));
+}
+
+test "bom: a load takes off the byte order mark and its save asks for it back" {
+    var ed: Editor = try .init(gpa, null, "");
+    defer ed.deinit();
+    try load(&ed, "\xef\xbb\xbfa\r\n");
+    try expectEqualStrings("a\n", ed.doc.text());
+    try expectEqual(@as(@TypeOf(ed.form), .{ .ending = .crlf, .bom = true }), ed.form);
+    try typeKeys(&ed, ":w\r");
+    const r = ed.takeRequest().?;
+    try expectEqual(ed.form, r.save.form);
+    ed.finishSave(r.save, .unknown);
+    // The next file has its own form.
+    try load(&ed, "b\n");
+    try expectEqual(@as(@TypeOf(ed.form), .{}), ed.form);
+}
+
+test "bom: a save writes the byte order mark first" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const job = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .form = .{ .bom = true } }, "a\n", null);
+    job.wait();
+    defer job.destroy();
+    _ = try job.result;
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("\xef\xbb\xbfa\n", try tmp.dir.readFile(io, "f", &buf));
 }

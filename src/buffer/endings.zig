@@ -39,11 +39,16 @@ pub fn strip(bytes: []u8) []u8 {
     return bytes[0 .. to + keep];
 }
 
-/// `text` as a file with `ending` holds it: a copy, with a carriage return
-/// before every line feed for `.crlf`. Caller owns the result.
-pub fn encode(gpa: std.mem.Allocator, text: []const u8, ending: Ending) error{OutOfMemory}![]u8 {
-    if (ending == .lf) return gpa.dupe(u8, text);
-    const out = try gpa.alloc(u8, text.len + simd.count(text, '\n'));
+/// How long `text` is once written with `ending`.
+pub fn encodedLen(text: []const u8, ending: Ending) usize {
+    return if (ending == .lf) text.len else text.len + simd.count(text, '\n');
+}
+
+/// Writes `text` with `ending` into `out`, which is `encodedLen` long: a
+/// carriage return before every line feed for `.crlf`.
+pub fn encodeInto(text: []const u8, ending: Ending, out: []u8) void {
+    std.debug.assert(out.len == encodedLen(text, ending));
+    if (ending == .lf) return @memcpy(out, text);
     var from: usize = 0;
     var to: usize = 0;
     while (simd.indexOfByte(text[from..], '\n')) |i| {
@@ -53,5 +58,4 @@ pub fn encode(gpa: std.mem.Allocator, text: []const u8, ending: Ending) error{Ou
         from += i + 1;
     }
     @memcpy(out[to..], text[from..]);
-    return out;
 }

@@ -20,8 +20,11 @@ fn expectStrip(want: []const u8, bytes: []const u8) !void {
 }
 
 fn expectEncode(want: []const u8, text: []const u8, ending: endings.Ending) !void {
-    const got = try endings.encode(gpa, text, ending);
+    const n = endings.encodedLen(text, ending);
+    try expectEqual(want.len, n);
+    const got = try gpa.alloc(u8, n);
     defer gpa.free(got);
+    endings.encodeInto(text, ending, got);
     try expectEqualStrings(want, got);
 }
 
@@ -109,15 +112,4 @@ test "endings: a CRLF file round-trips byte for byte" {
         defer gpa.free(copy);
         try expectEncode(file, endings.strip(copy), .crlf);
     }
-}
-
-test "endings: encoding that cannot allocate leaks nothing" {
-    const T = struct {
-        fn run(a: std.mem.Allocator, ending: endings.Ending) !void {
-            const got = try endings.encode(a, "a\nb\n", ending);
-            a.free(got);
-        }
-    };
-    try std.testing.checkAllAllocationFailures(gpa, T.run, .{endings.Ending.crlf});
-    try std.testing.checkAllAllocationFailures(gpa, T.run, .{endings.Ending.lf});
 }

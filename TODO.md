@@ -321,8 +321,11 @@ Safety first, then the biggest daily gains.
         (`buffer/endings.zig`). In ReleaseSafe the 100 MB log with CRLF
         opens in 0.25 s against 0.17 s with LF, peaking at 250 MB against
         244 MB; saves take as long either way.
-  - [ ] S: a BOM is hidden and cannot be deleted by accident; today it
-        shows as a replacement glyph at the start of the file
+  - [x] S: a BOM is hidden and cannot be deleted by accident; before, it
+        showed as a replacement glyph at the start of the file. A UTF-8
+        byte order mark at the very start is now taken off on load and
+        written back first on save and in the recovery file, with CRLF
+        line ends too (`buffer/form.zig`); one later in the text is text.
   - [ ] S: a file without a final newline is saved without one; today the
         buffer adds one on load and `:w` writes it
 - **PR: notice a change made on disk while the file is open.** `:w`
