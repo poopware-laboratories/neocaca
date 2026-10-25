@@ -26,13 +26,11 @@ fn expectEncode(want: []const u8, text: []const u8, f: form.Form) !void {
 
 test "form: a plain file is its own text" {
     try expectDecode("a\nb\n", .{}, "a\nb\n");
-    try expectDecode("", .{}, "");
     try expectEqual(form.Form{ .ending = .lf, .bom = false }, form.Form{});
 }
 
 test "form: a byte order mark at the start is taken off and remembered" {
     try expectDecode("a\n", .{ .bom = true }, "\xef\xbb\xbfa\n");
-    try expectDecode("", .{ .bom = true }, "\xef\xbb\xbf");
     try expectDecode("\n", .{ .bom = true }, "\xef\xbb\xbf\n");
 }
 
@@ -57,9 +55,19 @@ test "form: a file whose last line has no line end is remembered" {
     try expectDecode("a", .{ .bom = true, .final_newline = false }, "\xef\xbb\xbfa");
 }
 
-test "form: an empty file, or one with only a mark, has no last line to end" {
-    try expectDecode("", .{}, "");
-    try expectDecode("", .{ .bom = true }, "\xef\xbb\xbf");
+test "form: an empty file, or one with only a mark, is remembered as empty" {
+    try expectDecode("", .{ .empty = true }, "");
+    try expectDecode("", .{ .bom = true, .empty = true }, "\xef\xbb\xbf");
+    try expectDecode("\n", .{}, "\n");
+}
+
+test "form: an empty file is written empty while its text is still none" {
+    try expectEncode("", "\n", .{ .empty = true });
+    try expectEncode("\xef\xbb\xbf", "\n", .{ .bom = true, .empty = true });
+    // Text typed into it ends in a newline, as in any other file.
+    try expectEncode("x\n", "x\n", .{ .empty = true });
+    try expectEncode("\n\n", "\n\n", .{ .empty = true });
+    try expectEncode("x\r\n", "x\n", .{ .ending = .crlf, .empty = true });
 }
 
 test "form: a carriage return ending a CRLF file is text, its line has no end" {
@@ -104,6 +112,9 @@ test "form: every file round-trips byte for byte" {
         "a\r\nb\r",
         "\xef\xbb\xbfa\r\nb",
         "a\r\nb\n\r",
+        "",
+        "\xef\xbb\xbf",
+        "\n",
     };
     for (files) |file| {
         const copy = try gpa.dupe(u8, file);
@@ -131,6 +142,7 @@ test "form: encoding that cannot allocate leaks nothing" {
         .{ .ending = .crlf },
         .{ .ending = .crlf, .bom = true },
         .{ .ending = .crlf, .bom = true, .final_newline = false },
+        .{ .bom = true, .empty = true },
     };
     for (forms) |f| try std.testing.checkAllAllocationFailures(gpa, T.run, .{f});
 }

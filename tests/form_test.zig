@@ -1,8 +1,9 @@
 //! CRLF files, byte order marks and missing final newlines from the first
 //! key to the bytes on disk: lines show no `^M` and the mark is not shown,
 //! the lines typed into a CRLF file end in CRLF, the mark cannot be
-//! deleted, a file that mixes line ends is written as it was read, and one
-//! whose last line had no newline is written without one.
+//! deleted, a file that mixes line ends is written as it was read, one
+//! whose last line had no newline is written without one, and an empty
+//! file stays empty until text is typed into it.
 
 const std = @import("std");
 const Harness = @import("harness.zig").Harness;
@@ -260,4 +261,51 @@ test "final newline: the recovery file has none when the file had none" {
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
     try expectFile(&h, "f.recovered", "a\nx");
+}
+
+test "empty: an empty file saved untouched stays empty" {
+    var h: Harness = undefined;
+    try h.init("f", "", 12, 4);
+    defer h.deinit();
+    try h.typeKeys(":w\r");
+    try expectFile(&h, "f", "");
+    // Text typed and deleted again leaves it empty too.
+    try h.typeKeys("ix\x1bhd:w\r");
+    try expectFile(&h, "f", "");
+}
+
+test "empty: an empty line typed into an empty file is kept" {
+    var h: Harness = undefined;
+    try h.init("f", "", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("i\r\x1b:w\r");
+    try expectFile(&h, "f", "\n\n");
+}
+
+test "empty: a file with only a byte order mark keeps only the mark" {
+    var h: Harness = undefined;
+    try h.init("f", "\xef\xbb\xbf", 12, 4);
+    defer h.deinit();
+    try h.typeKeys(":w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbf");
+    try h.typeKeys("ix\x1b:w\r");
+    try expectFile(&h, "f", "\xef\xbb\xbfx\n");
+}
+
+test "empty: a file of one empty line keeps it" {
+    var h: Harness = undefined;
+    try h.init("f", "\n", 12, 4);
+    defer h.deinit();
+    try h.typeKeys(":w\r");
+    try expectFile(&h, "f", "\n");
+}
+
+test "empty: the recovery file of an empty file with no text left is empty" {
+    var h: Harness = undefined;
+    try h.init("f", "", 12, 4);
+    defer h.deinit();
+    try h.typeKeys("ix\x1bhd");
+    var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectFile(&h, "f.recovered", "");
 }

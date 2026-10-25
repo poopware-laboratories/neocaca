@@ -333,8 +333,11 @@ Safety first, then the biggest daily gains.
         it again (`buffer/form.zig`). Lines added after the last one end
         in a newline, all but the new last. A carriage return that ends a
         CRLF file is now text, shown as `^M` and kept.
-  - [ ] S: an empty file saved untouched gets a newline; it should stay
-        empty, while text typed into it still ends in one
+  - [x] S: an empty file saved untouched gets a newline; it should stay
+        empty, while text typed into it still ends in one. Now the form
+        remembers a file with no text, and while the buffer holds none
+        either a save writes it empty (a byte order mark alone stays
+        alone). A new file saved untouched still gets its newline.
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
   - [ ] S: when the terminal reports focus (xterm focus events, mode

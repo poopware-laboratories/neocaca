@@ -161,3 +161,27 @@ test "final newline: a save of a file that had none writes none" {
     var buf: [16]u8 = undefined;
     try expectEqualStrings("a\nb", try tmp.dir.readFile(io, "f", &buf));
 }
+
+test "empty: a load remembers an empty file, and its save asks for that" {
+    var ed: Editor = try .init(gpa, null, "");
+    defer ed.deinit();
+    try load(&ed, "");
+    try expectEqual(true, ed.form.empty);
+    try typeKeys(&ed, ":w\r");
+    const r = ed.takeRequest().?;
+    try expectEqual(true, r.save.form.empty);
+    ed.finishSave(r.save, .unknown);
+    try load(&ed, "a\n");
+    try expectEqual(false, ed.form.empty);
+}
+
+test "empty: a save of an empty file with no text writes nothing" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const job = try Saving.start(gpa, io, tmp.dir, .{ .path = "f", .quit = false, .form = .{ .empty = true } }, "\n", null);
+    job.wait();
+    defer job.destroy();
+    _ = try job.result;
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("", try tmp.dir.readFile(io, "f", &buf));
+}
