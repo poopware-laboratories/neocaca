@@ -353,10 +353,13 @@ Safety first, then the biggest daily gains.
         loop (`Ready.stop`), which suspends as Ctrl-z does: the modes and
         raw mode given back, the signal let through to stop the process,
         and on `fg` raw mode, the modes and the whole screen back.
-  - [ ] S: a SIGSTOP (`kill -STOP`, which no handler can take) still
-        leaves the terminal raw on the alternate screen while stopped,
-        and cooked after `fg`. Take raw mode and the modes back and
-        redraw on SIGCONT whenever the editor did not stop itself.
+  - [x] S: a SIGSTOP (`kill -STOP`, which no handler can take) left
+        the terminal cooked after `fg`, nothing redrawn (#37). SIGCONT
+        now wakes the loop (`Ready.continued`) unless the editor stopped
+        itself, and the loop takes raw mode and the modes back
+        (`Tty.retake`) and draws the whole screen. While stopped the
+        terminal is still raw on the alternate screen: nothing runs to
+        give it back.
   - [x] S: a hang-up lost unsaved changes when the file's name was
         longer than 245 bytes: `<name>.recovered` passed the 255-byte
         limit on a name and every try failed, yet the exit status was 0

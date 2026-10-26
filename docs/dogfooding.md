@@ -92,7 +92,8 @@ already lists is noted once with its item, not reported again.
    of a prompt and in insert mode, with Ctrl-z and with `kill -TSTP
    <pid>` from another shell (the shell's prompt must show clean, and
    `fg` must come back to the same mode, redrawn and in raw mode,
-   nothing typed).
+   nothing typed); and once with `kill -STOP <pid>`, after whose `fg`
+   the editor must be redrawn and in raw mode too.
 10. **Disk and filesystem trouble.** Save while the disk is full or a size
     limit applies (`ulimit -f 1` in the shell that starts neocaca; its
     `SIGXFSZ` must not kill the editor): the original file must be
