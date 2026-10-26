@@ -15,5 +15,10 @@
 			"Bash(git push -f *)",
 			"Bash(git push origin main *)"
 		]
+	},
+	"attribution": {
+		"commit": "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+		"pr": "🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+		"sessionUrl": false
 	}
 }

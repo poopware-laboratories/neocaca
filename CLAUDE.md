@@ -6,7 +6,8 @@ duplicate its content here.
 
 Claude Code specifics: the skills in `.claude/skills/` are per-task
 checklists for these rules (start every change with `making-a-change`), and
-`.claude/settings.json` pre-approves the build and test commands.
+`.claude/settings.json` pre-approves the build and test commands and sets
+the commit and PR attribution (no session links, as AGENTS.md asks).
 
 Four rules from `AGENTS.md` that sessions most often get wrong:
 
