@@ -76,7 +76,9 @@ dogfood pass tries it on real work.
 - Keep one concern per pull request. A large change usually splits into
   several small ones that are each easier to review and to test.
 
-All CI checks must pass before a merge. The details are in
+All CI checks must pass before a merge: `main` requires the `ci` job,
+which passes only when every test, build and benchmark job did, and the
+`title` check. The details are in
 [Branches, pull requests and commits](AGENTS.md#branches-pull-requests-and-commits).
 
 ## Other ways to help
