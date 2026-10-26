@@ -1,0 +1,32 @@
+name: Title
+
+# The pull request title becomes the squashed commit on main, so it must be
+# a Conventional Commit as AGENTS.md describes: a known type, an optional
+# scope, `!` for a breaking change, then a summary in lower case without a
+# final period. Its own workflow, so editing the title reruns this alone.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The title is a Conventional Commit
+        # Through the environment, never pasted into the script: a title
+        # is text anyone opening a pull request chooses.
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          types='feat|fix|perf|refactor|docs|test|bench|build|ci|style|chore|revert'
+          if printf '%s\n' "$TITLE" | grep -Eq "^($types)(\([a-z0-9/_.-]+\))?!?: [^A-Z. ](.*[^.])?$"; then
+            echo "ok: $TITLE"
+          else
+            echo "not a Conventional Commit: $TITLE"
+            echo "expected: type(scope)!: summary in lower case, no final period"
+            echo "types: $types"
+            exit 1
+          fi

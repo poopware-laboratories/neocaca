@@ -72,7 +72,11 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
   `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target, with
   `zig build compare-build` (the comparison driver, compiled but not run);
   and a benchmark smoke run. Test runs pass `--test-timeout 3m`, each test
-  step stops at 15 minutes and each test job at 45. All must pass; run
+  step stops at 15 minutes and each test job at 45. The `ci` job passes
+  only when every one of them passed, and `title.yml` checks that a pull
+  request's title is a Conventional Commit; `main` requires both, takes
+  only squash merges and no direct or force pushes, so a pull request
+  set to auto-merge merges once they pass. All must pass; run
   them before pushing (`-Dtarget=x86_64-linux-musl` for musl,
   `-Dtarget=aarch64-linux-musl -fqemu` with `qemu-user` for aarch64). The
   `zig-latest` job tries the newest stable Zig without blocking.

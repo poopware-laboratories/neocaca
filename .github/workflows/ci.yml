@@ -141,6 +141,26 @@ jobs:
       # Shared runners are too noisy for the numbers to mean anything.
       - run: zig build bench
 
+  # The one check `main` requires: it passes only when every job above
+  # passed, so renaming or adding a matrix entry never changes the rule.
+  # It runs even when one failed (`always()`), or a skipped gate would let
+  # the pull request merge.
+  ci:
+    if: always()
+    needs: [fmt, test, alpine, qemu-aarch64, cross, bench]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for r in $RESULTS; do
+            if [ "$r" != success ]; then
+              echo "a required job ended as: $r"
+              exit 1
+            fi
+          done
+
   # The newest stable Zig, to learn early what the next upgrade breaks.
   # Not required: the project builds with the pinned release only.
   zig-latest:

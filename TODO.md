@@ -371,6 +371,14 @@ Safety first, then the biggest daily gains.
   - [ ] S: rough edges: `:w d/` on a directory `d` says "a part of the
         path is not a directory"; `Prompt.set` can cut a character in
         two at `max_len` (#24).
+- **PR: required checks on `main`.** Nothing stopped a merge while CI
+  was red, and auto-merge merged at once.
+  - [x] S: a `ci` job that needs every blocking job and a `title` check
+        of the Conventional Commit title, both required on `main` by a
+        ruleset that also allows only squash merges and no direct or
+        force pushes.
+  - [ ] S: a check that counts the 3:1 rule in a pull request's diff,
+        as AGENTS.md describes, and is required too.
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
   - [ ] S: when the terminal reports focus (xterm focus events, mode
