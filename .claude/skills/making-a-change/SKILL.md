@@ -56,7 +56,9 @@ unasked:
 
 Then count the diff (`build.zig` and benchmarks excluded, see AGENTS.md):
 three test lines (inside `test` blocks, `*_test.zig`,
-`tests/`) per production line, no padding.
+`tests/`) per production line, no padding. `git add -N . && git diff -U0
+-M origin/main > pr.diff && zig build ratio -- pr.diff` counts it as the
+`ratio` CI job does.
 
 ## 4. Commit and pull request
 

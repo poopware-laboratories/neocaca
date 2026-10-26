@@ -14,6 +14,7 @@ pub const regex = @import("regex.zig");
 pub const render = @import("render.zig");
 pub const simd = @import("simd.zig");
 pub const compare = @import("compare.zig");
+pub const ratio = @import("ratio.zig");
 pub const ui = @import("ui.zig");
 pub const unicode = @import("unicode.zig");
 

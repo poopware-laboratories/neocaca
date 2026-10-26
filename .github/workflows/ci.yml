@@ -141,20 +141,42 @@ jobs:
       # Shared runners are too noisy for the numbers to mean anything.
       - run: zig build bench
 
+  # The 3:1 rule of AGENTS.md, counted over what the pull request adds to
+  # its base (`zig build ratio`). The checkout is the pull request merged
+  # into the base, so `origin/<base>...HEAD` is exactly its change.
+  ratio:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: mlugg/setup-zig@v2
+      - name: The pull request's diff
+        env:
+          BASE: ${{ github.base_ref }}
+        run: git -c core.quotePath=false diff -U0 --no-color -M "origin/$BASE...HEAD" > "$RUNNER_TEMP/pr.diff"
+      - run: zig build ratio -- "$RUNNER_TEMP/pr.diff"
+
   # The one check `main` requires: it passes only when every job above
   # passed, so renaming or adding a matrix entry never changes the rule.
   # It runs even when one failed (`always()`), or a skipped gate would let
-  # the pull request merge.
+  # the pull request merge. `ratio` runs on pull requests only.
   ci:
     if: always()
-    needs: [fmt, test, alpine, qemu-aarch64, cross, bench]
+    needs: [fmt, test, alpine, qemu-aarch64, cross, bench, ratio]
     runs-on: ubuntu-latest
     steps:
       - name: Every required job passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
+          RATIO: ${{ needs.ratio.result }}
+          EVENT: ${{ github.event_name }}
         run: |
           for r in $RESULTS; do
+            if [ "$r" = skipped ] && [ "$EVENT" != pull_request ] && [ "$RATIO" = skipped ]; then
+              continue
+            fi
             if [ "$r" != success ]; then
               echo "a required job ended as: $r"
               exit 1

@@ -1,6 +1,6 @@
 //! Build graph: the neocaca library module (with mimalloc compiled in), the
-//! editor executable, the test step, the benchmark step and the
-//! comparison with flow.
+//! editor executable, the test step, the benchmark step, the comparison
+//! with flow and the 3:1 count.
 
 const std = @import("std");
 
@@ -138,6 +138,22 @@ pub fn build(b: *std.Build) void {
     } else {
         compare_step.dependOn(&b.addFail("zig build compare needs -Dflow=<path to the flow binary>").step);
     }
+
+    // `zig build ratio -- <diff>`: the 3:1 rule over a diff, as CI runs it
+    // on every pull request; run from the repository root.
+    const ratio = b.addExecutable(.{
+        .name = "neocaca-ratio",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tools/ratio.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "neocaca", .module = mod }},
+        }),
+    });
+    const ratio_cmd = b.addRunArtifact(ratio);
+    ratio_cmd.addPassthruArgs();
+    ratio_cmd.has_side_effects = true;
+    b.step("ratio", "Count the 3:1 test rule over a diff (-- <diff file>)").dependOn(&ratio_cmd.step);
 }
 
 /// Compiles mimalloc's single-file build into `mod`. No CMake: the defines

@@ -44,7 +44,8 @@ are in the [quick reference](AGENTS.md#quick-reference).
 2. **Add three lines of tests for every line of production code.** Edge
    cases, limits, malformed input and allocation failures count; padding
    does not. [The 3:1 rule](AGENTS.md#workflow-strict-test-driven-development)
-   says what is counted.
+   says what is counted; CI counts it, and `zig build ratio` counts it
+   locally.
 3. **Write it yourself, from specifications.** Never read, port or copy
    another editor's or library's source, even to compare. Specifications,
    user manuals and your own experiments are fine. See the
