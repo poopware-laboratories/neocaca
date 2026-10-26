@@ -5,6 +5,7 @@
 const std = @import("std");
 const fs = @import("../fs.zig");
 const term = @import("../term.zig");
+const visible = @import("../unicode.zig").visible;
 const exit = @import("exit.zig");
 const loop = @import("loop.zig");
 const Session = @import("session.zig").Session;
@@ -33,7 +34,7 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
     var session = Session.init(env.gpa, env.io, env.dir, path, fallback_size.width, fallback_size.height) catch |e| {
         switch (e) {
             error.OutOfMemory => try err.writeAll("neocaca: out of memory\n"),
-            else => try err.print("neocaca: cannot open \"{s}\": {s}\n", .{ path.?, fs.describe(e) }),
+            else => try err.print("neocaca: cannot open \"{f}\": {s}\n", .{ visible.of(path.?), fs.describe(e) }),
         }
         return .failure;
     };
@@ -78,7 +79,7 @@ fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code
     switch (session.recover(&buf)) {
         .none => return .ok,
         .written => |where| {
-            try err.print("neocaca: unsaved changes written to \"{s}\"\n", .{where});
+            try err.print("neocaca: unsaved changes written to \"{f}\"\n", .{visible.of(where)});
             return .ok;
         },
         .failed => |e| {

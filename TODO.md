@@ -373,11 +373,13 @@ Safety first, then the biggest daily gains.
         neither otherwise. The same tests found every save dropping the
         set-user-ID and set-group-ID bits, which a write clears: the
         permissions are now set again after it.
-  - [ ] S: the messages on stderr (`cannot open "…"`, `unsaved changes
-        written to "…"`) print a path's control bytes raw, so a file
-        named with an OSC sequence sets the window title. Write them in
-        caret form, as the screen does, tested with every control byte
-        (#23).
+  - [x] S: the messages on stderr (`cannot open "…"`, `unsaved changes
+        written to "…"`) printed a path's control bytes raw, so a file
+        named with an OSC sequence set the window title (#23). They go
+        through `unicode/visible.zig` now, which writes each character as
+        the screen draws it: controls in caret form, C1 controls,
+        bidirectional controls and invalid bytes as U+FFFD; tested with
+        every byte and every pair of bytes.
   - [ ] S: rough edges: `:w d/` on a directory `d` says "a part of the
         path is not a directory"; `Prompt.set` can cut a character in
         two at `max_len` (#24).

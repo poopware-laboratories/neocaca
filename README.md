@@ -139,7 +139,7 @@ The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/compare/` | The pure part of `zig build compare`: terminal replies, frame waits, test files, the table |
 | `src/ratio/` | The 3:1 rule over a diff: its added lines, which are test code, the tally |
 | `src/tools/` | `zig build ratio`: the 3:1 count over a diff file |
-| `src/unicode/` | UTF-8 that never fails, display widths, characters with combining marks |
+| `src/unicode/` | UTF-8 that never fails, display widths, characters with combining marks, control bytes made visible |
 | `src/buffer/` | Text with a line index, change sets, and a file's CRLF line ends, byte order mark and missing final newline |
 | `src/regex/` | A linear-time, bounded regex engine (Pike VM) |
 | `src/edit/` | Selections, motions, text objects, verbs, registers, search, undo |
