@@ -24,6 +24,8 @@ const Step = union(enum) {
     hangup,
     /// Something outside asks the editor to stop (SIGTSTP).
     stop,
+    /// The editor is continued after a stop it did not make (SIGCONT).
+    continued,
 };
 
 /// Plays `steps`, then reports the terminal gone.
@@ -42,6 +44,8 @@ const Script = struct {
     session: ?*Session = null,
     /// How often the editor stopped itself, and the size it came back to.
     suspends: usize = 0,
+    /// How often the editor took the terminal back after a continue.
+    retakes: usize = 0,
     resumed_size: ?term.Size = null,
 
     pub fn wait(self: *Script, timeout_ms: i32) !term.tty.Ready {
@@ -64,6 +68,10 @@ const Script = struct {
             .idle => return .{},
             .hangup => return .{ .woken = true, .hung_up = true },
             .stop => return .{ .woken = true, .stop = true },
+            .continued => {
+                if (self.resumed_size) |s| self.current_size = s;
+                return .{ .woken = true, .continued = true };
+            },
             .saved => {
                 // The loop may have collected a save that finished early.
                 if (self.session.?.saving) |job| {
@@ -79,6 +87,10 @@ const Script = struct {
         @memcpy(buf[0..n], self.pending[0..n]);
         self.pending = self.pending[n..];
         return n;
+    }
+
+    pub fn retake(self: *Script) void {
+        self.retakes += 1;
     }
 
     pub fn suspendProcess(self: *Script) void {
@@ -258,6 +270,23 @@ test "loop: a stop from outside in a prompt keeps the prompt" {
     try expect(f.session.done());
 }
 
+test "loop: a continue it did not ask for takes the terminal back and draws it whole" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{
+        .steps = &.{ .{ .input = "ix" }, .continued, .{ .input = "y" } },
+        .resumed_size = .{ .width = 30, .height = 6 },
+    };
+    try f.run(&script);
+    try expectEqual(1, script.retakes);
+    try expectEqual(0, script.suspends);
+    try expectEqual(30, f.session.ed.width);
+    try expectEqualStrings("xyb\n", f.session.ed.doc.text());
+    const out = f.out.buffered();
+    try expect(std.mem.indexOf(u8, out[script.written[1]..script.written[2]], "\x1b[2J") != null);
+}
+
 test "loop: no suspend without Ctrl-z" {
     var f: Fixture = undefined;
     try f.init("a", "b\n");
@@ -265,6 +294,7 @@ test "loop: no suspend without Ctrl-z" {
     var script: Script = .{ .steps = &.{.{ .input = "z\x1bz" }} };
     try f.run(&script);
     try expectEqual(0, script.suspends);
+    try expectEqual(0, script.retakes);
 }
 
 test "loop: each frame is written before the next wait" {

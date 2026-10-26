@@ -180,6 +180,53 @@ test "tty: no stop without the signal" {
     try expect(!ready.stop);
 }
 
+test "tty: a continue the editor did not ask for (SIGCONT) wakes the wait, once" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    try expect(handles(posix.SIG.CONT));
+    try posix.raise(.CONT);
+    const ready = try t.wait(1000);
+    try expect(ready.continued);
+    try expect(ready.woken);
+    try expect(!ready.stop);
+    try expect(!(try t.wait(0)).continued);
+    t.restore();
+    try expect(!handles(posix.SIG.CONT));
+}
+
+test "tty: the continue after the editor's own suspend is not reported" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    // The shell continues the stopped editor.
+    const Continuer = struct {
+        pub fn stop(_: *@This()) void {
+            posix.raise(.CONT) catch {};
+        }
+    };
+    var c: Continuer = .{};
+    t.suspendWith(&c);
+    try expect(!(try t.wait(0)).continued);
+}
+
+test "tty: taking the terminal back after a continue puts raw mode and the modes back" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    const cooked = try attr.get(pty.slave);
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    var buf: [256]u8 = undefined;
+    _ = try pty.output(&buf);
+    // As the shell leaves it after `fg`.
+    try attr.set(pty.slave, cooked);
+    t.retake();
+    try expect(!(try attr.get(pty.slave)).lflag.ICANON);
+    try expect(!(try attr.get(pty.slave)).lflag.ECHO);
+    try expectEqualStrings(modes.enter, try pty.output(&buf));
+}
+
 fn ignoresFileSizeLimit() bool {
     var old: posix.Sigaction = undefined;
     posix.sigaction(posix.SIG.XFSZ, null, &old);

@@ -1,7 +1,7 @@
 //! The event loop: draw a frame, wait for the terminal, hand what it sent
 //! to the session, until the editor quits or the terminal goes away.
-//! Generic over the terminal (`wait`, `read`, `size`, `suspendProcess`, as
-//! `term.Tty` has them), so tests drive it with a script.
+//! Generic over the terminal (`wait`, `read`, `size`, `suspendProcess`,
+//! `retake`, as `term.Tty` has them), so tests drive it with a script.
 
 const std = @import("std");
 const Session = @import("session.zig").Session;
@@ -32,6 +32,10 @@ pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
             if (terminal.size()) |s| session.resize(s.width, s.height);
         }
         if (ready.stop) suspendNow(session, terminal);
+        if (ready.continued) {
+            terminal.retake();
+            redrawWhole(session, terminal);
+        }
         if (ready.input) {
             const n = try terminal.read(&buf);
             if (n == 0) return;
@@ -47,6 +51,11 @@ pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
 /// outside), then draws the whole screen at the size it came back to.
 fn suspendNow(session: *Session, terminal: anytype) void {
     terminal.suspendProcess();
+    redrawWhole(session, terminal);
+}
+
+/// Draws the whole screen next, at the terminal's size now.
+fn redrawWhole(session: *Session, terminal: anytype) void {
     session.redrawAll();
     if (terminal.size()) |s| session.resize(s.width, s.height);
 }

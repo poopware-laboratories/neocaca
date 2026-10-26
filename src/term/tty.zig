@@ -1,7 +1,7 @@
 //! `Tty`: the real terminal. Raw mode on and off, its size, waiting for
-//! input with a timeout, and the resize, hang-up, end and stop signals
-//! (SIGWINCH, SIGHUP, SIGTERM, SIGTSTP), which wake the wait through a
-//! pipe their handlers write to.
+//! input with a timeout, and the resize, hang-up, end, stop and continue
+//! signals (SIGWINCH, SIGHUP, SIGTERM, SIGTSTP, SIGCONT), which wake the
+//! wait through a pipe their handlers write to.
 //! While it is open SIGXFSZ is ignored, so a write past the file size
 //! limit fails with `error.FileTooBig` instead of ending the editor.
 //! POSIX only.
@@ -32,6 +32,11 @@ pub const Ready = struct {
     /// Something outside asked the editor to stop (SIGTSTP, as `kill
     /// -TSTP` sends): it should suspend as Ctrl-z does. Once per signal.
     stop: bool = false,
+    /// The process was continued (SIGCONT) after a stop it did not make
+    /// itself (`kill -STOP`): the shell may have taken the terminal's
+    /// settings back, so `retake` them and draw the screen whole. Once per
+    /// signal.
+    continued: bool = false,
 };
 
 pub const Tty = struct {
@@ -57,6 +62,7 @@ pub const Tty = struct {
         wake_fd.store(wake[1], .release);
         hung_up.store(false, .release);
         stop_asked.store(false, .release);
+        continued.store(false, .release);
         watchSignals(true);
         active = self;
         return self;
@@ -93,6 +99,14 @@ pub const Tty = struct {
         watch(posix.SIG.TSTP, posix.SIG.DFL);
         stopper.stop();
         watch(posix.SIG.TSTP, onStop);
+        // The continue was ours to wait for, not one to report.
+        continued.store(false, .release);
+        self.retake();
+    }
+
+    /// Puts raw mode and the modes back, as after a stop the editor did
+    /// not make: the shell may have set its own settings meanwhile.
+    pub fn retake(self: *Tty) void {
         // A terminal refusing raw mode after resuming is as good as gone;
         // the next read reports it.
         attr.set(self.in, raw.makeRaw(self.original)) catch {};
@@ -122,6 +136,7 @@ pub const Tty = struct {
         }
         ready.hung_up = hung_up.load(.acquire);
         ready.stop = stop_asked.swap(false, .acq_rel);
+        ready.continued = continued.swap(false, .acq_rel);
         return ready;
     }
 
@@ -184,11 +199,21 @@ fn onStop(sig: posix.SIG) callconv(.c) void {
     onResize(sig);
 }
 
+var continued: std.atomic.Value(bool) = .init(false);
+
+/// SIGCONT after a SIGSTOP, which no handler sees: the process was stopped
+/// with the terminal raw, and the shell may have taken it back since.
+fn onContinue(sig: posix.SIG) callconv(.c) void {
+    continued.store(true, .release);
+    onResize(sig);
+}
+
 fn watchSignals(on: bool) void {
     watch(posix.SIG.WINCH, if (on) onResize else posix.SIG.DFL);
     watch(posix.SIG.HUP, if (on) onHangUp else posix.SIG.DFL);
     watch(posix.SIG.TERM, if (on) onHangUp else posix.SIG.DFL);
     watch(posix.SIG.TSTP, if (on) onStop else posix.SIG.DFL);
+    watch(posix.SIG.CONT, if (on) onContinue else posix.SIG.DFL);
     watch(posix.SIG.XFSZ, if (on) posix.SIG.IGN else posix.SIG.DFL);
 }
 
