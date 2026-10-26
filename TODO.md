@@ -421,6 +421,14 @@ Safety first, then the biggest daily gains.
         refusing with "a save is still being written". Today `:w` then
         `:q` typed quickly, or mapped to one key, is refused; the
         pseudo-terminal test hit it under load.
+- **PR: tidy-ups from the 2026-10-26 scan.** Small rule breaks; nothing
+  wrong in behavior.
+  - [ ] S: `term/tty.zig` drops the error of the self-pipe drain read
+        (`catch {}`) without the comment AGENTS.md asks for; say why it
+        is safe (a short read only leaves a wake byte for the next wait)
+  - [ ] S: `app/editor.zig` (404 lines) and `fs/file_test.zig` (438) are
+        past the ~400-line limit: move a concern out of the editor, and
+        split the file tests by topic
 - **PR: soft wrap of long lines**
   - [ ] M: wrapped line layout, pure and tested
   - [ ] M: draw it, with the cursor and scrolling over wrapped lines
