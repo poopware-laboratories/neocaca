@@ -359,11 +359,16 @@ Safety first, then the biggest daily gains.
         leave room for the suffix (`fs.fitName`, shared with
         `fs/temp.zig`), and the exit status is 1 whenever unsaved
         changes could not be written.
-  - [ ] S: `:w` breaks hard links without a word: the rename gives the
-        edited name a new inode and the other names keep the old text.
-        Refuse a file with more than one link as a read-only one is
-        refused, `:w!` to write anyway; keep owner and group where the
-        user may (#22).
+  - [x] S: `:w` broke hard links without a word: the rename gives the
+        edited name a new inode and the other names keep the old text
+        (#22). A file with more than one link is now refused ("the file
+        has other hard links, which would keep the old text; :w! writes
+        it anyway"), and `:w!` writes this name alone.
+  - [ ] S: a save gives the file the editor's owner and group: the
+        temporary file is created by the user, so editing a file owned
+        by another group (a shared directory, or as root) changes who
+        owns it. Copy the owner and group onto the temporary file where
+        the user may (`fchown`), and leave them be where not (#22).
   - [ ] S: the messages on stderr (`cannot open "…"`, `unsaved changes
         written to "…"`) print a path's control bytes raw, so a file
         named with an OSC sequence sets the window title. Write them in

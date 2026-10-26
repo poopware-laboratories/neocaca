@@ -153,6 +153,58 @@ test "file: a file anyone may write is not read-only, and a link to a read-only 
     try expectEqualStrings("old\n", try tmp.dir.readFile(io, "r", &buf));
 }
 
+test "file: save refuses a file with other hard links, and leaves every name as it was" {
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "orig", .data = "old\n" });
+    try tmp.dir.hardLink("orig", tmp.dir, "hard", io, .{});
+    try expectError(error.OtherLinks, file.save(io, tmp.dir, "hard", "new\n", .{}));
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("old\n", try tmp.dir.readFile(io, "orig", &buf));
+    try expectEqualStrings("old\n", try tmp.dir.readFile(io, "hard", &buf));
+    try std.testing.expectEqual(2, (try tmp.dir.statFile(io, "orig", .{})).nlink);
+    // No temporary file is left beside them.
+    var it = tmp.dir.iterate();
+    var names: usize = 0;
+    while (try it.next(io)) |_| names += 1;
+    try std.testing.expectEqual(2, names);
+}
+
+test "file: a forced save of a hard-linked file writes that name alone" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "orig", .data = "old\n" });
+    try tmp.dir.hardLink("orig", tmp.dir, "hard", io, .{});
+    _ = try file.save(io, tmp.dir, "hard", "new\n", .{ .force = true });
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("new\n", try tmp.dir.readFile(io, "hard", &buf));
+    try expectEqualStrings("old\n", try tmp.dir.readFile(io, "orig", &buf));
+    try std.testing.expectEqual(1, (try tmp.dir.statFile(io, "orig", .{})).nlink);
+    try std.testing.expectEqual(1, (try tmp.dir.statFile(io, "hard", .{})).nlink);
+}
+
+test "file: a hard-linked file reached through a symbolic link is refused too" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "orig", .data = "old\n" });
+    try tmp.dir.hardLink("orig", tmp.dir, "hard", io, .{});
+    try tmp.dir.symLink(io, "hard", "sym", .{});
+    try expectError(error.OtherLinks, file.save(io, tmp.dir, "sym", "new\n", .{}));
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("old\n", try tmp.dir.readFile(io, "orig", &buf));
+}
+
+test "file: a file whose other link was removed saves as usual" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "orig", .data = "old\n" });
+    try tmp.dir.hardLink("orig", tmp.dir, "hard", io, .{});
+    try tmp.dir.deleteFile(io, "orig");
+    _ = try file.save(io, tmp.dir, "hard", "new\n", .{});
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("new\n", try tmp.dir.readFile(io, "hard", &buf));
+}
+
 test "file: a failed save leaves the original untouched" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();

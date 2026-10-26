@@ -31,7 +31,8 @@ The corpus is a clone of this repository, a 100 MB server log, a 20 MB
 minified JSON line, a CSV of a million rows, CRLF, BOM and Makefile
 files, a file without a final newline, wide, emoji, combining and
 right-to-left text, escape sequences and invalid UTF-8, an executable,
-symlinks (one dangling), read-only and unreadable files, and a directory.
+symlinks (one dangling), a hard link, read-only and unreadable files,
+and a directory.
 Run it as a user who is not root, so the permissions mean something.
 
 Use a real terminal when you can, and at least once a pass a second one
@@ -77,8 +78,10 @@ already lists is noted once with its item, not reported again.
 8. **Paths that are not plain files.** Open `a-directory`,
    `link-to-unicode.txt` (saving keeps the link), `dangling-link.txt`,
    `read-only.txt` (`:w` must refuse and say why, `:w!` must write it
-   and leave it read-only), `unreadable.txt`, and a
-   file in a directory that does not exist.
+   and leave it read-only), `hard-link-to-unicode.txt` (`:w` must
+   refuse and say it has other links, `:w!` must write it and leave
+   `unicode.txt` as it was), `unreadable.txt`, and a file in a
+   directory that does not exist.
 9. **The terminal misbehaves.** Resize down to one cell and back; paste a
    large block; close the terminal window with unsaved changes (the
    recovery file must hold them), and again with `kill <pid>` from another

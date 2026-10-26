@@ -84,6 +84,7 @@ cp "$repo/zig-out/bin/neocaca" binary 2>/dev/null || cp /bin/sh binary
 # Paths that are not plain files.
 ln -s unicode.txt link-to-unicode.txt
 ln -s does-not-exist dangling-link.txt
+ln unicode.txt hard-link-to-unicode.txt
 printf 'read only\n' >read-only.txt
 chmod 444 read-only.txt
 printf 'secret\n' >unreadable.txt

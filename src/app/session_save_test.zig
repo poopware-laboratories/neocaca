@@ -279,6 +279,32 @@ test "session: keys typed after a mapping that saves run after the keys it held"
     try expect(s.ed.doc.isModified());
 }
 
+test "session: :w refuses a file with other hard links, and :w! writes this name alone" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(io, .{ .sub_path = "orig", .data = "a\n" });
+    try tmp.dir.hardLink("orig", tmp.dir, "h", io, .{});
+    var s: Session = try .init(gpa, io, tmp.dir, "h", 120, 5);
+    defer s.deinit();
+    try feedKeys(&s, "ix\x1b:w\r");
+    s.settle();
+    try expectEqualStrings("cannot write \"h\": the file has other hard links, which would keep the old text; :w! writes it anyway", s.ed.message.text());
+    try expect(s.ed.message.is_error);
+    try expect(s.ed.doc.isModified());
+    var buf: [16]u8 = undefined;
+    try expectEqualStrings("a\n", try readFile(tmp.dir, "h", &buf));
+    try feedKeys(&s, ":w!\r");
+    s.settle();
+    try expectEqualStrings("\"h\" written, 1 line", s.ed.message.text());
+    try expect(!s.ed.doc.isModified());
+    try expectEqualStrings("xa\n", try readFile(tmp.dir, "h", &buf));
+    try expectEqualStrings("a\n", try readFile(tmp.dir, "orig", &buf));
+    // Its own file now: the next :w needs no force.
+    try feedKeys(&s, "iy\x1b:w\r");
+    s.settle();
+    try expectEqualStrings("xya\n", try readFile(tmp.dir, "h", &buf));
+}
+
 test "session: :w refuses a read-only file, and :w! writes it" {
     if (!std.Io.File.Permissions.has_executable_bit) return error.SkipZigTest;
     var tmp = std.testing.tmpDir(.{});
