@@ -52,7 +52,7 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) e
     ed.quitting = false;
     const written = result catch |e| {
         ed.doc.endSave(false);
-        const hint = if (e == error.ReadOnly or e == error.ChangedOnDisk) "; :w! writes it anyway" else "";
+        const hint = if (e == error.ReadOnly or e == error.ChangedOnDisk or e == error.OtherLinks) "; :w! writes it anyway" else "";
         ed.message.set(true, "cannot write \"{f}\": {s}{s}", .{ editor.Message.path(s.path), fs.describe(e), hint });
         return;
     };
