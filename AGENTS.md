@@ -291,7 +291,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/render/` | `screen.zig`: the cell grid and display columns; `style.zig`: cell styles and their SGR; `diff.zig`: the escape bytes from one screen to the next. |
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
 | `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups, SIGTERM and finished saves and loads through a self-pipe, the file size signal ignored), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste). POSIX only. |
-| `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions and symbolic links and refuse to split hard links, new files that never replace one, and names cut between characters to fit; `temp.zig`: the temporary file a save writes, beside the file and named after it (`.notes.txt.<random>.tmp`); `disk.zig`: what a file was on disk when read or written, so a save never writes over a change made since; `link.zig`: the file a path names once its links are followed; `reason.zig`: why a file failed, in words for a message. |
+| `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions, owner and group, and symbolic links and refuse to split hard links, new files that never replace one, and names cut between characters to fit; `temp.zig`: the temporary file a save writes, beside the file and named after it (`.notes.txt.<random>.tmp`); `disk.zig`: what a file was on disk when read or written, so a save never writes over a change made since; `link.zig`: the file a path names once its links are followed; `owner.zig`: a file's owner and group, which a save keeps where the user may; `reason.zig`: why a file failed, in words for a message. |
 | `scripts/` | `dogfood-corpus.sh`: the files a dogfood pass edits, the same bytes every time (see "Dogfooding"). |
 | `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig`, `commands_test.zig` (the `:` commands), `form_test.zig` (CRLF files, byte order marks, missing final newlines and empty files on screen and on disk), `messages_test.zig` (why a file or pattern failed, in words) and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
 
@@ -346,9 +346,9 @@ the keymap and its tests.
   protocol) are undone on normal exit, on error returns, on suspend and on
   panic (the panic handler restores first).
 - **Never lose user data.** Save by writing a temporary file in the same
-  directory and renaming it over the original; keep permissions; on any
-  error leave the original untouched and tell the user. Every edit is
-  undoable. A crash must never truncate a file.
+  directory and renaming it over the original; keep permissions, owner
+  and group; on any error leave the original untouched and tell the
+  user. Every edit is undoable. A crash must never truncate a file.
 - **File contents are untrusted.** A file can contain escape sequences,
   invalid UTF-8, NUL bytes, enormous lines and gigabytes of text. Never
   write raw control characters to the terminal (render them visibly, e.g.

@@ -364,11 +364,15 @@ Safety first, then the biggest daily gains.
         (#22). A file with more than one link is now refused ("the file
         has other hard links, which would keep the old text; :w! writes
         it anyway"), and `:w!` writes this name alone.
-  - [ ] S: a save gives the file the editor's owner and group: the
+  - [x] S: a save gave the file the editor's owner and group: the
         temporary file is created by the user, so editing a file owned
-        by another group (a shared directory, or as root) changes who
-        owns it. Copy the owner and group onto the temporary file where
-        the user may (`fchown`), and leave them be where not (#22).
+        by another group (a shared directory, or as root) changed who
+        owns it (#32). `fs/owner.zig` reads them (`statx` on Linux,
+        `fstatat` elsewhere) and gives them to the temporary file: both
+        as root, the group alone where the user is a member of it,
+        neither otherwise. The same tests found every save dropping the
+        set-user-ID and set-group-ID bits, which a write clears: the
+        permissions are now set again after it.
   - [ ] S: the messages on stderr (`cannot open "…"`, `unsaved changes
         written to "…"`) print a path's control bytes raw, so a file
         named with an OSC sequence sets the window title. Write them in

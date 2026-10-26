@@ -6,6 +6,7 @@ const std = @import("std");
 const link = @import("link.zig");
 const temp = @import("temp.zig");
 const disk = @import("disk.zig");
+const owner = @import("owner.zig");
 
 const Io = std.Io;
 const Dir = Io.Dir;
@@ -64,7 +65,7 @@ fn inDirectory(io: Io, dir: Dir, path: []const u8) Dir.StatFileError!bool {
 }
 
 pub const SaveError = link.Error || temp.CreateError || Dir.StatFileError || File.SetPermissionsError ||
-    File.WritePositionalError || File.SyncError || File.StatError || Dir.RenameError || error{ ReadOnly, ChangedOnDisk, OtherLinks };
+    File.WritePositionalError || File.SyncError || File.StatError || Dir.RenameError || owner.ReadError || owner.GiveError || error{ ReadOnly, ChangedOnDisk, OtherLinks };
 
 pub const SaveOptions = struct {
     /// Replace a read-only file too, which stays read-only, one changed on
@@ -75,8 +76,9 @@ pub const SaveOptions = struct {
 };
 
 /// Replaces `path` with `bytes` atomically: they go to a temporary file in
-/// the same directory (`temp.zig`), which is synced, given the permissions of the file
-/// it replaces, and renamed over it. A link is kept: the file it names is
+/// the same directory (`temp.zig`), which is synced, given the owner and
+/// group (as far as the user may, `owner.zig`) and the permissions of the
+/// file it replaces, and renamed over it. A link is kept: the file it names is
 /// replaced. Unless `how.force`, a file changed on disk since it was
 /// `how.expect` fails with `error.ChangedOnDisk`, a read-only one, one
 /// nobody may write, with `error.ReadOnly`, and one with other hard links
@@ -97,15 +99,21 @@ pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8, how: SaveOpti
     const old: ?File.Permissions = if (st) |s| s.permissions else null;
     if (old) |p| if (p.readOnly() and !how.force) return error.ReadOnly;
     if (st) |s| if (s.nlink > 1 and !how.force) return error.OtherLinks;
+    const was: ?owner.Owner = if (st != null) try owner.read(dir, target) else null;
     var tmp_buf: [Dir.max_path_bytes]u8 = undefined;
     const tmp = try temp.create(io, dir, target, &tmp_buf);
     defer tmp.file.close(io);
     // Nothing more can be done when removing it fails too; the error that
     // stopped the save is the one to report.
     errdefer dir.deleteFile(io, tmp.path) catch {};
-    // Set after creation, so the umask does not narrow them.
+    if (was) |w| try owner.give(io, tmp.file, w);
+    // Set after creation, so the umask does not narrow them, and before
+    // the write, so a private file's text is never more open than the
+    // file. A change of owner and a write both clear the set-ID bits, so
+    // they are set again once it is written.
     if (old) |p| try tmp.file.setPermissions(io, p);
     try tmp.file.writePositionalAll(io, bytes, 0);
+    if (old) |p| try tmp.file.setPermissions(io, p);
     try tmp.file.sync(io);
     // Renaming keeps the inode, size and time it was written.
     const written: disk.Stamp = .of(try tmp.file.stat(io));

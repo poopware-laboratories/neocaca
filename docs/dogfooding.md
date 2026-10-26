@@ -81,7 +81,9 @@ already lists is noted once with its item, not reported again.
    and leave it read-only), `hard-link-to-unicode.txt` (`:w` must
    refuse and say it has other links, `:w!` must write it and leave
    `unicode.txt` as it was), `unreadable.txt`, and a file in a
-   directory that does not exist.
+   directory that does not exist. Give a file another of your groups
+   (`chgrp`) and the set-group-ID bit (`chmod g+s`): both are still
+   there after `:w`.
 9. **The terminal misbehaves.** Resize down to one cell and back; paste a
    large block; close the terminal window with unsaved changes (the
    recovery file must hold them), and again with `kill <pid>` from another
