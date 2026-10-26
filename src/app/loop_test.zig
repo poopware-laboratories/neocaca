@@ -22,6 +22,8 @@ const Step = union(enum) {
     saved,
     /// The terminal hangs up (SIGHUP).
     hangup,
+    /// Something outside asks the editor to stop (SIGTSTP).
+    stop,
 };
 
 /// Plays `steps`, then reports the terminal gone.
@@ -61,6 +63,7 @@ const Script = struct {
             },
             .idle => return .{},
             .hangup => return .{ .woken = true, .hung_up = true },
+            .stop => return .{ .woken = true, .stop = true },
             .saved => {
                 // The loop may have collected a save that finished early.
                 if (self.session.?.saving) |job| {
@@ -226,6 +229,33 @@ test "loop: a hang-up during a save still finishes it" {
     try expect(!f.session.ed.doc.isModified());
     var buf: [16]u8 = undefined;
     try expectEqualStrings("xb\n", try f.tmp.dir.readFile(io, "a", &buf));
+}
+
+test "loop: a stop from outside suspends as Ctrl-z does, then draws the whole screen" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{
+        .steps = &.{ .{ .input = "ix" }, .stop, .{ .input = "y" } },
+        .resumed_size = .{ .width = 30, .height = 6 },
+    };
+    try f.run(&script);
+    try expectEqual(1, script.suspends);
+    try expectEqual(30, f.session.ed.width);
+    // Still in insert mode, nothing lost or typed by the stop.
+    try expectEqualStrings("xyb\n", f.session.ed.doc.text());
+    const out = f.out.buffered();
+    try expect(std.mem.indexOf(u8, out[script.written[1]..script.written[2]], "\x1b[2J") != null);
+}
+
+test "loop: a stop from outside in a prompt keeps the prompt" {
+    var f: Fixture = undefined;
+    try f.init("a", "b\n");
+    defer f.deinit();
+    var script: Script = .{ .steps = &.{ .{ .input = ":q" }, .stop, .{ .input = "!\r" } } };
+    try f.run(&script);
+    try expectEqual(1, script.suspends);
+    try expect(f.session.done());
 }
 
 test "loop: no suspend without Ctrl-z" {

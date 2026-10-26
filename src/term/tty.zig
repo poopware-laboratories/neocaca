@@ -1,7 +1,7 @@
 //! `Tty`: the real terminal. Raw mode on and off, its size, waiting for
-//! input with a timeout, and the resize, hang-up and end signals
-//! (SIGWINCH, SIGHUP, SIGTERM), which wake the wait through a pipe their
-//! handlers write to.
+//! input with a timeout, and the resize, hang-up, end and stop signals
+//! (SIGWINCH, SIGHUP, SIGTERM, SIGTSTP), which wake the wait through a
+//! pipe their handlers write to.
 //! While it is open SIGXFSZ is ignored, so a write past the file size
 //! limit fails with `error.FileTooBig` instead of ending the editor.
 //! POSIX only.
@@ -29,6 +29,9 @@ pub const Ready = struct {
     /// The terminal hung up (SIGHUP), or the process was asked to end
     /// (SIGTERM): either way the editor is leaving, for good.
     hung_up: bool = false,
+    /// Something outside asked the editor to stop (SIGTSTP, as `kill
+    /// -TSTP` sends): it should suspend as Ctrl-z does. Once per signal.
+    stop: bool = false,
 };
 
 pub const Tty = struct {
@@ -53,6 +56,7 @@ pub const Tty = struct {
         writeAll(out, modes.enter);
         wake_fd.store(wake[1], .release);
         hung_up.store(false, .release);
+        stop_asked.store(false, .release);
         watchSignals(true);
         active = self;
         return self;
@@ -85,7 +89,10 @@ pub const Tty = struct {
         // A terminal that refuses its settings back is left as it is; the
         // shell resets it in any case.
         attr.set(self.in, self.original) catch {};
+        // The stop signal must stop the process now, not wake the wait.
+        watch(posix.SIG.TSTP, posix.SIG.DFL);
         stopper.stop();
+        watch(posix.SIG.TSTP, onStop);
         // A terminal refusing raw mode after resuming is as good as gone;
         // the next read reports it.
         attr.set(self.in, raw.makeRaw(self.original)) catch {};
@@ -114,6 +121,7 @@ pub const Tty = struct {
             ready.woken = true;
         }
         ready.hung_up = hung_up.load(.acquire);
+        ready.stop = stop_asked.swap(false, .acq_rel);
         return ready;
     }
 
@@ -166,10 +174,21 @@ fn onHangUp(sig: posix.SIG) callconv(.c) void {
     onResize(sig);
 }
 
+var stop_asked: std.atomic.Value(bool) = .init(false);
+
+/// SIGTSTP would stop the process with the terminal raw and on the
+/// alternate screen; instead it wakes the wait, and the editor suspends
+/// itself as Ctrl-z does.
+fn onStop(sig: posix.SIG) callconv(.c) void {
+    stop_asked.store(true, .release);
+    onResize(sig);
+}
+
 fn watchSignals(on: bool) void {
     watch(posix.SIG.WINCH, if (on) onResize else posix.SIG.DFL);
     watch(posix.SIG.HUP, if (on) onHangUp else posix.SIG.DFL);
     watch(posix.SIG.TERM, if (on) onHangUp else posix.SIG.DFL);
+    watch(posix.SIG.TSTP, if (on) onStop else posix.SIG.DFL);
     watch(posix.SIG.XFSZ, if (on) posix.SIG.IGN else posix.SIG.DFL);
 }
 
