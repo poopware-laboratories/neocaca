@@ -56,8 +56,7 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
         return .failure;
     };
     tty.restore();
-    try recover(&session, err);
-    return .ok;
+    return recover(&session, err);
 }
 
 /// Says what stopped the loop, then saves what can be saved.
@@ -67,18 +66,25 @@ fn stopped(session: *Session, e: anyerror, err: *std.Io.Writer) std.Io.Writer.Er
     } else {
         try err.print("neocaca: {s}\n", .{describeStop(e)});
     }
-    try recover(session, err);
+    _ = try recover(session, err);
 }
 
 /// After the terminal went away rather than the editor quitting, writes
-/// the unsaved changes to a recovery file and says where.
-fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!void {
-    if (session.done()) return;
+/// the unsaved changes to a recovery file and says where; a failure when
+/// they could not be written.
+fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code {
+    if (session.done()) return .ok;
     var buf: [recovery.max_name]u8 = undefined;
     switch (session.recover(&buf)) {
-        .none => {},
-        .written => |where| try err.print("neocaca: unsaved changes written to \"{s}\"\n", .{where}),
-        .failed => |e| try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)}),
+        .none => return .ok,
+        .written => |where| {
+            try err.print("neocaca: unsaved changes written to \"{s}\"\n", .{where});
+            return .ok;
+        },
+        .failed => |e| {
+            try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)});
+            return .failure;
+        },
     }
 }
 
@@ -178,6 +184,34 @@ test "edit: changes that cannot be recovered are said to be lost" {
     try stopped(&session, error.OutOfMemory, &err);
     try std.testing.expectEqualStrings(
         \\neocaca: out of memory
+        \\neocaca: the unsaved changes could not be written: no such file or directory
+        \\
+    , err.buffered());
+}
+
+test "edit: after a hang-up, the exit fails only when changes were lost" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var err_buf: [256]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    // Nothing to recover.
+    var clean: Session = try .init(std.testing.allocator, std.testing.io, tmp.dir, "c", 20, 4);
+    defer clean.deinit();
+    try std.testing.expectEqual(.ok, try recover(&clean, &err));
+    // Recovered.
+    var kept: Session = try .init(std.testing.allocator, std.testing.io, tmp.dir, "k", 20, 4);
+    defer kept.deinit();
+    try kept.feed("ix\x1b");
+    try kept.timeout();
+    try std.testing.expectEqual(.ok, try recover(&kept, &err));
+    // Lost: the directory has gone.
+    var lost: Session = try .init(std.testing.allocator, std.testing.io, tmp.dir, "gone/f", 20, 4);
+    defer lost.deinit();
+    try lost.feed("ix\x1b");
+    try lost.timeout();
+    try std.testing.expectEqual(.failure, try recover(&lost, &err));
+    try std.testing.expectEqualStrings(
+        \\neocaca: unsaved changes written to "k.recovered"
         \\neocaca: the unsaved changes could not be written: no such file or directory
         \\
     , err.buffered());

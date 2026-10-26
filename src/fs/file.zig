@@ -18,6 +18,17 @@ pub const max_file = 256 << 20;
 /// (`NAME_MAX`), in bytes.
 pub const max_name = 255;
 
+/// The longest start of `name` that fits in `room` bytes and ends between
+/// characters: a cut inside one backs off to its start. A character has
+/// at most three continuation bytes; invalid UTF-8 is cut where it must.
+pub fn fitName(name: []const u8, room: usize) []const u8 {
+    const fit = @min(name.len, room);
+    var keep = fit;
+    while (keep < name.len and keep > 0 and fit - keep < 3 and name[keep] & 0xc0 == 0x80) keep -= 1;
+    if (keep < name.len and name[keep] & 0xc0 == 0x80) keep = fit;
+    return name[0..keep];
+}
+
 pub const LoadError = Dir.ReadFileAllocError || Dir.StatFileError || error{ FileTooBig, NotAFile, NoDirectory };
 
 /// The contents of `path`, or null when it does not exist (a new file);

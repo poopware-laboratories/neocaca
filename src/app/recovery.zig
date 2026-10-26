@@ -1,7 +1,9 @@
 //! Recovery files: when the terminal goes away with changes unsaved, the
 //! text is written beside its file as `<file>.recovered` (a scratch buffer
 //! as `neocaca.recovered`), or `.recovered.1` and on when that is taken.
-//! A recovery file never replaces anything.
+//! A file name too long for the suffix is cut, between characters, so the
+//! recovery name fits the system's limit on a name. A recovery file never
+//! replaces anything.
 
 const std = @import("std");
 const fs = @import("../fs.zig");
@@ -23,10 +25,15 @@ pub fn describe(e: Error) []const u8 {
 }
 
 /// The `n`th name tried for `path` (null: a scratch buffer), in `buf`.
+/// Only the file's own name is cut to fit; a path whose directories leave
+/// no room fails.
 pub fn name(buf: *[max_name]u8, path: ?[]const u8, n: usize) error{NameTooLong}![]const u8 {
-    const base = path orelse "neocaca";
-    if (n == 0) return std.fmt.bufPrint(buf, "{s}.recovered", .{base}) catch error.NameTooLong;
-    return std.fmt.bufPrint(buf, "{s}.recovered.{d}", .{ base, n }) catch error.NameTooLong;
+    const full = path orelse "neocaca";
+    const dir_len = if (std.mem.lastIndexOfScalar(u8, full, '/')) |i| i + 1 else 0;
+    var suffix_buf: [".recovered.".len + 20]u8 = undefined;
+    const suffix = if (n == 0) ".recovered" else std.fmt.bufPrint(&suffix_buf, ".recovered.{d}", .{n}) catch unreachable;
+    const base = fs.fitName(full[dir_len..], fs.max_name - suffix.len);
+    return std.fmt.bufPrint(buf, "{s}{s}{s}", .{ full[0..dir_len], base, suffix }) catch error.NameTooLong;
 }
 
 /// Writes `text` to the first free name for `path` in `dir`, and returns
