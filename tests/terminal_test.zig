@@ -300,3 +300,35 @@ test "terminal: the terminal closing over no changes recovers nothing" {
     try std.testing.expectError(error.FileNotFound, r.tmp.dir.readFile(io, "keep.recovered", &buf));
     try expect(std.mem.indexOf(u8, r.err.buffered(), "recovered") == null);
 }
+
+test "terminal: a file that cannot be opened is named on stderr with its control bytes drawn" {
+    if (builtin.target.os.tag == .windows) return error.SkipZigTest;
+    var r: Run = undefined;
+    try r.open(30, 6);
+    defer r.close();
+    const name = "x\x1b]0;T\x07y";
+    try r.tmp.dir.createDir(io, name, .default_dir);
+    try r.start(&.{name});
+    try expectEqual(.failure, try r.finish());
+    try expectEqualStrings("neocaca: cannot open \"x^[]0;T^Gy\": is a directory\n", r.err.buffered());
+}
+
+test "terminal: a recovery file named with control bytes is named on stderr with them drawn" {
+    if (builtin.target.os.tag == .windows) return error.SkipZigTest;
+    var r: Run = undefined;
+    try r.open(30, 6);
+    defer r.close();
+    const name = "a\x1b[2Jb";
+    try r.tmp.dir.writeFile(io, .{ .sub_path = name, .data = "safe\n" });
+    try r.start(&.{name});
+    try r.drain(200);
+    const before = r.seen.items.len;
+    try r.typeKeys("ix");
+    try r.waitFor(before, "[+]");
+    r.hangUp();
+    r.thread.?.join();
+    r.thread = null;
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("xsafe\n", try r.tmp.dir.readFile(io, name ++ ".recovered", &buf));
+    try expectEqualStrings("neocaca: unsaved changes written to \"a^[[2Jb.recovered\"\n", r.err.buffered());
+}
