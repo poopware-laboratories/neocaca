@@ -146,7 +146,7 @@ The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/input/` | Terminal bytes to keys, and the Kakoune-style keymap |
 | `src/render/` | The cell grid, styles, and the diff into escape bytes |
 | `src/ui/` | Gutter, text, status line, prompt, scrolling |
-| `src/term/` | Raw mode, size, input waits, resizes, suspend, hang-ups and SIGTERM, restore on exit and panic |
+| `src/term/` | Raw mode, size, input waits, resizes, suspend (Ctrl-z or SIGTSTP), hang-ups and SIGTERM, restore on exit and panic |
 | `src/fs/` | Bounded loads, atomic saves that keep permissions, owner and group, and symbolic links and refuse to split hard links |
 | `tests/` | Whole editing sessions from scripted keys, and the editor on a pseudo-terminal |
 | `scripts/` | The files a dogfood pass edits ([`docs/dogfooding.md`](docs/dogfooding.md)) |

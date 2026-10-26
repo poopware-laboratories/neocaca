@@ -108,7 +108,7 @@ make more change nothing, and the message line says "too many selections
 | `I` / `A` | insert at the line start (first non-blank) / line end |
 | `o` / `O` | open a new line below / above and insert |
 | `:` | command prompt |
-| `Ctrl-z` | suspend: give the terminal back to the shell until `fg` (in every mode, which `fg` comes back to) |
+| `Ctrl-z` | suspend: give the terminal back to the shell until `fg` (in every mode, which `fg` comes back to); `kill -TSTP` does the same |
 
 ## Insert mode
 

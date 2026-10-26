@@ -31,17 +31,22 @@ pub fn run(session: *Session, terminal: anytype, out: *std.Io.Writer) !void {
         if (ready.woken) {
             if (terminal.size()) |s| session.resize(s.width, s.height);
         }
+        if (ready.stop) suspendNow(session, terminal);
         if (ready.input) {
             const n = try terminal.read(&buf);
             if (n == 0) return;
             try session.feed(buf[0..n]);
-            if (session.takeSuspend()) {
-                terminal.suspendProcess();
-                session.redrawAll();
-                if (terminal.size()) |s| session.resize(s.width, s.height);
-            }
+            if (session.takeSuspend()) suspendNow(session, terminal);
         } else if (!ready.woken and session.waiting()) {
             try session.timeout();
         }
     }
+}
+
+/// Stops the process with the terminal given back (Ctrl-z, or SIGTSTP from
+/// outside), then draws the whole screen at the size it came back to.
+fn suspendNow(session: *Session, terminal: anytype) void {
+    terminal.suspendProcess();
+    session.redrawAll();
+    if (terminal.size()) |s| session.resize(s.width, s.height);
 }

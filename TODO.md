@@ -346,12 +346,17 @@ Safety first, then the biggest daily gains.
         lost unsaved changes (exit 143, no `.recovered` file) (#20). It is
         now taken as a hang-up: it wakes the loop, the terminal is
         restored and the changes go to the recovery file.
-  - [ ] S: a SIGTSTP from outside (`kill -TSTP`, not Ctrl-z) stops the
-        editor on the alternate screen, and after `fg` the terminal is
-        left cooked with echo on and the screen is not redrawn: keys
-        echo and arrive only after Enter. Leave the screen and raw mode
-        before stopping, as Ctrl-z does, and take them back and redraw
-        on SIGCONT (#26).
+  - [x] S: a SIGTSTP from outside (`kill -TSTP`, not Ctrl-z) stopped the
+        editor on the alternate screen, and after `fg` the terminal was
+        left cooked with echo on and the screen not redrawn: keys echoed
+        and arrived only after Enter (#26). Its handler now wakes the
+        loop (`Ready.stop`), which suspends as Ctrl-z does: the modes and
+        raw mode given back, the signal let through to stop the process,
+        and on `fg` raw mode, the modes and the whole screen back.
+  - [ ] S: a SIGSTOP (`kill -STOP`, which no handler can take) still
+        leaves the terminal raw on the alternate screen while stopped,
+        and cooked after `fg`. Take raw mode and the modes back and
+        redraw on SIGCONT whenever the editor did not stop itself.
   - [x] S: a hang-up lost unsaved changes when the file's name was
         longer than 245 bytes: `<name>.recovered` passed the 255-byte
         limit on a name and every try failed, yet the exit status was 0

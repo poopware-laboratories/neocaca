@@ -132,6 +132,54 @@ test "tty: a request to end (SIGTERM) wakes the wait as a hang-up does" {
     try expect(!handles(posix.SIG.TERM));
 }
 
+test "tty: a stop from outside (SIGTSTP) wakes the wait instead of stopping the process" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    // Raising it unhandled would stop the test run.
+    try expect(handles(posix.SIG.TSTP));
+    try posix.raise(.TSTP);
+    const ready = try t.wait(1000);
+    try expect(ready.stop);
+    try expect(ready.woken);
+    try expect(!ready.hung_up);
+    // Once per signal: the next wait does not stop again.
+    try expect(!(try t.wait(0)).stop);
+    t.restore();
+    try expect(!handles(posix.SIG.TSTP));
+}
+
+/// Records whether a SIGTSTP would stop the process while it is stopped.
+const StopWatcher = struct {
+    default_while_stopped: bool = false,
+
+    pub fn stop(self: *StopWatcher) void {
+        self.default_while_stopped = !handles(posix.SIG.TSTP);
+    }
+};
+
+test "tty: suspending lets SIGTSTP stop the process, then watches for it again" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    var w: StopWatcher = .{};
+    t.suspendWith(&w);
+    try expect(w.default_while_stopped);
+    try expect(handles(posix.SIG.TSTP));
+}
+
+test "tty: no stop without the signal" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    try posix.raise(.WINCH);
+    const ready = try t.wait(1000);
+    try expect(ready.woken);
+    try expect(!ready.stop);
+}
+
 fn ignoresFileSizeLimit() bool {
     var old: posix.Sigaction = undefined;
     posix.sigaction(posix.SIG.XFSZ, null, &old);
