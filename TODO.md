@@ -338,6 +338,33 @@ Safety first, then the biggest daily gains.
         remembers a file with no text, and while the buffer holds none
         either a save writes it empty (a byte order mark alone stays
         alone). A new file saved untouched still gets its newline.
+- **PR: fixes from the codebase audit.** A read of the whole codebase
+  on 2026-10-26, each finding reproduced in ReleaseSafe on `main` at
+  25cc5a5. The first two lose data, the last puts raw bytes on the
+  terminal, so they go ahead of the rest of the phase.
+  - [ ] S: SIGTERM leaves the terminal raw, on the alternate screen, and
+        loses unsaved changes (exit 143, no `.recovered` file) (#20). Handle it
+        as a hang-up: wake the loop, restore the terminal, write the
+        recovery file. Check SIGTSTP from outside and SIGCONT too.
+  - [ ] S: a hang-up loses unsaved changes when the file's name is longer
+        than 245 bytes: `<name>.recovered` passes the 255-byte limit on a
+        name and every try fails, yet the exit status is 0. Cut the base
+        between characters to fit, as `fs/temp.zig` does, tested at 255
+        bytes and one past, and exit nonzero when nothing could be
+        written (#21).
+  - [ ] S: `:w` breaks hard links without a word: the rename gives the
+        edited name a new inode and the other names keep the old text.
+        Refuse a file with more than one link as a read-only one is
+        refused, `:w!` to write anyway; keep owner and group where the
+        user may (#22).
+  - [ ] S: the messages on stderr (`cannot open "…"`, `unsaved changes
+        written to "…"`) print a path's control bytes raw, so a file
+        named with an OSC sequence sets the window title. Write them in
+        caret form, as the screen does, tested with every control byte
+        (#23).
+  - [ ] S: rough edges: `:w d/` on a directory `d` says "a part of the
+        path is not a directory"; `Prompt.set` can cut a character in
+        two at `max_len` (#24).
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
   - [ ] S: when the terminal reports focus (xterm focus events, mode
