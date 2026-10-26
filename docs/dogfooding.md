@@ -75,7 +75,8 @@ already lists is noted once with its item, not reported again.
 7. **Text that is hard to measure.** Move through `unicode.txt` a
    character at a time; the cursor must never land inside a character or
    draw over its neighbor.
-8. **Paths that are not plain files.** Open `a-directory`,
+8. **Paths that are not plain files.** Open `a-directory` (and write
+   to it: `:w a-directory/` must say it is a directory),
    `link-to-unicode.txt` (saving keeps the link), `dangling-link.txt`,
    `read-only.txt` (`:w` must refuse and say why, `:w!` must write it
    and leave it read-only), `hard-link-to-unicode.txt` (`:w` must

@@ -85,6 +85,20 @@ test "messages: writing a name that is too long fails and keeps the changes" {
     try std.testing.expectEqualStrings("keep\n", try h.file("f", &buf));
 }
 
+test "messages: writing to a directory says it is one and keeps the changes" {
+    var h: Harness = undefined;
+    try h.init("f", "keep\n", 60, 4);
+    defer h.deinit();
+    try h.tmp.dir.createDir(io, "d", .default_dir);
+    try h.typeKeys("ix\x1b:w d/\r");
+    try h.expectMessage("cannot write \"d/\": is a directory");
+    try h.typeKeys(":w d\r");
+    try h.expectMessage("cannot write \"d\": is a directory");
+    try expect(h.session.ed.doc.isModified());
+    var buf: [16]u8 = undefined;
+    try std.testing.expectEqualStrings("keep\n", try h.file("f", &buf));
+}
+
 test "messages: writing through a link that names itself says why and keeps the link" {
     var h: Harness = undefined;
     try h.init(null, null, 60, 4);
