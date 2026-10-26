@@ -23,6 +23,7 @@ test {
     _ = @import("fs/temp.zig");
     _ = @import("fs/reason.zig");
     _ = @import("fs/file_test.zig");
+    _ = @import("fs/file_dir_test.zig");
     _ = @import("fs/reason_test.zig");
     _ = @import("fs/link_test.zig");
     _ = @import("fs/temp_test.zig");

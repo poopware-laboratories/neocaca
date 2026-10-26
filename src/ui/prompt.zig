@@ -50,10 +50,11 @@ pub const Prompt = struct {
         self.cursor = 0;
     }
 
-    /// Replaces the text with `str` (cut at `max_len`) and puts the cursor
-    /// at its end. On failure the text is unchanged.
+    /// Replaces the text with `str` (cut between characters to `max_len`)
+    /// and puts the cursor at its end. On failure the text is unchanged.
     pub fn set(self: *Prompt, str: []const u8) error{OutOfMemory}!void {
-        const keep = str[0..@min(str.len, max_len)];
+        // Cut before the character holding the first byte past the bound.
+        const keep = if (str.len > max_len) str[0..chars.holding(str, max_len)] else str;
         try self.buf.ensureTotalCapacity(self.gpa, keep.len);
         self.buf.clearRetainingCapacity();
         self.buf.appendSliceAssumeCapacity(keep);

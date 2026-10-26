@@ -9,6 +9,7 @@ const Theme = @import("theme.zig").Theme;
 const Prompt = prompt_mod.Prompt;
 const Key = input.Key;
 const gpa = std.testing.allocator;
+const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
@@ -139,6 +140,29 @@ test "prompt: set replaces the text and puts the cursor at its end" {
     try expectEqual(8, p.cursor);
     p.clear();
     try expectEqualStrings("", p.text());
+}
+
+test "prompt: set cuts a text past the bound between characters" {
+    var p: Prompt = .init(gpa);
+    defer p.deinit();
+    const max = prompt_mod.max_len;
+    // A three-byte character across the bound is left out whole.
+    var wide: [max + 2]u8 = @splat('x');
+    @memcpy(wide[max - 1 ..], "中");
+    try p.set(&wide);
+    try expectEqual(max - 1, p.text().len);
+    try expectEqual(max - 1, p.cursor);
+    // So is a letter whose combining mark crosses it.
+    var marked: [max + 1]u8 = @splat('x');
+    @memcpy(marked[max - 2 ..], "e\u{301}");
+    try p.set(&marked);
+    try expectEqual(max - 2, p.text().len);
+    // One that ends at the bound is kept, and nothing past it.
+    var exact: [max + 3]u8 = @splat('x');
+    @memcpy(exact[max - 3 .. max], "中");
+    try p.set(&exact);
+    try expectEqual(max, p.text().len);
+    try expect(std.mem.endsWith(u8, p.text(), "中"));
 }
 
 fn row(s: *const render.Screen, y: usize, buf: []u8) []const u8 {

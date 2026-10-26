@@ -65,7 +65,7 @@ fn inDirectory(io: Io, dir: Dir, path: []const u8) Dir.StatFileError!bool {
 }
 
 pub const SaveError = link.Error || temp.CreateError || Dir.StatFileError || File.SetPermissionsError ||
-    File.WritePositionalError || File.SyncError || File.StatError || Dir.RenameError || owner.ReadError || owner.GiveError || error{ ReadOnly, ChangedOnDisk, OtherLinks };
+    File.WritePositionalError || File.SyncError || File.StatError || Dir.RenameError || owner.ReadError || owner.GiveError || error{ IsDir, ReadOnly, ChangedOnDisk, OtherLinks };
 
 pub const SaveOptions = struct {
     /// Replace a read-only file too, which stays read-only, one changed on
@@ -78,22 +78,27 @@ pub const SaveOptions = struct {
 /// Replaces `path` with `bytes` atomically: they go to a temporary file in
 /// the same directory (`temp.zig`), which is synced, given the owner and
 /// group (as far as the user may, `owner.zig`) and the permissions of the
-/// file it replaces, and renamed over it. A link is kept: the file it names is
-/// replaced. Unless `how.force`, a file changed on disk since it was
-/// `how.expect` fails with `error.ChangedOnDisk`, a read-only one, one
-/// nobody may write, with `error.ReadOnly`, and one with other hard links
-/// with `error.OtherLinks`: the rename gives this name a new file, and the
-/// others would keep the old text without a word. On any error the
+/// file it replaces, and renamed over it. A link is kept: the file it
+/// names is replaced. A directory, or a name ending in a slash, fails with
+/// `error.IsDir`, forced or not. Unless `how.force`, a file changed on
+/// disk since it was `how.expect` fails with `error.ChangedOnDisk`, a
+/// read-only one, one nobody may write, with `error.ReadOnly`, and one
+/// with other hard links with `error.OtherLinks`: the rename gives this
+/// name a new file, and the others would keep the old text without a
+/// word. On any error the
 /// original is left as it was. Returns the stamp the file has once
 /// written.
 pub fn save(io: Io, dir: Dir, path: []const u8, bytes: []const u8, how: SaveOptions) SaveError!disk.Stamp {
     try checkNames(path);
+    // Only a directory's name ends in a slash, existing or not.
+    if (std.mem.endsWith(u8, path, "/")) return error.IsDir;
     var buf: [Dir.max_path_bytes]u8 = undefined;
     const target = try link.resolve(io, dir, path, &buf);
     const st: ?File.Stat = dir.statFile(io, target, .{}) catch |e| switch (e) {
         error.FileNotFound => null,
         else => return e,
     };
+    if (st) |s| if (s.kind == .directory) return error.IsDir;
     const now: disk.Disk = if (st) |s| .{ .stamp = .of(s) } else .missing;
     if (!how.force and disk.changed(how.expect, now)) return error.ChangedOnDisk;
     const old: ?File.Permissions = if (st) |s| s.permissions else null;

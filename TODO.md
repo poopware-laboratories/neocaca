@@ -380,9 +380,12 @@ Safety first, then the biggest daily gains.
         the screen draws it: controls in caret form, C1 controls,
         bidirectional controls and invalid bytes as U+FFFD; tested with
         every byte and every pair of bytes.
-  - [ ] S: rough edges: `:w d/` on a directory `d` says "a part of the
-        path is not a directory"; `Prompt.set` can cut a character in
-        two at `max_len` (#24).
+  - [x] S: rough edges (#24). `:w d/` on a directory `d` said "a part
+        of the path is not a directory", and `:w .` "the file is busy",
+        after writing a temporary file beside it: a name ending in a
+        slash, or one that names a directory, is now refused at once as
+        "is a directory", forced or not. `Prompt.set` could cut a
+        character in two at `max_len`; it cuts between characters now.
 - **PR: required checks on `main`.** Nothing stopped a merge while CI
   was red, and auto-merge merged at once.
   - [x] S: a `ci` job that needs every blocking job and a `title` check
