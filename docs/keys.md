@@ -150,6 +150,11 @@ make more change nothing, and the message line says "too many selections
 | `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
 | `:unmap <mode> <key>` | forget the mapping of `key` in that mode |
 
+When the terminal window gets the focus back (terminals that send xterm
+focus events, mode 1004), the editor looks at the open file on disk and
+says so at once if something else changed it, before an edit is made on
+the old text: `:e!` reloads it, `:w!` writes over it.
+
 ## Mappings
 
 `:map normal <c-s> :w<ret>` makes Ctrl-S write the file. The keys a

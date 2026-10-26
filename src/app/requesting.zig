@@ -67,6 +67,13 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) e
     if (s.quit) ed.quit = true;
 }
 
+/// Says so when the open file, now `now` on disk, changed since it was
+/// read or written.
+pub fn noticeDisk(ed: *Editor, now: fs.disk.Disk) void {
+    if (!fs.disk.changed(ed.disk, now)) return;
+    ed.message.set(true, "\"{f}\" changed on disk; :e! reloads it, :w! writes over it", .{editor.Message.path(ed.path.?)});
+}
+
 /// Reports how the load of `path` went: the file's contents (owned by
 /// the editor from here), null for a missing file, or the error. A file
 /// whose directory is missing opens new, with a warning. `disk` is what

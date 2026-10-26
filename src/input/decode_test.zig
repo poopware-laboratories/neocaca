@@ -125,7 +125,7 @@ test "decode: unknown, mouse and overlong sequences are skipped whole" {
     try std.testing.expectEqual(decode.Parsed{ .ignored = 3 }, decode.parse("\x1b[Jx", false));
     try std.testing.expectEqual(decode.Parsed{ .ignored = 11 }, decode.parse("\x1b[<0;10;20Mx", false));
     try std.testing.expectEqual(decode.Parsed{ .ignored = 3 }, decode.parse("\x1bOzx", false));
-    try std.testing.expectEqual(decode.Parsed{ .ignored = 3 }, decode.parse("\x1b[I", false)); // focus in
+    try std.testing.expectEqual(decode.Parsed{ .ignored = 3 }, decode.parse("\x1b[O", false)); // focus out
     try std.testing.expectEqual(decode.Parsed{ .ignored = 7 }, decode.parse("\x1b[1;2;3", true)); // cut off
     var many: [decode.max_csi + 8]u8 = @splat('1');
     many[0] = 0x1b;
@@ -171,4 +171,13 @@ test "decode: parameters that overflow do not crash" {
 test "decode: bracketed paste markers" {
     try std.testing.expectEqual(decode.Parsed{ .paste_start = 6 }, decode.parse("\x1b[200~abc", false));
     try std.testing.expectEqual(decode.Parsed{ .paste_end = 6 }, decode.parse("\x1b[201~", false));
+}
+
+test "decode: focus in is its own event, focus out and parameters are not" {
+    try std.testing.expectEqual(decode.Parsed{ .focus_in = 3 }, decode.parse("\x1b[I", false));
+    try std.testing.expectEqual(decode.Parsed{ .focus_in = 3 }, decode.parse("\x1b[Ixy", false));
+    try std.testing.expectEqual(decode.Parsed{ .ignored = 3 }, decode.parse("\x1b[O", false));
+    try std.testing.expectEqual(decode.Parsed{ .ignored = 4 }, decode.parse("\x1b[1I", false));
+    try std.testing.expectEqual(decode.Parsed{ .ignored = 5 }, decode.parse("\x1b[?1I", false));
+    try std.testing.expectEqual(decode.Parsed.incomplete, decode.parse("\x1b[", false));
 }
