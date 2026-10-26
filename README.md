@@ -107,6 +107,7 @@ in [`docs/keys.md`](docs/keys.md).
 | `zig build fmt` | Format the sources (`fmt-check` to only check) |
 | `zig build bench` | SIMD against scalar throughput |
 | `zig build compare -Dflow=<path>` | neocaca against flow on a pseudo-terminal |
+| `zig build ratio -- <diff>` | Count the 3:1 test rule over a diff, as CI does |
 | `zig build -Dtarget=aarch64-macos` | Cross-compile (Linux, macOS, FreeBSD) |
 | `-Dmimalloc-secure=off\|on\|full` | mimalloc hardening level (default `on`) |
 
@@ -136,6 +137,8 @@ The full layout is in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/simd/` | One file per kernel: byte counting, byte search, control-byte search, printable-ASCII runs |
 | `src/bench/` | `zig build bench`: kernels against their scalar references; `zig build compare`: neocaca against flow |
 | `src/compare/` | The pure part of `zig build compare`: terminal replies, frame waits, test files, the table |
+| `src/ratio/` | The 3:1 rule over a diff: its added lines, which are test code, the tally |
+| `src/tools/` | `zig build ratio`: the 3:1 count over a diff file |
 | `src/unicode/` | UTF-8 that never fails, display widths, characters with combining marks |
 | `src/buffer/` | Text with a line index, change sets, and a file's CRLF line ends, byte order mark and missing final newline |
 | `src/regex/` | A linear-time, bounded regex engine (Pike VM) |

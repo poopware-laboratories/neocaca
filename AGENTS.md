@@ -35,6 +35,7 @@ zig build bench                             # SIMD kernels against scalar (Relea
 zig build bench -Dbench-optimize=safe       # the same, as shipped
 zig build compare -Dflow=path/to/flow       # neocaca against flow on a pseudo-terminal
 zig build compare-build                     # compile its driver only, as CI does per target
+zig build ratio -- pr.diff                  # count the 3:1 rule over a diff, as CI does
 zig build -Dtarget=aarch64-macos            # cross-compile; also x86_64-macos, x86_64-freebsd
 zig build run -- path/to/file               # run the editor
 ```
@@ -72,7 +73,8 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
   `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target, with
   `zig build compare-build` (the comparison driver, compiled but not run);
   and a benchmark smoke run. Test runs pass `--test-timeout 3m`, each test
-  step stops at 15 minutes and each test job at 45. The `ci` job passes
+  step stops at 15 minutes and each test job at 45. On a pull request the
+  `ratio` job counts the 3:1 rule over its diff. The `ci` job passes
   only when every one of them passed, and `title.yml` checks that a pull
   request's title is a Conventional Commit; `main` requires both, takes
   only squash merges and no direct or force pushes, so a pull request
@@ -146,8 +148,11 @@ tests first for code that had none.
 **The 3:1 rule.** Every pull request adds at least **three lines of tests
 for each line of production code**. Test lines are those inside `test "…"
 { }` blocks, in `*_test.zig` files and under `tests/`; blank lines and
-comments count for neither side. Until a script enforces it in CI,
-reviewers count it from the diff.
+comments count for neither side, and so does a line the same diff
+removes elsewhere: moving code is not adding it. CI counts it on every
+pull request (the `ratio` job); count it yourself before pushing with
+`git add -N . && git diff -U0 -M origin/main > pr.diff && zig build
+ratio -- pr.diff`.
 
 - Pull requests without production code (docs, CI, build tweaks) pass.
 - **Build scripts and benchmarks are not counted** (`build.zig`,
@@ -276,6 +281,8 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`, `plain.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
 | `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. `zig build compare`: `compare.zig` runs the measurements and prints the table, `pty.zig` runs one editor on a pseudo-terminal. |
 | `src/compare/` | The pure part of `zig build compare`: `replies.zig`, the answers a terminal gives to an editor's queries; `wait.zig`, when the frame answering a key or a launch has come; `files.zig`, the files both editors open; `report.zig`, the table of results. |
+| `src/ratio/` | The 3:1 rule over a diff, for `zig build ratio`: `diff.zig`, the lines a unified diff adds and removes; `path.zig`, which files count and how; `lines.zig`, which lines of a Zig file are test code; `check.zig`, the tally and its report. |
+| `src/tools/` | Drivers for project checks: `ratio.zig` runs `zig build ratio` over a diff file. |
 | `src/unicode/` | `utf8.zig`: decoding that never fails; `width.zig`: display width from UAX #11; `chars.zig`: characters with their combining marks; `class.zig`: word and space classes; `display.zig`: how a character is drawn (`^[` for controls). |
 | `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass; `endings.zig`: CRLF files edited with `\n` and written back with CRLF; `form.zig`: the byte order mark, line ends, a missing final newline and an empty file taken off on load and put back on save. No I/O, no terminal. |
 | `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig` (forwards, and reversed for backward search), run by the Pike VM in `vm.zig` within a step budget, skipping to the pattern's first byte; `regex.zig`: the public `Regex`. |
@@ -328,7 +335,8 @@ the keymap and its tests.
   final)`, `app.layout.draw(editor, screen)`, `render.diff(old, new,
   writer)`). Only `term/`, `fs/`, `main.zig` and the shell files of `app/`
   (`edit.zig`, `session.zig`, `saving.zig`, `loading.zig`, `recovery.zig`)
-  do I/O; the rest of `app/` is pure. If a test needs a real terminal, the
+  do I/O, with the tools (`src/bench/`, `src/tools/`, and `ratio/check.zig`,
+  which reads the files a diff names); the rest of `app/` is pure. If a test needs a real terminal, the
   logic is in the wrong place.
 - **Never block the event loop.** Reading the terminal, saving files and
   running external tools must not freeze typing. Long work goes off the

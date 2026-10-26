@@ -377,8 +377,9 @@ Safety first, then the biggest daily gains.
         of the Conventional Commit title, both required on `main` by a
         ruleset that also allows only squash merges and no direct or
         force pushes.
-  - [ ] S: a check that counts the 3:1 rule in a pull request's diff,
-        as AGENTS.md describes, and is required too.
+  - [x] M: a `ratio` job that counts the 3:1 rule in a pull request's
+        diff (`zig build ratio`, `src/ratio/`), part of the required `ci`
+        gate. A line the diff also removes counts as moved, not added.
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
   - [ ] S: when the terminal reports focus (xterm focus events, mode

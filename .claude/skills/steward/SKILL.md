@@ -28,7 +28,7 @@ description: Use when driving an open neocaca pull request to green - CI failure
 | Cross-target build | `zig build -Dtarget=<triple>` with the job's triple |
 | Leak reported by a test | Run that test alone with `-Dtest-filter`; see managing-memory |
 | Pull request title | Fix it on the PR: `type(scope): summary`, lower case, no final period |
-| 3:1 ratio | Add real tests; see test-driven-development. Never pad. |
+| 3:1 ratio (`ratio` job) | Its log lists the counts per file. Add real tests; see test-driven-development. Never pad. |
 
 Use the Zig version from `build.zig.zon`: a failure that only reproduces
 on another version is a version mismatch, not a fix to make.
