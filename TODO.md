@@ -342,10 +342,16 @@ Safety first, then the biggest daily gains.
   on 2026-10-26, each finding reproduced in ReleaseSafe on `main` at
   25cc5a5. The first two lose data, the last puts raw bytes on the
   terminal, so they go ahead of the rest of the phase.
-  - [ ] S: SIGTERM leaves the terminal raw, on the alternate screen, and
-        loses unsaved changes (exit 143, no `.recovered` file) (#20). Handle it
-        as a hang-up: wake the loop, restore the terminal, write the
-        recovery file. Check SIGTSTP from outside and SIGCONT too.
+  - [x] S: SIGTERM left the terminal raw, on the alternate screen, and
+        lost unsaved changes (exit 143, no `.recovered` file) (#20). It is
+        now taken as a hang-up: it wakes the loop, the terminal is
+        restored and the changes go to the recovery file.
+  - [ ] S: a SIGTSTP from outside (`kill -TSTP`, not Ctrl-z) stops the
+        editor on the alternate screen, and after `fg` the terminal is
+        left cooked with echo on and the screen is not redrawn: keys
+        echo and arrive only after Enter. Leave the screen and raw mode
+        before stopping, as Ctrl-z does, and take them back and redraw
+        on SIGCONT (#26).
   - [ ] S: a hang-up loses unsaved changes when the file's name is longer
         than 245 bytes: `<name>.recovered` passes the 255-byte limit on a
         name and every try fails, yet the exit status is 0. Cut the base

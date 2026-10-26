@@ -64,8 +64,9 @@ it.
   leaves the buffer as it was; the code that handles allocation failure is
   tested by failing each of its allocations in turn.
 - **The terminal is always restored**, on a normal exit, on an error and on
-  a panic. When the terminal hangs up with changes unsaved, they go to a
-  `<file>.recovered` file instead of being lost.
+  a panic. When the terminal hangs up, or the editor is told to end
+  (SIGTERM), with changes unsaved, they go to a `<file>.recovered` file
+  instead of being lost.
 - **One dependency.** Apart from the Zig standard library, the only
   third-party code is mimalloc, pinned by URL and hash in `build.zig.zon`.
 
