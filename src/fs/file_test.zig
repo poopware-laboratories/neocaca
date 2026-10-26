@@ -360,3 +360,27 @@ test "file: an absolute path in a missing directory is told apart too" {
     try expectError(error.NoDirectory, file.load(io, gpa, std.Io.Dir.cwd(), "/neocaca-no-such-directory/f", file.max_file));
     try std.testing.expectEqual(null, try file.load(io, gpa, tmp.dir, "./new", file.max_file));
 }
+
+test "file: a name that fits is kept whole" {
+    try std.testing.expectEqualStrings("notes.txt", file.fitName("notes.txt", 9));
+    try std.testing.expectEqualStrings("notes.txt", file.fitName("notes.txt", 255));
+    try std.testing.expectEqualStrings("", file.fitName("", 0));
+}
+
+test "file: a name is cut to its room, between characters" {
+    try std.testing.expectEqualStrings("note", file.fitName("notes.txt", 4));
+    try std.testing.expectEqualStrings("", file.fitName("notes.txt", 0));
+    // é is two bytes, € three, 😀 four: a cut inside one backs off to its start.
+    try std.testing.expectEqualStrings("a", file.fitName("aé", 2));
+    try std.testing.expectEqualStrings("aé", file.fitName("aé", 3));
+    try std.testing.expectEqualStrings("a", file.fitName("a€", 3));
+    try std.testing.expectEqualStrings("a", file.fitName("a😀", 4));
+    try std.testing.expectEqualStrings("a😀", file.fitName("a😀b", 5));
+}
+
+test "file: invalid UTF-8 is cut at its room, never emptied" {
+    // Continuation bytes with no start: no character to keep whole.
+    const bad = "\x80\x80\x80\x80\x80\x80";
+    try std.testing.expectEqualStrings("\x80\x80", file.fitName(bad, 2));
+    try std.testing.expectEqualStrings("a\x80\x80\x80\x80", file.fitName("a" ++ bad, 5));
+}

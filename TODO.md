@@ -352,12 +352,13 @@ Safety first, then the biggest daily gains.
         echo and arrive only after Enter. Leave the screen and raw mode
         before stopping, as Ctrl-z does, and take them back and redraw
         on SIGCONT (#26).
-  - [ ] S: a hang-up loses unsaved changes when the file's name is longer
-        than 245 bytes: `<name>.recovered` passes the 255-byte limit on a
-        name and every try fails, yet the exit status is 0. Cut the base
-        between characters to fit, as `fs/temp.zig` does, tested at 255
-        bytes and one past, and exit nonzero when nothing could be
-        written (#21).
+  - [x] S: a hang-up lost unsaved changes when the file's name was
+        longer than 245 bytes: `<name>.recovered` passed the 255-byte
+        limit on a name and every try failed, yet the exit status was 0
+        (#21). The file's own name is now cut between characters to
+        leave room for the suffix (`fs.fitName`, shared with
+        `fs/temp.zig`), and the exit status is 1 whenever unsaved
+        changes could not be written.
   - [ ] S: `:w` breaks hard links without a word: the rename gives the
         edited name a new inode and the other names keep the old text.
         Refuse a file with more than one link as a read-only one is

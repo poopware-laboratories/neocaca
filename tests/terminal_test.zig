@@ -33,7 +33,8 @@ const Run = struct {
     /// The editor's thread, until it is joined.
     thread: ?std.Thread = null,
     code: neocaca.app.exit.Code = .failure,
-    err_buf: [256]u8 = undefined,
+    /// Room for a message naming a file of the longest name there is.
+    err_buf: [1024]u8 = undefined,
     err: std.Io.Writer = undefined,
     /// Everything the editor wrote, in order.
     seen: std.ArrayList(u8) = .empty,
@@ -259,6 +260,29 @@ test "terminal: being asked to end (SIGTERM) restores the terminal and recovers 
     const after = try neocaca.term.attr.get(r.slave);
     try expectEqual(before.lflag, after.lflag);
     try expectEqual(before.iflag, after.iflag);
+}
+
+test "terminal: the terminal closing recovers a file with the longest name there is" {
+    if (builtin.target.os.tag == .windows) return error.SkipZigTest;
+    var r: Run = undefined;
+    try r.open(30, 6);
+    defer r.close();
+    const longest: [255]u8 = @splat('k');
+    try r.tmp.dir.writeFile(io, .{ .sub_path = &longest, .data = "safe\n" });
+    try r.start(&.{&longest});
+    try r.drain(200);
+    const before = r.seen.items.len;
+    try r.typeKeys("ix");
+    try r.waitFor(before, "[+]");
+    r.hangUp();
+    r.thread.?.join();
+    r.thread = null;
+    try expectEqual(.ok, r.code);
+    const recovered = longest[0 .. 255 - ".recovered".len] ++ ".recovered";
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("xsafe\n", try r.tmp.dir.readFile(io, recovered, &buf));
+    try expectEqualStrings("safe\n", try r.tmp.dir.readFile(io, &longest, &buf));
+    try expect(std.mem.indexOf(u8, r.err.buffered(), "unsaved changes written to") != null);
 }
 
 test "terminal: the terminal closing over no changes recovers nothing" {

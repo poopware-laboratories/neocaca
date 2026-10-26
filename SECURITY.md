@@ -66,7 +66,8 @@ it.
 - **The terminal is always restored**, on a normal exit, on an error and on
   a panic. When the terminal hangs up, or the editor is told to end
   (SIGTERM), with changes unsaved, they go to a `<file>.recovered` file
-  instead of being lost.
+  instead of being lost (a name too long for the suffix is cut to fit);
+  when even that fails, the editor says so and exits with status 1.
 - **One dependency.** Apart from the Zig standard library, the only
   third-party code is mimalloc, pinned by URL and hash in `build.zig.zon`.
 

@@ -9,7 +9,8 @@ const Io = std.Io;
 const Dir = Io.Dir;
 const File = Io.File;
 
-pub const max_name = @import("file.zig").max_name;
+const files = @import("file.zig");
+pub const max_name = files.max_name;
 
 /// `.`, the random part in hex, `.tmp`.
 const suffix_len = 1 + 16 + 4;
@@ -20,13 +21,9 @@ const suffix_len = 1 + 16 + 4;
 /// Returns a slice of `buf`.
 pub fn name(buf: *[max_name]u8, base: []const u8, random: u64) []const u8 {
     const dot: []const u8 = if (std.mem.startsWith(u8, base, ".")) "" else ".";
-    const fit = @min(base.len, max_name - dot.len - suffix_len);
-    // Back off a character's continuation bytes so none is cut in two;
-    // a character has at most three, invalid UTF-8 any number.
-    var keep = fit;
-    while (keep < base.len and fit - keep < 3 and base[keep] & 0xc0 == 0x80) keep -= 1;
-    // `keep` leaves room for the rest, so it always fits.
-    return std.fmt.bufPrint(buf, "{s}{s}.{x:0>16}.tmp", .{ dot, base[0..keep], random }) catch unreachable;
+    const kept = files.fitName(base, max_name - dot.len - suffix_len);
+    // `kept` leaves room for the rest, so it always fits.
+    return std.fmt.bufPrint(buf, "{s}{s}.{x:0>16}.tmp", .{ dot, kept, random }) catch unreachable;
 }
 
 pub const Temp = struct {
