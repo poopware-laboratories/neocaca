@@ -15,6 +15,7 @@ fn expectKey(d: *Decoder, final: bool, want: Key) !void {
             std.debug.print("got paste {any}\n", .{p});
             return error.TestExpectedKey;
         },
+        .focus_in => return error.TestExpectedKey,
     }
 }
 
@@ -26,6 +27,7 @@ fn expectPaste(d: *Decoder, want: []const u8) !void {
             std.debug.print("got key {any}\n", .{k});
             return error.TestExpectedPaste;
         },
+        .focus_in => return error.TestExpectedPaste,
     }
 }
 
@@ -274,4 +276,25 @@ test "decoder: a paste right after an overlong sequence is still a paste" {
     try expectPaste(&d, "hi");
     try expectNone(&d, false);
     try std.testing.expect(!d.in_overlong);
+}
+
+test "decoder: focus in comes out between the keys around it" {
+    var d: Decoder = .init(gpa);
+    defer d.deinit();
+    try d.feed("a\x1b[");
+    try expectKey(&d, false, .char('a'));
+    try expectNone(&d, false);
+    try d.feed("Ib\x1b[O");
+    try std.testing.expectEqual(.focus_in, std.meta.activeTag((try d.next(false)).?));
+    try expectKey(&d, false, .char('b'));
+    // Focus out means nothing to the editor.
+    try expectNone(&d, false);
+    try expectNone(&d, true);
+}
+
+test "decoder: focus in inside a paste is pasted text" {
+    var d: Decoder = .init(gpa);
+    defer d.deinit();
+    try d.feed("\x1b[200~x\x1b[Iy\x1b[201~");
+    try expectPaste(&d, "x\x1b[Iy");
 }

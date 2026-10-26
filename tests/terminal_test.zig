@@ -332,3 +332,22 @@ test "terminal: a recovery file named with control bytes is named on stderr with
     try expectEqualStrings("xsafe\n", try r.tmp.dir.readFile(io, name ++ ".recovered", &buf));
     try expectEqualStrings("neocaca: unsaved changes written to \"a^[[2Jb.recovered\"\n", r.err.buffered());
 }
+
+test "terminal: getting the focus back says the file changed on disk" {
+    if (builtin.target.os.tag == .windows) return error.SkipZigTest;
+    var r: Run = undefined;
+    try r.open(80, 6);
+    defer r.close();
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "log", .data = "one\n" });
+    try r.start(&.{"log"});
+    try r.drain(200);
+    // Another program appends while the window is in the background.
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "log", .data = "one\ntwo\n" });
+    const before = r.seen.items.len;
+    _ = std.c.write(r.master, "\x1b[O\x1b[I", 6);
+    try r.waitFor(before, "changed on disk; :e! reloads it");
+    try r.typeKeys(":q\r");
+    try expectEqual(.ok, try r.finish());
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("one\ntwo\n", try r.tmp.dir.readFile(io, "log", &buf));
+}

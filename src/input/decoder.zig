@@ -15,6 +15,9 @@ pub const Event = union(enum) {
     /// The text between the paste markers, as the terminal sent it.
     /// Borrowed; valid until the next `next` or `feed`.
     paste: []const u8,
+    /// The terminal's window got the focus (mode 1004): something else
+    /// may have changed the file meanwhile.
+    focus_in,
 };
 
 pub const Decoder = struct {
@@ -81,6 +84,10 @@ pub const Decoder = struct {
                 .key => |k| {
                     self.head += k.len;
                     return .{ .key = k.key };
+                },
+                .focus_in => |n| {
+                    self.head += n;
+                    return .focus_in;
                 },
                 .ignored, .paste_end => |n| self.head += n,
                 .overlong => |n| {

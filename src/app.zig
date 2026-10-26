@@ -44,6 +44,7 @@ test {
     _ = @import("app/session_open_test.zig");
     _ = @import("app/session_save_test.zig");
     _ = @import("app/session_disk_test.zig");
+    _ = @import("app/session_focus_test.zig");
     _ = @import("app/session_load_test.zig");
     _ = @import("app/saving_test.zig");
     _ = @import("app/loading_test.zig");

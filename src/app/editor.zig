@@ -262,6 +262,7 @@ pub const Editor = struct {
     pub const abandonSave = requesting.abandonSave;
     pub const finishSave = requesting.finishSave;
     pub const finishLoad = requesting.finishLoad;
+    pub const noticeDisk = requesting.noticeDisk;
     pub const loaded = requesting.loaded;
 
     /// Types `k`, or the keys it is mapped to, which are not mapped again.

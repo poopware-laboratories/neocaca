@@ -1,7 +1,7 @@
 //! The pure decoder: the bytes a terminal sends for one key, read from
 //! the front of a buffer. Written from ECMA-48 (CSI and SS3 syntax), the
 //! xterm control sequence documentation (cursor and function keys,
-//! modifier parameters, bracketed paste) and the documented `CSI u` key
+//! modifier parameters, bracketed paste, focus events) and the documented `CSI u` key
 //! form. Escape followed by a key is that key with Alt, the convention of
 //! terminals that send Meta as a prefix.
 
@@ -30,6 +30,9 @@ pub const Parsed = union(enum) {
     /// `CSI 200 ~` and `CSI 201 ~`, of this many bytes.
     paste_start: usize,
     paste_end: usize,
+    /// `CSI I`, which a terminal in mode 1004 sends when its window gets
+    /// the focus; of this many bytes.
+    focus_in: usize,
 };
 
 fn found(k: Key, len: usize) Parsed {
@@ -186,6 +189,7 @@ fn csi(bytes: []const u8, final: bool) Parsed {
             201 => .{ .paste_end = len },
             else => if (tildeKey(values[0])) |c| code(c, mods, len) else ignored,
         },
+        'I' => if (params.len == 0) .{ .focus_in = len } else ignored,
         'u' => if (codepointKey(values[0])) |c| code(c, mods, len) else ignored,
         else => |c| if (cursorKey(c)) |kc| code(kc, mods, len) else ignored,
     };

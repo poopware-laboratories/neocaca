@@ -169,9 +169,19 @@ pub const Session = struct {
             switch (event) {
                 .key => |k| try self.ed.key(k),
                 .paste => |bytes| try self.ed.paste(bytes),
+                .focus_in => self.checkDisk(),
             }
             self.serve();
         }
+    }
+
+    /// Tells the editor what the open file is on disk now, so a change made
+    /// elsewhere is said before an edit is made on the old text. Not while
+    /// a save of ours is writing it.
+    fn checkDisk(self: *Session) void {
+        if (self.saving != null) return;
+        const path = self.ed.path orelse return;
+        self.ed.noticeDisk(Loading.stamp(self.io, self.dir, path));
     }
 
     /// Carries out what the editor asked for. A save starts off the event

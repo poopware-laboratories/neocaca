@@ -405,7 +405,7 @@ Safety first, then the biggest daily gains.
         gate. A line the diff also removes counts as moved, not added.
 - **PR: notice a change made on disk while the file is open.** `:w`
   already refuses to write over one (Phase 1); nothing says so sooner.
-  - [ ] S: when the terminal reports focus (xterm focus events, mode
+  - [x] S: when the terminal reports focus (xterm focus events, mode
         1004), compare the file with its stamp and say it changed, before
         any edit is made on the old text
 - **PR: keys typed during a load keep their pauses.**

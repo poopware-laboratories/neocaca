@@ -102,7 +102,10 @@ already lists is noted once with its item, not reported again.
     left beside it must be named after it (`.server.log.<random>.tmp`).
     Append a line to an open file from another shell: `:w` must refuse
     and say the file changed on disk, keeping the line, and `:w!` must
-    write over it.
+    write over it. Append again, switch to another window and back: the
+    editor must say the file changed as soon as it has the focus, before
+    a key is typed (in a terminal that sends focus events; tmux needs
+    `set -g focus-events on`).
 11. **What this phase added.** Every pass also works through the features
     merged since the last one, in the same task-first way.
 

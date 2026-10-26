@@ -1,16 +1,16 @@
 //! The terminal modes the editor turns on, and the bytes that undo them.
 //! From the xterm control sequences: DEC private modes 1049 (alternate
-//! screen, saving the cursor), 2004 (bracketed paste) and 25 (cursor
-//! visible); SGR 0 from ECMA-48 8.3.117.
+//! screen, saving the cursor), 2004 (bracketed paste), 1004 (focus
+//! events, `CSI I` and `CSI O`) and 25 (cursor visible); SGR 0 from ECMA-48 8.3.117.
 
 const std = @import("std");
 
 /// Written after raw mode is on.
-pub const enter = "\x1b[?1049h\x1b[?2004h";
+pub const enter = "\x1b[?1049h\x1b[?2004h\x1b[?1004h";
 
 /// Undoes `enter` in reverse order, and resets the style and shows the
 /// cursor, which frames change, before leaving the alternate screen.
-pub const leave = "\x1b[?2004l\x1b[0m\x1b[?25h\x1b[?1049l";
+pub const leave = "\x1b[?1004l\x1b[?2004l\x1b[0m\x1b[?25h\x1b[?1049l";
 
 /// The DEC private modes a string sets (`h`) or resets (`l`), in order.
 fn privateModes(bytes: []const u8, final: u8, out: []u16) []u16 {
@@ -31,8 +31,8 @@ test "modes: leaving resets every mode entering sets, in reverse order" {
     var reset_buf: [8]u16 = undefined;
     const set = privateModes(enter, 'h', &set_buf);
     const reset = privateModes(leave, 'l', &reset_buf);
-    try std.testing.expectEqualSlices(u16, &.{ 1049, 2004 }, set);
-    try std.testing.expectEqualSlices(u16, &.{ 2004, 1049 }, reset);
+    try std.testing.expectEqualSlices(u16, &.{ 1049, 2004, 1004 }, set);
+    try std.testing.expectEqualSlices(u16, &.{ 1004, 2004, 1049 }, reset);
 }
 
 test "modes: entering resets nothing and leaving sets only the cursor" {
