@@ -235,6 +235,32 @@ test "terminal: the terminal closing keeps the file and recovers the changes bes
     try expect(std.mem.indexOf(u8, r.err.buffered(), "unsaved changes written to \"keep.recovered\"") != null);
 }
 
+test "terminal: being asked to end (SIGTERM) restores the terminal and recovers the changes" {
+    if (builtin.target.os.tag == .windows) return error.SkipZigTest;
+    var r: Run = undefined;
+    try r.open(30, 6);
+    defer r.close();
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "keep", .data = "safe\n" });
+    const before = try neocaca.term.attr.get(r.slave);
+    try r.start(&.{"keep"});
+    try r.drain(200);
+    const typed = r.seen.items.len;
+    try r.typeKeys("ix");
+    try r.waitFor(typed, "[+]");
+    // Sent to the whole process, as `kill` does; the editor's handler takes it.
+    try posix.raise(.TERM);
+    try expectEqual(.ok, try r.finish());
+    var buf: [64]u8 = undefined;
+    try expectEqualStrings("safe\n", try r.tmp.dir.readFile(io, "keep", &buf));
+    try expectEqualStrings("xsafe\n", try r.tmp.dir.readFile(io, "keep.recovered", &buf));
+    try expect(std.mem.indexOf(u8, r.err.buffered(), "unsaved changes written to \"keep.recovered\"") != null);
+    // The terminal is as it was: the modes left, the settings back.
+    try expect(std.mem.endsWith(u8, r.seen.items, modes.leave));
+    const after = try neocaca.term.attr.get(r.slave);
+    try expectEqual(before.lflag, after.lflag);
+    try expectEqual(before.iflag, after.iflag);
+}
+
 test "terminal: the terminal closing over no changes recovers nothing" {
     if (builtin.target.os.tag == .windows) return error.SkipZigTest;
     var r: Run = undefined;

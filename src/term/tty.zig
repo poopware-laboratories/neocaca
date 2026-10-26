@@ -1,6 +1,7 @@
 //! `Tty`: the real terminal. Raw mode on and off, its size, waiting for
-//! input with a timeout, and the resize and hang-up signals (SIGWINCH,
-//! SIGHUP), which wake the wait through a pipe their handlers write to.
+//! input with a timeout, and the resize, hang-up and end signals
+//! (SIGWINCH, SIGHUP, SIGTERM), which wake the wait through a pipe their
+//! handlers write to.
 //! While it is open SIGXFSZ is ignored, so a write past the file size
 //! limit fails with `error.FileTooBig` instead of ending the editor.
 //! POSIX only.
@@ -25,7 +26,8 @@ pub const Ready = struct {
     /// The size may have changed, or a byte came on the wake pipe (see
     /// `wakeFd`).
     woken: bool = false,
-    /// The terminal hung up (SIGHUP): it is gone for good.
+    /// The terminal hung up (SIGHUP), or the process was asked to end
+    /// (SIGTERM): either way the editor is leaving, for good.
     hung_up: bool = false,
 };
 
@@ -157,8 +159,8 @@ fn onResize(_: posix.SIG) callconv(.c) void {
 
 var hung_up: std.atomic.Value(bool) = .init(false);
 
-/// SIGHUP would end the process with the changes unsaved; instead it
-/// wakes the wait, which reports it.
+/// SIGHUP and SIGTERM would end the process with the terminal raw and the
+/// changes unsaved; instead they wake the wait, which reports them.
 fn onHangUp(sig: posix.SIG) callconv(.c) void {
     hung_up.store(true, .release);
     onResize(sig);
@@ -167,6 +169,7 @@ fn onHangUp(sig: posix.SIG) callconv(.c) void {
 fn watchSignals(on: bool) void {
     watch(posix.SIG.WINCH, if (on) onResize else posix.SIG.DFL);
     watch(posix.SIG.HUP, if (on) onHangUp else posix.SIG.DFL);
+    watch(posix.SIG.TERM, if (on) onHangUp else posix.SIG.DFL);
     watch(posix.SIG.XFSZ, if (on) posix.SIG.IGN else posix.SIG.DFL);
 }
 

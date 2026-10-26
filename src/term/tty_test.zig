@@ -96,9 +96,9 @@ test "tty: a resize while stopped wakes the first wait after" {
     try expect((try t.wait(1000)).woken);
 }
 
-fn handlesHangUp() bool {
+fn handles(sig: posix.SIG) bool {
     var old: posix.Sigaction = undefined;
-    posix.sigaction(posix.SIG.HUP, null, &old);
+    posix.sigaction(sig, null, &old);
     return old.handler.handler != posix.SIG.DFL;
 }
 
@@ -107,7 +107,7 @@ test "tty: a hang-up wakes the wait instead of ending the process" {
     defer pty.close();
     var t: tty.Tty = try .open(pty.slave, pty.slave);
     // Raising it unhandled would end the test run.
-    try expect(handlesHangUp());
+    try expect(handles(posix.SIG.HUP));
     try posix.raise(.HUP);
     const ready = try t.wait(1000);
     try expect(ready.hung_up);
@@ -115,7 +115,21 @@ test "tty: a hang-up wakes the wait instead of ending the process" {
     // It stays hung up: the terminal is not coming back.
     try expect((try t.wait(0)).hung_up);
     t.restore();
-    try expect(!handlesHangUp());
+    try expect(!handles(posix.SIG.HUP));
+}
+
+test "tty: a request to end (SIGTERM) wakes the wait as a hang-up does" {
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    // Raising it unhandled would end the test run.
+    try expect(handles(posix.SIG.TERM));
+    try posix.raise(.TERM);
+    const ready = try t.wait(1000);
+    try expect(ready.hung_up);
+    try expect(ready.woken);
+    t.restore();
+    try expect(!handles(posix.SIG.TERM));
 }
 
 fn ignoresFileSizeLimit() bool {

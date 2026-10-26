@@ -81,7 +81,8 @@ already lists is noted once with its item, not reported again.
    file in a directory that does not exist.
 9. **The terminal misbehaves.** Resize down to one cell and back; paste a
    large block; close the terminal window with unsaved changes (the
-   recovery file must hold them); suspend in the middle of a prompt and
+   recovery file must hold them), and again with `kill <pid>` from another
+   shell (the terminal must come back as it was); suspend in the middle of a prompt and
    in insert mode (`fg` must come back to the same mode, nothing typed).
 10. **Disk and filesystem trouble.** Save while the disk is full or a size
     limit applies (`ulimit -f 1` in the shell that starts neocaca; its
