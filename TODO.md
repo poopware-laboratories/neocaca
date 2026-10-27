@@ -555,7 +555,11 @@ Safety first, then the biggest daily gains.
       against the file's contents before use, never trusted blindly)
 - [ ] Command palette: every `:` command and key action, searchable by
       name, showing its binding
+- [x] Local installs for everyday dogfooding: `make install` (ReleaseSafe
+      with LTO) and `make optimized-install` (also laid out by
+      `llvm-bolt` from scripted sessions, `scripts/bolt.sh`)
 - [ ] Packaging and releases, each release after a dogfood pass with the
-      1 GB log (`BIG=1`) and a measurement against flow
+      1 GB log (`BIG=1`) and a measurement against flow; the release
+      build takes the `Makefile`'s LTO and BOLT steps
 - [ ] The dogfood pass that closes Phase 4 (`docs/dogfooding.md`), with
       its measurement against flow

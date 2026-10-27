@@ -108,6 +108,21 @@ in [`docs/keys.md`](docs/keys.md).
 | `zig build bench` | SIMD against scalar throughput |
 | `zig build compare -Dflow=<path>` | neocaca against flow on a pseudo-terminal |
 | `zig build ratio -- <diff>` | Count the 3:1 test rule over a diff, as CI does |
+
+To use neocaca every day before there are packages, install it to
+`/usr/local/bin` (as yourself; it asks for sudo only to copy):
+
+| Command | What it does |
+|---------|--------------|
+| `make install` | The shipping build with link-time optimization, installed |
+| `make optimized-install` | The same, laid out again by `llvm-bolt` from scripted editing sessions (needs `llvm-bolt`, `merge-fdata`, `tmux`; Linux), installed |
+| `make bolt-use FILE=x` | Edit with the instrumented build; quitting adds your session to the profile, and `make optimized-install` uses it |
+| `make bolt-compare` | CPU time of the scripted sessions, with and without BOLT (`perf`) |
+| `make uninstall` | Remove it again |
+
+`PREFIX` and `DESTDIR` are honored. Zig 0.17 takes no compiler profile,
+so BOLT's is the profile-guided step; `scripts/bolt.sh --help` has the
+details.
 | `zig build -Dtarget=aarch64-macos` | Cross-compile (Linux, macOS, FreeBSD) |
 | `-Dmimalloc-secure=off\|on\|full` | mimalloc hardening level (default `on`) |
 
