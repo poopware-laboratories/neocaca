@@ -37,13 +37,16 @@ zig build compare -Dflow=path/to/flow       # neocaca against flow on a pseudo-t
 zig build compare-build                     # compile its driver only, as CI does per target
 zig build ratio -- pr.diff                  # count the 3:1 rule over a diff, as CI does
 zig build -Dtarget=aarch64-macos            # cross-compile; also x86_64-macos, x86_64-freebsd
+make optimized-install                      # local install: LTO and BOLT, to /usr/local/bin
 zig build run -- path/to/file               # run the editor
 ```
 
 Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 `ReleaseSafe`-style names are deprecated), `-Dtest-filter=…`,
 `-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`,
-`-Dflow=…` (the flow binary `zig build compare` runs).
+`-Dflow=…` (the flow binary `zig build compare` runs), `-Dlto=none|full|thin`
+and `-Demit-relocs=true` (link-time optimization, and the relocations
+`llvm-bolt` needs; the `Makefile` sets both).
 
 - **Toolchain:** Zig 0.17.0, pinned by `minimum_zig_version` in
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
@@ -292,7 +295,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
 | `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups, SIGTERM, stops from outside (SIGTSTP), continues after a stop it did not make (SIGCONT) and finished saves and loads through a self-pipe, the file size signal ignored), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste, focus events). POSIX only. |
 | `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions, owner and group, and symbolic links and refuse to split hard links, new files that never replace one, and names cut between characters to fit; `temp.zig`: the temporary file a save writes, beside the file and named after it (`.notes.txt.<random>.tmp`); `disk.zig`: what a file was on disk when read or written, so a save never writes over a change made since; `link.zig`: the file a path names once its links are followed; `owner.zig`: a file's owner and group, which a save keeps where the user may; `reason.zig`: why a file failed, in words for a message. |
-| `scripts/` | `dogfood-corpus.sh`: the files a dogfood pass edits, the same bytes every time (see "Dogfooding"). |
+| `scripts/` | `dogfood-corpus.sh`: the files a dogfood pass edits, the same bytes every time (see "Dogfooding"); `bolt.sh`: the LTO build laid out again by `llvm-bolt` from scripted tmux sessions, and `install.sh`: a binary copied to `$PREFIX/bin`, both run by the `Makefile` for local installs. |
 | `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig`, `commands_test.zig` (the `:` commands), `form_test.zig` (CRLF files, byte order marks, missing final newlines and empty files on screen and on disk), `messages_test.zig` (why a file or pattern failed, in words) and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
 
 ## Keybinding model (Kakoune-inspired)

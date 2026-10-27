@@ -23,6 +23,7 @@ A pass is a piece of its own (M, about an hour), listed in `TODO.md`:
 
 ```sh
 zig build -Doptimize=safe                    # the build users run
+make optimized-install                       # or as installed: LTO and BOLT
 scripts/dogfood-corpus.sh ~/dogfood          # the same files every pass
 BIG=1 scripts/dogfood-corpus.sh ~/dogfood    # with a 1 GB log, before a release
 ```

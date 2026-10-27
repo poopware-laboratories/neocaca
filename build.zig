@@ -20,6 +20,10 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const test_filters = b.option([]const []const u8, "test-filter", "Run only tests whose name contains this") orelse &.{};
     const secure = b.option(MimallocSecure, "mimalloc-secure", "mimalloc security mitigations (default: on)") orelse .on;
+    // For `make install` and `make bolt`: link-time optimization of the
+    // editor, and the relocations llvm-bolt needs to move its code.
+    const lto = b.option(std.zig.LtoMode, "lto", "Link-time optimization of the editor (default: none)");
+    const emit_relocs = b.option(bool, "emit-relocs", "Keep the editor's relocations, for llvm-bolt (default: false)") orelse false;
 
     const mimalloc = b.dependency("mimalloc", .{});
 
@@ -45,6 +49,8 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "neocaca", .module = mod }},
         }),
     });
+    exe.lto = lto;
+    exe.link_emit_relocs = emit_relocs;
     b.installArtifact(exe);
 
     const run_step = b.step("run", "Run the editor");
