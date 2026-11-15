@@ -133,12 +133,19 @@ pub const Editor = struct {
     }
 
     /// A taller window shows the lines scrolled off above, rather than
-    /// empty rows below.
+    /// empty rows below; so does a wider one when lines wrap into fewer
+    /// rows. The same size again (before every frame) changes nothing.
     pub fn resize(self: *Editor, width: usize, height: usize) void {
         const rows = self.textRows();
+        const wider = width > self.width;
         self.width = width;
         self.height = height;
-        if (self.textRows() > rows) self.view.fill(self.textRows(), self.doc.buffer.lineCount());
+        const lines = self.doc.buffer.lineCount();
+        if (self.textRows() <= rows and !(wider and self.options.wrap)) return;
+        if (self.options.wrap) {
+            var wrapped: layout.Rows = .init(self);
+            self.view.fillRows(self.textRows(), lines, &wrapped);
+        } else self.view.fill(self.textRows(), lines);
     }
 
     /// The rows the document gets: all but the status and message lines.

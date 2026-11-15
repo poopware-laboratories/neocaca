@@ -18,6 +18,7 @@ test {
     _ = view;
     _ = @import("ui/view_test.zig");
     _ = @import("ui/view_rows_test.zig");
+    _ = @import("ui/view_scroll_test.zig");
     _ = wrap;
     _ = @import("ui/wrap_test.zig");
     _ = theme;

@@ -46,6 +46,21 @@ pub const FollowRows = struct {
     sideways: ?struct { col: usize, width: usize } = null,
 };
 
+/// How `View.scrollRows` scrolls, and whether the cursor goes along.
+pub const ScrollRows = struct {
+    down: bool,
+    /// Rows to scroll.
+    n: usize,
+    /// Whether the cursor moves the same rows (the page keys) or only
+    /// what keeps it in the window (`vj`, `vk`).
+    carry: bool,
+    /// Lines in the buffer.
+    lines: usize,
+    /// Rows of text.
+    height: usize,
+    scrolloff: usize,
+};
+
 pub const View = struct {
     /// The first line shown.
     top: usize = 0,
@@ -102,6 +117,59 @@ pub const View = struct {
         self.top = @min(self.top, lines -| height);
     }
 
+    /// As `place`, when lines wrap: puts row `row` of the cursor's line at
+    /// the top, the middle or the bottom of the window.
+    pub fn placeRows(self: *View, p: Placing, row: usize, at: Place, rows: anytype) void {
+        const m = if (p.height == 0) 0 else @min(p.scrolloff, (p.height - 1) / 2);
+        const above = switch (at) {
+            .top => m,
+            .center => (p.height -| 1) / 2,
+            .bottom => (p.height -| 1) - m,
+        };
+        self.set(back(.{ .line = p.line, .row = row }, above, rows));
+    }
+
+    /// As `fill`, when lines wrap: scrolls back so the window ends at the
+    /// last row, when that shows more of the buffer.
+    pub fn fillRows(self: *View, height: usize, lines: usize, rows: anytype) void {
+        if (height == 0 or lines == 0) return;
+        const top = self.first(lines, rows);
+        const highest = back(.{ .line = lines - 1, .row = rows.of(lines - 1) - 1 }, height - 1, rows);
+        self.set(if (highest.before(top)) highest else top);
+    }
+
+    /// As `scroll` with the page keys and `vj` `vk`, when lines wrap:
+    /// moves the first row shown `s.n` rows, staying on the buffer's rows,
+    /// and returns where the cursor goes from `cursor`: as many rows when
+    /// `s.carry`, and in any case into the window outside the margin.
+    pub fn scrollRows(self: *View, s: ScrollRows, cursor: Pos, rows: anytype) Pos {
+        const start = self.first(s.lines, rows);
+        const top = if (s.down) forward(start, s.n, s.lines, rows) else back(start, s.n, rows);
+        self.set(top);
+        const height = @max(s.height, 1);
+        const m = @min(s.scrolloff, (height - 1) / 2);
+        // No margin above the buffer's first row.
+        const low = if (top.line == 0 and top.row == 0) top else forward(top, m, s.lines, rows);
+        var high = forward(top, height - 1 - m, s.lines, rows);
+        if (high.before(low)) high = low;
+        var p = cursor;
+        if (s.carry) p = if (s.down) forward(cursor, s.n, s.lines, rows) else back(cursor, s.n, rows);
+        if (p.before(low)) p = low;
+        if (high.before(p)) p = high;
+        return p;
+    }
+
+    /// The first row shown, on the buffer's rows.
+    fn first(self: View, lines: usize, rows: anytype) Pos {
+        const line = @min(self.top, lines -| 1);
+        return .{ .line = line, .row = @min(self.row, rows.of(line) - 1) };
+    }
+
+    fn set(self: *View, p: Pos) void {
+        self.top = p.line;
+        self.row = p.row;
+    }
+
     /// Moves the first line shown by `delta`, staying on the buffer's lines.
     pub fn scroll(self: *View, delta: isize, lines: usize) void {
         if (delta < 0) {
@@ -114,7 +182,7 @@ pub const View = struct {
 };
 
 /// A row of a line.
-const Pos = struct {
+pub const Pos = struct {
     line: usize,
     row: usize,
 

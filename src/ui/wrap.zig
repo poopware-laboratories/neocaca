@@ -79,6 +79,22 @@ pub fn count(line: []const u8, width: usize, tab_width: usize) usize {
     return n;
 }
 
+/// Row `n` of `line`, from 0, or its last when it has fewer.
+pub fn nth(line: []const u8, n: usize, width: usize, tab_width: usize) Row {
+    var rows: Rows = .init(line, width, tab_width);
+    var last = rows.next().?; // Every line has a row.
+    for (0..n) |_| last = rows.next() orelse break;
+    return last;
+}
+
+/// The offset of the character of `row` covering column `col`, counted
+/// from the row's start, or the row's last character when the row is
+/// narrower; on the last row, that is the line's end.
+pub fn offsetIn(line: []const u8, row: Row, col: usize, tab_width: usize) usize {
+    const i = display.offsetAt(line, row.col + col, tab_width);
+    return if (i < row.end) i else chars.prev(line, row.end);
+}
+
 /// The row holding byte `offset` of `line`, from 0; `line.len` is its end.
 pub fn rowOf(line: []const u8, offset: usize, width: usize, tab_width: usize) usize {
     std.debug.assert(offset <= line.len);

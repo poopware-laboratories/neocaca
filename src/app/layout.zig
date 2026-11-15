@@ -69,11 +69,18 @@ fn drawDocument(ed: *Editor, screen: *Screen, rows: usize) void {
     });
 }
 
-/// The rows each line of the buffer wraps into, for `View.followRows`.
-const Rows = struct {
+/// The rows each line of the buffer wraps into, for the row-wise moves
+/// of `View`.
+pub const Rows = struct {
     buf: *const @import("../buffer.zig").Buffer,
     width: usize,
     tab_width: usize,
+
+    /// The rows of `ed`'s buffer in its window.
+    pub fn init(ed: *const Editor) Rows {
+        const buf = &ed.doc.buffer;
+        return .{ .buf = buf, .width = ui.document.textWidth(ed.width, buf.lineCount()), .tab_width = ed.options.tab_width };
+    }
 
     pub fn of(self: *Rows, n: usize) usize {
         return ui.wrap.count(self.buf.line(n), self.width, self.tab_width);
