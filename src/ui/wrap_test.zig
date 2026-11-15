@@ -162,6 +162,74 @@ test "wrap: count and rowOf follow the rows" {
     try expectEqual(1, wrap.rowOf(line, line.len, 8, 8));
 }
 
+test "wrap: nth gives a row by number, or the last" {
+    // "aa bb " and "cc".
+    try expectEqual(Row{ .start = 0, .end = 6, .col = 0 }, wrap.nth("aa bb cc", 0, 7, 8));
+    try expectEqual(Row{ .start = 6, .end = 9, .col = 6 }, wrap.nth("aa bb cc", 1, 7, 8));
+    try expectEqual(Row{ .start = 6, .end = 9, .col = 6 }, wrap.nth("aa bb cc", 5, 7, 8));
+    try expectEqual(Row{ .start = 0, .end = 1, .col = 0 }, wrap.nth("", 3, 7, 8));
+}
+
+test "wrap: offsetIn finds a column within a row" {
+    const line = "abcdefgh";
+    const second = wrap.nth(line, 1, 5, 8); // "fgh" and the end
+    try expectEqual(5, wrap.offsetIn(line, second, 0, 8));
+    try expectEqual(7, wrap.offsetIn(line, second, 2, 8));
+    // Past the row's text: the line's end, the last row's last column.
+    try expectEqual(8, wrap.offsetIn(line, second, 3, 8));
+    try expectEqual(8, wrap.offsetIn(line, second, 40, 8));
+    // A row that is not the last ends on its own last character.
+    try expectEqual(4, wrap.offsetIn(line, wrap.nth(line, 0, 5, 8), 9, 8));
+}
+
+test "wrap: offsetIn lands on the start of a wide character or a tab" {
+    // "ab漢" fills four columns of five, the end on the next row.
+    const line = "ab漢c";
+    try expectEqual(2, wrap.offsetIn(line, wrap.nth(line, 0, 4, 8), 3, 8));
+    // A tab covers columns 1 to 7 of its row, column 5 among them.
+    const tabbed = "a\tb";
+    try expectEqual(1, wrap.offsetIn(tabbed, wrap.nth(tabbed, 0, 20, 8), 5, 8));
+    // A row broken after a blank keeps the blank as its last character.
+    try expectEqual(5, wrap.offsetIn("aa bb cc", wrap.nth("aa bb cc", 0, 7, 8), 6, 8));
+}
+
+test "wrap: a line too long to wrap is one row, its columns those of the line" {
+    const line = try std.testing.allocator.alloc(u8, wrap.max_line + 1);
+    defer std.testing.allocator.free(line);
+    @memset(line, 'a');
+    const only = wrap.nth(line, 4, 10, 8);
+    try expectEqual(Row{ .start = 0, .end = line.len + 1, .col = 0 }, only);
+    try expectEqual(wrap.max_line - 3, wrap.offsetIn(line, only, wrap.max_line - 3, 8));
+}
+
+test "wrap: random lines, every offset is found again by its row and column, from a fixed seed" {
+    const seed = 0x0f01_1105;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    const alphabet = [_][]const u8{ "a", "b", " ", "\t", "漢", "e\u{301}", "\x01" };
+    var line_buf: [64]u8 = undefined;
+    for (0..500) |_| {
+        var len: usize = 0;
+        while (len + 4 < line_buf.len and random.uintLessThan(u8, 12) != 0) {
+            const piece = alphabet[random.uintLessThan(usize, alphabet.len)];
+            @memcpy(line_buf[len..][0..piece.len], piece);
+            len += piece.len;
+        }
+        const line = line_buf[0..len];
+        const width = 1 + random.uintLessThan(usize, 12);
+        var i: usize = 0;
+        while (true) : (i = chars.next(line, i)) {
+            const row = wrap.nth(line, wrap.rowOf(line, i, width, 8), width, 8);
+            const col = @import("../unicode.zig").display.columnOf(line, i, 8) - row.col;
+            expectEqual(i, wrap.offsetIn(line, row, col, 8)) catch |e| {
+                std.debug.print("seed {x}: line {any} width {d} offset {d}\n", .{ seed, line, width, i });
+                return e;
+            };
+            if (i == line.len) break;
+        }
+    }
+}
+
 test "wrap: random lines tile into rows that fit, from a fixed seed" {
     const seed = 0x5eed_0a11;
     var prng: std.Random.DefaultPrng = .init(seed);

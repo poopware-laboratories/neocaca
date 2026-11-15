@@ -56,6 +56,11 @@ roadmap in [`TODO.md`](../TODO.md).
 | `vj` / `vk` | scroll the view a line down / up (with a count, that many), the cursor moving only to stay in view |
 | `vh` / `vl` | scroll the view a column left / right (with a count, that many), the cursor moving along its line only to stay in view |
 
+With `:wrap`, the page keys and `vj` `vk` `vt` `vc` `vb` count screen
+rows rather than lines: a page is the rows of the window, `vt` `vc` `vb`
+place the cursor's row, and `vj` `vk` scroll by rows. The cursor moves
+along a long line from row to row, keeping its column within the row.
+
 ### Shaping the selections
 
 | Keys | Action |

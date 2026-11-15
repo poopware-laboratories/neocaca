@@ -459,10 +459,11 @@ Safety first, then the biggest daily gains.
         cursor by rows with scroll-off (`followRows`); continuation rows
         have a blank gutter; `j`/`k` still move by buffer line. `:wrap`
         and `:nowrap` turn it on and off, off by default for now
-  - [ ] S: the page keys (`Ctrl-d` `Ctrl-u` `Ctrl-f` `Ctrl-b`), `v`
-        (`vt` `vc` `vb`, `vj` `vk`) and a taller window filling its
-        rows count screen rows when wrapping; today they count buffer
-        lines, which a long wrapped line makes jump past what fits
+  - [x] S: the page keys (`Ctrl-d` `Ctrl-u` `Ctrl-f` `Ctrl-b`), `v`
+        (`vt` `vc` `vb`, `vj` `vk`) and a resized window filling its
+        rows count screen rows when wrapping (`View.scrollRows`,
+        `placeRows`, `fillRows`); the cursor goes along a long line
+        from row to row, keeping its column within the row
   - [ ] S: wrap by default (`:nowrap` to turn it off), the tests that
         scroll sideways set `:nowrap`
 - **PR: multiple buffers.** `app::Editor` holds one `Document` today;

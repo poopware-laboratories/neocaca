@@ -33,6 +33,7 @@ test {
     _ = @import("app/editor_prompt_test.zig");
     _ = @import("app/editor_stop_test.zig");
     _ = @import("app/editor_view_test.zig");
+    _ = @import("app/editor_view_wrap_test.zig");
     _ = @import("app/editor_map_test.zig");
     _ = @import("app/message.zig");
     _ = @import("app/message_test.zig");
