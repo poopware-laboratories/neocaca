@@ -4,26 +4,63 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes its run; runs on `main` always
+# finish, so every merged commit keeps its own result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# `bash -eo pipefail`, so a step that pipes its output into a summary
+# still fails with the command. The Alpine container has no bash and sets
+# its own shell.
+defaults:
+  run:
+    shell: bash
 
 # Every required job uses the Zig release pinned by `minimum_zig_version` in
 # build.zig.zon (setup-zig reads it when no `version` is given; Alpine reads
 # it in .github/scripts/install-zig.sh). The `zig-latest` job tries the
 # newest stable release as an early warning, without blocking.
+#
+# Actions are pinned to a full commit SHA, with the release it is in a
+# comment; Dependabot (.github/dependabot.yml) proposes newer releases.
+# setup-zig keeps one Zig cache per job and matrix entry (`cache-key`), so
+# jobs that build different things do not overwrite each other's cache.
 
 jobs:
   fmt:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          cache-key: ${{ github.job }}
       - run: zig build fmt-check
+
+  # The workflows and the shell scripts CI and contributors run: actionlint
+  # (which shellchecks every `run:` step too), shellcheck at warning level
+  # on the scripts, and the tests of the gate below against a fake `gh`.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The workflows (actionlint)
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+      - name: The shell scripts (shellcheck)
+        run: shellcheck -s sh -S warning .github/scripts/*.sh scripts/*.sh
+      - name: The gate's tests
+        run: sh .github/scripts/gate_test.sh
 
   # glibc on Ubuntu, and macOS on Apple Silicon.
   test:
@@ -39,8 +76,12 @@ jobs:
     # about 3 today); the job's 45 is the last resort.
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          cache-key: ${{ github.job }}-${{ matrix.optimize }}
       - run: zig build test -Doptimize=${{ matrix.optimize }} --summary all --test-timeout 3m
         timeout-minutes: 15
       # The shipping configuration also runs with mimalloc's hardening off,
@@ -49,12 +90,18 @@ jobs:
         run: zig build test -Doptimize=safe -Dmimalloc-secure=off --summary all --test-timeout 3m
         timeout-minutes: 15
       - if: matrix.optimize == 'safe'
-        run: zig build -Doptimize=safe
+        name: The shipping build, packed
+        run: |
+          zig build -Doptimize=safe
+          tar -czf "neocaca-$RUNNER_OS-$RUNNER_ARCH.tar.gz" -C zig-out/bin neocaca
+      # Uploaded as it is (no zip around the tarball), which keeps the
+      # binary's executable bit.
       - if: matrix.optimize == 'safe'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: neocaca-${{ runner.os }}-${{ runner.arch }}
-          path: zig-out/bin/neocaca
+          path: neocaca-${{ runner.os }}-${{ runner.arch }}.tar.gz
+          archive: false
+          retention-days: 14
           if-no-files-found: error
 
   # musl on Alpine: the tests run natively against musl, and the release
@@ -63,13 +110,34 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:latest
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: sh
     strategy:
       fail-fast: false
       matrix:
         optimize: [debug, safe]
+    env:
+      # Kept by the cache below between runs.
+      ZIG_INSTALL_DIR: /github/home/zig-install
+      ZIG_GLOBAL_CACHE_DIR: /github/home/zig-cache
     steps:
       - run: apk add --no-cache curl file git jq tar xz
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # setup-zig does not run here, so the toolchain and the Zig caches
+      # are kept by hand: per build mode, renewed on every run, restored
+      # from the newest of the same mode.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            /github/home/zig-install
+            /github/home/zig-cache
+            .zig-cache
+          key: alpine-${{ matrix.optimize }}-${{ hashFiles('build.zig.zon') }}-${{ github.sha }}
+          restore-keys: |
+            alpine-${{ matrix.optimize }}-${{ hashFiles('build.zig.zon') }}-
       - run: .github/scripts/install-zig.sh
       - run: zig build test -Dtarget=x86_64-linux-musl -Doptimize=${{ matrix.optimize }} --summary all --test-timeout 3m
         timeout-minutes: 15
@@ -83,11 +151,13 @@ jobs:
         run: |
           file zig-out/bin/neocaca
           file zig-out/bin/neocaca | grep -q 'statically linked'
+          tar -czf neocaca-x86_64-linux-musl-static.tar.gz -C zig-out/bin neocaca
       - if: matrix.optimize == 'safe'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: neocaca-x86_64-linux-musl
-          path: zig-out/bin/neocaca
+          path: neocaca-x86_64-linux-musl-static.tar.gz
+          archive: false
+          retention-days: 14
           if-no-files-found: error
 
   # aarch64 under qemu on Linux: the same CPU as the macOS runners, in
@@ -101,8 +171,12 @@ jobs:
       matrix:
         optimize: [debug, safe]
     steps:
-      - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          cache-key: ${{ github.job }}-${{ matrix.optimize }}
       - run: sudo apt-get update && sudo apt-get install -y qemu-user
       - run: zig build test -Dtarget=aarch64-linux-musl -Doptimize=${{ matrix.optimize }} -fqemu --summary all --test-timeout 3m
         timeout-minutes: 15
@@ -110,6 +184,7 @@ jobs:
   # A ReleaseSafe build and artifact for every supported target.
   cross:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -122,24 +197,49 @@ jobs:
           - aarch64-macos
           - x86_64-freebsd
     steps:
-      - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v2
-      - run: zig build -Dtarget=${{ matrix.target }} -Doptimize=safe
-      - run: zig build compare-build -Dtarget=${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: neocaca-cross-${{ matrix.target }}
-          path: zig-out/bin/neocaca
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          cache-key: ${{ github.job }}-${{ matrix.target }}
+      - name: The shipping build, packed
+        run: |
+          zig build -Dtarget=${{ matrix.target }} -Doptimize=safe
+          tar -czf neocaca-${{ matrix.target }}.tar.gz -C zig-out/bin neocaca
+      - run: zig build compare-build -Dtarget=${{ matrix.target }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: neocaca-${{ matrix.target }}.tar.gz
+          archive: false
+          retention-days: 14
           if-no-files-found: error
 
   bench:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          cache-key: ${{ github.job }}
       # A smoke run: the kernels must agree with their scalar references.
-      # Shared runners are too noisy for the numbers to mean anything.
-      - run: zig build bench
+      # Shared runners are too noisy for the numbers to mean anything, so
+      # the summary shows them for reference only.
+      - name: Kernels against their scalar references
+        run: |
+          zig build bench 2>&1 | tee "$RUNNER_TEMP/bench.txt"
+          {
+            echo '### Benchmark smoke run'
+            echo
+            echo 'Shared runner: for agreement with the references, not for speed.'
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/bench.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # The 3:1 rule of AGENTS.md, counted over what the pull request adds to
   # its base (`zig build ratio`). The checkout is the pull request merged
@@ -147,51 +247,71 @@ jobs:
   ratio:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: mlugg/setup-zig@v2
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          cache-key: ${{ github.job }}
       - name: The pull request's diff
         env:
           BASE: ${{ github.base_ref }}
         run: git -c core.quotePath=false diff -U0 --no-color -M "origin/$BASE...HEAD" > "$RUNNER_TEMP/pr.diff"
-      - run: zig build ratio -- "$RUNNER_TEMP/pr.diff"
+      - name: Three test lines for each production line
+        run: |
+          status=0
+          zig build ratio -- "$RUNNER_TEMP/pr.diff" > "$RUNNER_TEMP/ratio.txt" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/ratio.txt"
+          {
+            echo '### The 3:1 rule'
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/ratio.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=3:1 rule::$(grep -m1 '^3:1' "$RUNNER_TEMP/ratio.txt" || echo 'zig build ratio failed')"
+          fi
+          exit "$status"
 
-  # The one check `main` requires: it passes only when every job above
-  # passed, so renaming or adding a matrix entry never changes the rule.
-  # It runs even when one failed (`always()`), or a skipped gate would let
-  # the pull request merge. `ratio` runs on pull requests only.
+  # The one check `main` requires. It starts with the jobs above instead
+  # of after them (no `needs`), so the required check is in progress from
+  # the start; .github/scripts/gate.sh waits for every other job of this
+  # run through the Actions API and passes only when each succeeded or was
+  # skipped by its own `if` (`ratio` outside pull requests). New and
+  # renamed jobs are waited for without changing it; `zig-latest` is not.
   ci:
-    if: always()
-    needs: [fmt, test, alpine, qemu-aarch64, cross, bench, ratio]
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
       - name: Every required job passed
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-          RATIO: ${{ needs.ratio.result }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          for r in $RESULTS; do
-            if [ "$r" = skipped ] && [ "$EVENT" != pull_request ] && [ "$RATIO" = skipped ]; then
-              continue
-            fi
-            if [ "$r" != success ]; then
-              echo "a required job ended as: $r"
-              exit 1
-            fi
-          done
+          GH_TOKEN: ${{ github.token }}
+          OPTIONAL_JOBS: zig-latest
+        run: sh .github/scripts/gate.sh
 
   # The newest stable Zig, to learn early what the next upgrade breaks.
   # Not required: the project builds with the pinned release only.
   zig-latest:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: latest
+          cache-key: ${{ github.job }}
       - run: zig build test --summary all --test-timeout 3m
         timeout-minutes: 15

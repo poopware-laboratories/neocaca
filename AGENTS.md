@@ -70,15 +70,17 @@ and `-Demit-relocs=true` (link-time optimization, and the relocations
   and `-Dtest-filter` narrows it. Keep both working when you add modules;
   a test file not reachable from the test step is a test that never runs.
 - **CI** (`.github/workflows/ci.yml`, all with the pinned Zig) runs
-  `fmt-check`; the tests in Debug and ReleaseSafe on Ubuntu, macOS (Apple
+  `fmt-check`; `lint` (actionlint on the workflows, shellcheck and the
+  gate's tests on the scripts); the tests in Debug and ReleaseSafe on Ubuntu, macOS (Apple
   Silicon), Alpine (musl, whose binary must be static) and
   `aarch64-linux-musl` under qemu, with ReleaseSafe again at
   `-Dmimalloc-secure=off`; a ReleaseSafe build of every supported target, with
   `zig build compare-build` (the comparison driver, compiled but not run);
   and a benchmark smoke run. Test runs pass `--test-timeout 3m`, each test
   step stops at 15 minutes and each test job at 45. On a pull request the
-  `ratio` job counts the 3:1 rule over its diff. The `ci` job passes
-  only when every one of them passed, and `title.yml` checks that a pull
+  `ratio` job counts the 3:1 rule over its diff. The `ci` job starts with
+  them, waits for every one (`.github/scripts/gate.sh`) and passes only
+  when each passed or was skipped by its own condition, and `title.yml` checks that a pull
   request's title is a Conventional Commit; `main` requires both, takes
   only squash merges and no direct or force pushes, so a pull request
   set to auto-merge merges once they pass. All must pass; run
