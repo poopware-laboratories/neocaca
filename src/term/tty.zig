@@ -131,6 +131,9 @@ pub const Tty = struct {
         ready.input = fds[0].revents & (posix.POLL.IN | gone) != 0;
         if (fds[1].revents & posix.POLL.IN != 0) {
             var drain: [64]u8 = undefined;
+            // Safe to ignore: a failed or short read only leaves a wake
+            // byte in the pipe, which ends the next wait early, and the
+            // loop collects whatever finished whenever it wakes.
             _ = posix.read(self.wake[0], &drain) catch {};
             ready.woken = true;
         }

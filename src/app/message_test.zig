@@ -1,8 +1,8 @@
-//! Tests for `Message` in `editor.zig`: what the message line holds, and
+//! Tests for `Message` in `message.zig`: what the message line holds, and
 //! how a message too long for it shortens its path and keeps its reason.
 
 const std = @import("std");
-const Message = @import("editor.zig").Message;
+const Message = @import("message.zig").Message;
 const Span = @import("../ui.zig").status.Span;
 
 const expect = std.testing.expect;
