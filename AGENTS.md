@@ -4,7 +4,7 @@ Instructions for AI coding agents (any model or tool) and for humans working
 on neocaca. This file is the single source of truth; `CLAUDE.md` and any
 other agent-specific files only point here. The Claude Code skills in
 `.claude/skills/` turn these rules into per-task checklists (a change, a
-test written first, memory and allocators, screen output, a dogfood pass,
+test written first, memory and allocators, screen output, a field validation pass,
 a pull request to drive); when they disagree with this file, this file
 wins and the skill is fixed.
 
@@ -295,7 +295,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/ui/` | Pure drawing into a `Screen`: `document.zig` (gutter and text), `status.zig`, `prompt.zig`, `view.zig` (scrolling with scroll-off), `theme.zig`. |
 | `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups, SIGTERM, stops from outside (SIGTSTP), continues after a stop it did not make (SIGCONT) and finished saves and loads through a self-pipe, the file size signal ignored), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste, focus events). POSIX only. |
 | `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions, owner and group, and symbolic links and refuse to split hard links, new files that never replace one, and names cut between characters to fit; `temp.zig`: the temporary file a save writes, beside the file and named after it (`.notes.txt.<random>.tmp`); `disk.zig`: what a file was on disk when read or written, so a save never writes over a change made since; `link.zig`: the file a path names once its links are followed; `owner.zig`: a file's owner and group, which a save keeps where the user may; `reason.zig`: why a file failed, in words for a message. |
-| `scripts/` | `dogfood-corpus.sh`: the files a dogfood pass edits, the same bytes every time (see "Dogfooding"); `bolt.sh`: the LTO build laid out again by `llvm-bolt` from scripted tmux sessions, and `install.sh`: a binary copied to `$PREFIX/bin`, both run by the `Makefile` for local installs. |
+| `scripts/` | `field-validation-corpus.sh`: the files a field validation pass edits, the same bytes every time (see "Field validation"); `bolt.sh`: the LTO build laid out again by `llvm-bolt` from scripted tmux sessions, and `install.sh`: a binary copied to `$PREFIX/bin`, both run by the `Makefile` for local installs. |
 | `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig`, `commands_test.zig` (the `:` commands), `form_test.zig` (CRLF files, byte order marks, missing final newlines and empty files on screen and on disk), `messages_test.zig` (why a file or pattern failed, in words) and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
 
 ## Keybinding model (Kakoune-inspired)
@@ -450,16 +450,16 @@ also run the editor and look, in a terminal or headless in tmux, at a
 narrow size, after a resize, with wide and combining characters, in a
 light and a dark theme. The `checking-screen-output` skill has the steps.
 
-## Dogfooding
+## Field validation
 
-Tests prove each piece; a dogfood pass proves that real work gets done.
+Tests prove each piece; a field validation pass proves that real work gets done.
 For one sitting, neocaca is the only editor, in ReleaseSafe, on real
 tasks: changing this repository, writing a Git commit message, reading a
 100 MB log, editing a million-row CSV and files from other systems,
 hostile and binary files, a misbehaving terminal and a full disk. The
-scenarios, the corpus (`scripts/dogfood-corpus.sh`) and the log of
-passes are in [`docs/dogfooding.md`](docs/dogfooding.md); the
-`dogfooding` skill runs one through tmux.
+scenarios, the corpus (`scripts/field-validation-corpus.sh`) and the log of
+passes are in [`docs/field-validation.md`](docs/field-validation.md); the
+`field-validation` skill runs one through tmux.
 
 - **When:** a pass is the last item of every phase in `TODO.md`, and runs
   before every release. A piece that changes how files are opened, saved
@@ -469,7 +469,7 @@ passes are in [`docs/dogfooding.md`](docs/dogfooding.md); the
   pass. A crash, lost data or raw bytes reaching the terminal goes ahead
   of everything else on the roadmap.
 - **It grows with the editor:** a piece that adds something users do adds
-  its scenario to `docs/dogfooding.md` in the same pull request.
+  its scenario to `docs/field-validation.md` in the same pull request.
 - **Against flow:** the pass that closes a phase, and every pass before a
   release, runs `zig build compare` against flow's latest release, replaces
   the "Measured" table in `TODO.md` and brings "Still behind" up to date

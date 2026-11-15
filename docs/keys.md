@@ -1,15 +1,22 @@
-# Keys
+# Key reference
 
-The reference for neocaca's modal keybindings. The model (selection first,
-verb second, multiple selections) is described in `AGENTS.md`; the code is
-`src/input/keymap.zig`, and every binding here has a test in
-`src/input/keymap_test.zig` (the verbs in `keymap_verb_test.zig`).
-Bindings still to come are on the roadmap in `TODO.md`.
+This document is the reference for neocaca's modal key bindings. The
+editing model (selection first, verb second, multiple selections) is
+described in [`AGENTS.md`](../AGENTS.md#keybinding-model-kakoune-inspired).
+The bindings are implemented in `src/input/keymap.zig`, and every binding
+listed here is tested in `src/input/keymap_test.zig` (the verbs in
+`keymap_verb_test.zig`). Bindings not yet implemented are listed on the
+roadmap in [`TODO.md`](../TODO.md).
 
-Notation: `Alt-x` is Alt (or Esc then x), `Ctrl-x` is Control. A *selection*
-spans from its *anchor* to its *cursor*, both inclusive, and always holds at
-least one character. Moves **replace** each selection; the Shift form (the
-upper-case key, or Shift with an arrow) **extends** it from its anchor.
+**Contents:** [Normal mode](#normal-mode) · [Insert mode](#insert-mode) ·
+[Prompt](#prompt) · [Commands](#commands) · [Mappings](#mappings)
+
+> [!NOTE]
+> **Notation.** `Alt-x` is the Alt key with `x` (or Esc followed by `x`);
+> `Ctrl-x` is the Control key with `x`. A *selection* spans from its
+> *anchor* to its *cursor*, both inclusive, and always holds at least one
+> character. Moves **replace** each selection; the Shift form (the
+> upper-case key, or Shift with an arrow) **extends** it from its anchor.
 
 ## Normal mode
 

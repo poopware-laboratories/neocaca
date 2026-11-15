@@ -1,4 +1,4 @@
-# Local installs, for dogfooding neocaca as the everyday editor; packaging
+# Local installs, for using neocaca as the everyday editor; packaging
 # comes later. Every build is ReleaseSafe, as shipped, with link-time
 # optimization; scripts/bolt.sh adds the profile-guided layout (llvm-bolt).
 #
