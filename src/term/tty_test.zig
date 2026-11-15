@@ -285,6 +285,19 @@ test "tty: the size is the terminal's, and unknown when it reports none" {
     try expectEqual(null, t.size());
 }
 
+test "tty: a read after the emulator's side has closed is the end of input" {
+    // Linux fails it with EIO, not 0, while it is still hanging the
+    // terminal up; the loop would report that as a failed terminal.
+    const pty: Pty = try .open();
+    defer pty.close();
+    var t: tty.Tty = try .open(pty.slave, pty.slave);
+    defer t.restore();
+    try pty.hangUp();
+    var buf: [16]u8 = undefined;
+    try expectEqual(0, try t.read(&buf));
+    try expectEqual(0, try t.read(&buf));
+}
+
 test "tty: waiting times out without input, and keys arrive untranslated" {
     const pty: Pty = try .open();
     defer pty.close();

@@ -77,6 +77,15 @@ pub const Pty = struct {
         _ = std.c.write(self.master, bytes.ptr, bytes.len);
     }
 
+    /// Closes the emulator's side, as a closed terminal window does. The
+    /// descriptor then names /dev/null, so the drain and `close` still
+    /// work on it.
+    pub fn hangUp(self: Pty) !void {
+        const null_fd = try posix.openatZ(posix.AT.FDCWD, "/dev/null", .{ .ACCMODE = .RDONLY }, 0);
+        defer _ = std.c.close(null_fd);
+        if (std.c.dup2(null_fd, self.master) < 0) return error.HangUpFailed;
+    }
+
     pub fn setSize(self: Pty, cols: u16, rows: u16) void {
         const ws: posix.winsize = .{ .row = rows, .col = cols, .xpixel = 0, .ypixel = 0 };
         _ = std.c.ioctl(self.master, @as(c_int, @bitCast(set_winsize)), &ws);

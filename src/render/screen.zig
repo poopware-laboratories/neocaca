@@ -155,8 +155,11 @@ pub const Screen = struct {
                         break;
                     }
                     if (end - i > max_cell_bytes) {
+                        // Too long for a cell: a replacement, padded to
+                        // the columns the layout gives the character.
                         put(r, col, "\u{fffd}", 1, style);
-                        col += 1;
+                        for (col + 1..col + w) |c| put(r, c, " ", 1, style);
+                        col += w;
                     } else {
                         put(r, col, str[i..end], w, style);
                         col += w;
