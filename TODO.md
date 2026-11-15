@@ -422,12 +422,14 @@ Safety first, then the biggest daily gains.
         two, so the rest of its row sat one column left of the cursor;
         the replacement now keeps both columns.
 - **PR: keys typed during a load keep their pauses.**
-  - [ ] S: an Escape typed while `:e` is still reading the file, then
-        `:` or another key, is read as Alt plus that key when the held
-        bytes are decoded after the load, because the pause after the
-        Escape is lost (`session.zig` holds raw bytes). `:e f` then
-        `ox`, Esc, `:w` typed quickly inserts `xw`. Hold the decoded keys,
-        or the timeout, instead. Found by the CRLF tests.
+  - [x] S: an Escape typed while `:e` is still reading the file, then
+        `:` or another key, was read as Alt plus that key when the held
+        bytes were decoded after the load, because the pause after the
+        Escape was lost (`session.zig` held raw bytes). `:e f` then
+        `ox`, Esc, `:w` typed quickly inserted `xw`. The Escape timeout
+        now runs during a load too: it decodes the held bytes into keys
+        (pastes copied), which wait for the load in order and count
+        against `max_held`. Found by the CRLF tests.
 - **PR: quit after a save in flight.**
   - [ ] S: `:q` (and `:e`) typed while a save is still being written
         waits for it to finish, then quits (or opens), instead of
