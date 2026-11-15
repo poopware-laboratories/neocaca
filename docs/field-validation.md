@@ -87,7 +87,10 @@ its roadmap item, and not reported again.
    inspect a stack trace. Time the opening and every search.
 4. **Editing data.** In `data.csv`, change one column on a thousand rows
    at once with multiple selections. In `minified.json`, find a key on the
-   single 20 MB line and change it.
+   single 20 MB line and change it. Repeat both with `:wrap`: the rows of
+   `data.csv` wrap under their numbers and the cursor stays in view down
+   them, while the 20 MB line, past the 1 MiB limit, still scrolls
+   sideways without slowing typing.
 5. **Files from other systems.** Edit `windows.txt`, `bom.txt`,
    `no-final-newline.txt` and the `Makefile`, save them, and compare the
    bytes with `cmp` or `od -c`: only the edit may differ.

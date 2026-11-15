@@ -34,21 +34,51 @@ fn drawDocument(ed: *Editor, screen: *Screen, rows: usize) void {
     const buf = &ed.doc.buffer;
     const cursor = ed.doc.primary().cursor;
     const lines = buf.lineCount();
-    ed.view.follow(.{
-        .line = buf.lineOf(cursor),
-        .col = edit.motion.column(buf, cursor, ed.options.tab_width),
-        .lines = lines,
-        .height = rows,
-        .width = ui.document.textWidth(screen.width, lines),
-        .scrolloff = ed.options.scrolloff,
-    });
+    const line = buf.lineOf(cursor);
+    const col = edit.motion.column(buf, cursor, ed.options.tab_width);
+    const width = ui.document.textWidth(screen.width, lines);
+    if (ed.options.wrap) {
+        const text = buf.line(line);
+        const offset = cursor - buf.lineStart(line);
+        const long = text.len > ui.wrap.max_line;
+        var measure: Rows = .{ .buf = buf, .width = width, .tab_width = ed.options.tab_width };
+        ed.view.followRows(.{
+            .line = line,
+            .row = if (long) 0 else ui.wrap.rowOf(text, offset, width, ed.options.tab_width),
+            .lines = lines,
+            .height = rows,
+            .scrolloff = ed.options.scrolloff,
+            .sideways = if (long) .{ .col = col, .width = width } else null,
+        }, &measure);
+    } else {
+        ed.view.follow(.{
+            .line = line,
+            .col = col,
+            .lines = lines,
+            .height = rows,
+            .width = width,
+            .scrolloff = ed.options.scrolloff,
+        });
+    }
     ui.document.draw(screen, &ed.doc, .{
         .view = ed.view,
         .area = .{ .x = 0, .y = 0, .width = screen.width, .height = rows },
         .theme = &ed.theme,
         .tab_width = ed.options.tab_width,
+        .wrap = ed.options.wrap,
     });
 }
+
+/// The rows each line of the buffer wraps into, for `View.followRows`.
+const Rows = struct {
+    buf: *const @import("../buffer.zig").Buffer,
+    width: usize,
+    tab_width: usize,
+
+    pub fn of(self: *Rows, n: usize) usize {
+        return ui.wrap.count(self.buf.line(n), self.width, self.tab_width);
+    }
+};
 
 fn status(ed: *const Editor, buf: []u8) ui.status.Status {
     const b = &ed.doc.buffer;

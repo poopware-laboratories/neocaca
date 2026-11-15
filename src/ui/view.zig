@@ -30,9 +30,27 @@ pub const Placing = struct {
     scrolloff: usize,
 };
 
+/// Where the cursor is when lines wrap, for `View.followRows`.
+pub const FollowRows = struct {
+    /// The cursor's line, and its row in that line.
+    line: usize,
+    row: usize,
+    /// Lines in the buffer.
+    lines: usize,
+    /// Rows of text.
+    height: usize,
+    /// Rows kept visible around the cursor when possible.
+    scrolloff: usize,
+    /// For a cursor on a line too long to wrap: its display column and
+    /// the text width, to scroll sideways. Null on a wrapped line.
+    sideways: ?struct { col: usize, width: usize } = null,
+};
+
 pub const View = struct {
     /// The first line shown.
     top: usize = 0,
+    /// The first row of `top` shown, when lines wrap.
+    row: usize = 0,
     /// The first display column shown.
     left: usize = 0,
 
@@ -40,7 +58,29 @@ pub const View = struct {
     /// `scrolloff` lines and columns around it.
     pub fn follow(self: *View, f: Follow) void {
         self.top = axis(self.top, f.line, f.height, f.scrolloff, f.lines -| 1);
+        self.row = 0;
         self.left = axis(self.left, f.col, f.width, f.scrolloff, std.math.maxInt(usize));
+    }
+
+    /// As `follow`, when lines wrap: scrolls by rows so the cursor's row is
+    /// shown with `scrolloff` rows around it. `rows.of(line)` says how many
+    /// rows a line takes (at least one); each line is asked about once.
+    pub fn followRows(self: *View, f: FollowRows, rows: anytype) void {
+        self.left = if (f.sideways) |s| axis(self.left, s.col, s.width, f.scrolloff, std.math.maxInt(usize)) else 0;
+        if (f.height == 0) return;
+        self.top = @min(self.top, f.lines -| 1);
+        self.row = @min(self.row, rows.of(self.top) - 1);
+        const m = @min(f.scrolloff, (f.height - 1) / 2);
+        const cursor: Pos = .{ .line = f.line, .row = f.row };
+        var top: Pos = .{ .line = self.top, .row = self.row };
+        // The window ends no earlier than `m` rows below the cursor, and
+        // starts no later than `m` rows above it.
+        const lowest = back(forward(cursor, m, f.lines, rows), f.height - 1, rows);
+        if (top.before(lowest)) top = lowest;
+        const highest = back(cursor, m, rows);
+        if (highest.before(top)) top = highest;
+        self.top = top.line;
+        self.row = top.row;
     }
 
     /// Scrolls so the cursor's line is at the top, the middle or the
@@ -53,6 +93,7 @@ pub const View = struct {
             .bottom => (p.line + m + 1) -| p.height,
         };
         self.top = @min(top, p.lines -| 1);
+        self.row = 0;
     }
 
     /// Scrolls back so a window of `height` rows over `lines` lines ends
@@ -68,8 +109,49 @@ pub const View = struct {
         } else {
             self.top = @min(self.top +| @abs(delta), lines -| 1);
         }
+        self.row = 0;
     }
 };
+
+/// A row of a line.
+const Pos = struct {
+    line: usize,
+    row: usize,
+
+    fn before(a: Pos, b: Pos) bool {
+        return a.line < b.line or (a.line == b.line and a.row < b.row);
+    }
+};
+
+/// `n` rows before `p`, or the first row.
+fn back(p: Pos, n: usize, rows: anytype) Pos {
+    var q = p;
+    for (0..n) |_| {
+        if (q.row > 0) {
+            q.row -= 1;
+        } else if (q.line > 0) {
+            q.line -= 1;
+            q.row = rows.of(q.line) - 1;
+        } else break;
+    }
+    return q;
+}
+
+/// `n` rows after `p`, or the last row of the last of `lines`.
+fn forward(p: Pos, n: usize, lines: usize, rows: anytype) Pos {
+    var q = p;
+    var count = rows.of(q.line);
+    for (0..n) |_| {
+        if (q.row + 1 < count) {
+            q.row += 1;
+        } else if (q.line + 1 < lines) {
+            q.line += 1;
+            q.row = 0;
+            count = rows.of(q.line);
+        } else break;
+    }
+    return q;
+}
 
 /// The new start of a window of `size` over positions up to `last`, so
 /// that `pos` is inside it with `margin` around it when possible.

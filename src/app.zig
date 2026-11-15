@@ -41,6 +41,7 @@ test {
     _ = @import("app/viewing.zig");
     _ = @import("app/layout.zig");
     _ = @import("app/layout_test.zig");
+    _ = @import("app/layout_wrap_test.zig");
     _ = session;
     _ = @import("app/session_test.zig");
     _ = @import("app/session_open_test.zig");

@@ -27,6 +27,13 @@ test "commands: w! writes a read-only file too" {
     try std.testing.expectError(error.TooManyArguments, commands.parse("w! a b"));
 }
 
+test "commands: wrap and nowrap turn wrapping on and off, without arguments" {
+    try expectParse("wrap", .{ .wrap = true });
+    try expectParse("nowrap", .{ .wrap = false });
+    try std.testing.expectError(error.TooManyArguments, commands.parse("wrap on"));
+    try std.testing.expectError(error.TooManyArguments, commands.parse("nowrap x"));
+}
+
 test "commands: quit, forced or not" {
     try expectParse("q", .{ .quit = .{} });
     try expectParse("quit", .{ .quit = .{} });

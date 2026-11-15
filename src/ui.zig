@@ -17,11 +17,13 @@ pub const Theme = theme.Theme;
 test {
     _ = view;
     _ = @import("ui/view_test.zig");
+    _ = @import("ui/view_rows_test.zig");
     _ = wrap;
     _ = @import("ui/wrap_test.zig");
     _ = theme;
     _ = document;
     _ = @import("ui/document_test.zig");
+    _ = @import("ui/document_wrap_test.zig");
     _ = status;
     _ = @import("ui/status_test.zig");
     _ = prompt;
