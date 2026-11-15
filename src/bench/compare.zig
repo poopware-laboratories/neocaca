@@ -1,7 +1,8 @@
-//! `zig build compare -Dflow=<path>`: neocaca (ReleaseSafe, as shipped)
-//! and flow, each run on a fresh pseudo-terminal with the same files and
-//! the same keys, timed from the start (launch, key sent) to the last
-//! byte of the frame that answers it. Prints a Markdown table.
+//! `zig build compare [-Deditors=kak,hx,nvim,vim,flow=<path>]`: neocaca
+//! (ReleaseSafe, as shipped), alone or beside the editors listed, each
+//! run on a fresh pseudo-terminal with the same files and the same keys,
+//! timed from the start (launch, key sent) to the last byte of the frame
+//! that answers it. Prints a Markdown table, a column per editor.
 //!
 //! The pure parts live in `neocaca.compare`: the replies to the editors'
 //! terminal queries, when a frame has come, the files and the report.
@@ -22,48 +23,17 @@ const now = pty.now;
 const ms = pty.ms;
 const sec = std.time.ns_per_s;
 
-/// One editor and the keys it takes for each measurement, from its own
-/// documentation (neocaca's `docs/keys.md`, flow's command palette).
+/// One editor to run: its profile, and the binary found for it.
 const Editor = struct {
-    name: []const u8,
+    profile: *const compare.editors.Profile,
     path: [:0]const u8,
-    /// Arguments before the file.
-    args: []const [:0]const u8,
-    /// Moves the cursor a line down.
-    down: []const u8,
-    /// Keys that give one selection per match of `word`; the last is timed.
-    select: []const []const u8,
-    /// The key that starts typing at every selection, if one is needed.
-    insert: ?[]const u8,
+
+    fn name(self: Editor) []const u8 {
+        return self.profile.name;
+    }
 };
 
-fn editors(neocaca_path: [:0]const u8, flow_path: [:0]const u8) [2]Editor {
-    return .{
-        .{
-            .name = "neocaca",
-            .path = neocaca_path,
-            .args = &.{},
-            .down = "\x1b[B",
-            // Select the whole file, then every match of `word` in it.
-            .select = &.{ "%", "s", "word", "\r" },
-            .insert = "i",
-        },
-        .{
-            .name = "flow",
-            .path = flow_path,
-            // Keep the runs from adding to flow's list of projects.
-            .args = &.{"-N"},
-            .down = "\x1b[B",
-            // Ctrl-f, the word, Enter, then Ctrl-Shift-l (add cursors to
-            // all matches), sent as the kitty keyboard protocol encodes
-            // them: flow turns the protocol on once it is answered.
-            .select = &.{ "\x1b[102;5u", "word", "\r", "\x1b[108;6u" },
-            .insert = null,
-        },
-    };
-}
-
-const Row = struct { name: []const u8, cells: [2]Cell };
+const Row = struct { name: []const u8, cells: []Cell };
 
 const Context = struct {
     arena: std.mem.Allocator,
@@ -77,8 +47,8 @@ const Context = struct {
     }
 
     fn start(self: Context, editor: Editor, file: []const u8) !Run {
-        std.debug.print("{s}: {s}\n", .{ editor.name, file });
-        return Run.start(self.arena, self.io, editor.path, editor.args, try self.path(file), self.dir, self.env, self.trace);
+        std.debug.print("{s}: {s}\n", .{ editor.name(), file });
+        return Run.start(self.arena, self.io, editor.path, editor.profile.args, try self.path(file), self.dir, self.env, self.trace);
     }
 };
 
@@ -119,6 +89,7 @@ fn presses(ctx: Context, editor: Editor, file: []const u8, key: []const u8, coun
 /// the time to make them, the first key typed and the next ten, and the
 /// memory it all took.
 fn selections(ctx: Context, editor: Editor) ![4]Cell {
+    const select = editor.profile.select orelse return @splat(.unsupported);
     var run = try ctx.start(editor, "words.txt");
     const first = try run.frame(now(ctx.io), files.marker, 30 * sec);
     if (first != .time) {
@@ -126,14 +97,14 @@ fn selections(ctx: Context, editor: Editor) ![4]Cell {
         return @splat(first);
     }
     var made: Cell = undefined;
-    for (editor.select) |key| {
+    for (select) |key| {
         made = try run.frame(try run.send(key), "", 120 * sec);
         if (made != .time) break;
     }
     var typed: Cell = made;
     var next: Cell = made;
     if (made == .time) {
-        if (editor.insert) |key| _ = try run.frame(try run.send(key), "", 120 * sec);
+        if (editor.profile.insert) |key| _ = try run.frame(try run.send(key), "", 120 * sec);
         typed = try run.frame(try run.send("x"), "", 120 * sec);
         var times: [10]u64 = undefined;
         next = for (&times) |*t| {
@@ -154,6 +125,22 @@ fn absolute(arena: std.mem.Allocator, io: std.Io, path: []const u8) ![:0]const u
     return arena.dupeSentinel(u8, buf[0..n], 0);
 }
 
+/// The first of `commands` found in a directory of `path` (the user's
+/// `PATH`, not the one the editors run with).
+fn onPath(arena: std.mem.Allocator, io: std.Io, path: []const u8, commands: []const []const u8) ![]const u8 {
+    for (commands) |command| {
+        var dirs = std.mem.tokenizeScalar(u8, path, ':');
+        while (dirs.next()) |dir| {
+            const candidate = try arena.print("{s}/{s}", .{ dir, command });
+            var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+            _ = std.Io.Dir.cwd().realPathFile(io, candidate, &buf) catch continue;
+            return candidate;
+        }
+    }
+    std.debug.print("{s} is not on PATH; give its path as {s}=<path>\n", .{ commands[0], commands[0] });
+    return error.FileNotFound;
+}
+
 fn makeFile(io: std.Io, dir: std.Io.Dir, name: []const u8, comptime kind: enum { lines, one_line, words }, size: u64) !void {
     const f = try dir.createFile(io, name, .{});
     defer f.close(io);
@@ -171,16 +158,28 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
-    if (args.len < 3) {
-        std.debug.print("usage: neocaca-compare <neocaca> <flow> [--trace]\n", .{});
+    if (args.len < 2) {
+        std.debug.print("usage: neocaca-compare <neocaca> [<editors, as kak,hx,flow=path>] [--trace]\n", .{});
         return error.Usage;
     }
     var trace = false;
-    for (args[3..]) |a| {
-        if (std.mem.eql(u8, a, "--trace")) trace = true;
+    var list: []const u8 = "";
+    for (args[2..]) |a| {
+        if (std.mem.eql(u8, a, "--trace")) trace = true else list = a;
     }
+    var chosen: [compare.editors.max_editors]compare.editors.Choice = undefined;
+    const others = compare.editors.parse(list, &chosen) catch |e| {
+        std.debug.print("-Deditors: {s}\n", .{compare.editors.message(e)});
+        return e;
+    };
     // The editors run in the scratch directory: their paths must hold there.
-    const pair = editors(try absolute(arena, io, args[1]), try absolute(arena, io, args[2]));
+    const all = try arena.alloc(Editor, 1 + others.len);
+    all[0] = .{ .profile = compare.editors.neocaca, .path = try absolute(arena, io, args[1]) };
+    for (others, all[1..]) |c, *e| {
+        const path = c.path orelse try onPath(arena, io, init.environ_map.get("PATH") orelse "", c.profile.commands);
+        e.* = .{ .profile = c.profile, .path = try absolute(arena, io, path) };
+        std.debug.print("{s}: {s}\n", .{ c.profile.name, e.path });
+    }
 
     // A fresh directory for the files and for each editor's home.
     const base = init.environ_map.get("TMPDIR") orelse "/tmp";
@@ -230,13 +229,13 @@ pub fn main(init: std.process.Init) !void {
         "type at 10,000 selections: next 10 keys",
         "memory, 10,000 selections",
     };
-    for (names) |name| try table.append(arena, .{ .name = name, .cells = undefined });
-    for (pair, 0..) |editor, e| {
+    for (names) |name| try table.append(arena, .{ .name = name, .cells = try arena.alloc(Cell, all.len) });
+    for (all, 0..) |editor, e| {
         const cells = table.items;
         const startup = try open(ctx, editor, "tiny.txt", 10, 30 * sec);
         cells[0].cells[e] = startup.time;
         cells[1].cells[e] = startup.memory;
-        cells[2].cells[e] = try presses(ctx, editor, "1mib.txt", editor.down, 200);
+        cells[2].cells[e] = try presses(ctx, editor, "1mib.txt", editor.profile.down, 200);
         for ([_]struct { []const u8, usize, u64 }{
             .{ "1mib.txt", 5, 30 * sec },
             .{ "100mib.txt", 3, 120 * sec },
@@ -253,8 +252,10 @@ pub fn main(init: std.process.Init) !void {
     var out_buf: [4096]u8 = undefined;
     var out: std.Io.File.Writer = .init(.stdout(), io, &out_buf);
     const w = &out.interface;
-    try w.print("{d}x{d} pseudo-terminal, {t}-{t}; neocaca {t} build, flow at its default frame rate\n\n", .{ pty.cols, pty.rows, builtin.target.cpu.arch, builtin.target.os.tag, std.lang.Optimize.safe });
-    try compare.report.header(w, &.{ pair[0].name, pair[1].name });
-    for (table.items) |r| try compare.report.row(w, r.name, &r.cells);
+    try w.print("{d}x{d} pseudo-terminal, {t}-{t}; neocaca {t} build, the others as installed, each without user configuration\n\n", .{ pty.cols, pty.rows, builtin.target.cpu.arch, builtin.target.os.tag, std.lang.Optimize.safe });
+    const names_row = try arena.alloc([]const u8, all.len);
+    for (all, names_row) |e, *n| n.* = e.name();
+    try compare.report.header(w, names_row);
+    for (table.items) |r| try compare.report.row(w, r.name, r.cells);
     try w.flush();
 }

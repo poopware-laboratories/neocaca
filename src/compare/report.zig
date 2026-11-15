@@ -38,6 +38,8 @@ pub const Cell = union(enum) {
     /// The editor ended by itself, with this exit code.
     exited: u8,
     killed: u32,
+    /// The editor has no such feature (multiple selections in Vim).
+    unsupported,
 
     pub fn format(self: Cell, w: *Writer) Writer.Error!void {
         switch (self) {
@@ -58,6 +60,7 @@ pub const Cell = union(enum) {
             .timed_out => try w.writeAll("timed out"),
             .exited => |code| try w.print("exited (code {d})", .{code}),
             .killed => |sig| try w.print("killed (signal {d})", .{sig}),
+            .unsupported => try w.writeAll("not supported"),
         }
     }
 };

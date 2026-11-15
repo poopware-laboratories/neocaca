@@ -70,6 +70,16 @@ test "cell: what was not measured says why" {
     try expectCell("timed out", .timed_out);
     try expectCell("exited (code 1)", .{ .exited = 1 });
     try expectCell("killed (signal 9)", .{ .killed = 9 });
+    // An editor without the feature measured, as Vim without multiple
+    // selections.
+    try expectCell("not supported", .unsupported);
+}
+
+test "row: an editor without the feature, beside one with it" {
+    var buf: [128]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+    try report.row(&w, "make 10,000 selections", &.{ .{ .time = 2 * ms }, .unsupported });
+    try expectEqualStrings("| make 10,000 selections | 2.00 ms | not supported |\n", w.buffered());
 }
 
 test "row: a measurement and one cell per editor, as a table row" {
@@ -167,6 +177,21 @@ test "cell: seconds round half up at their last place" {
 test "cell: repeated times each in the unit that fits it" {
     try expectCell("3.37 ms (p90 6.77 ms, max 49.8 ms)", .{ .times = .{ .count = 10, .median = 3_370_000, .p90 = 6_770_000, .max = 49_800_000 } });
     try expectCell("403.0 ms (p90 1.34 s, max 1.34 s)", .{ .times = .{ .count = 3, .median = 403 * ms, .p90 = 1_340 * ms, .max = 1_340 * ms } });
+}
+
+test "row: a column per editor, those without a feature marked so" {
+    var buf: [512]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+    try report.header(&w, &.{ "neocaca", "kakoune", "vim" });
+    try report.row(&w, "make 10,000 selections", &.{ .{ .time = 2 * ms }, .{ .time = 40 * ms }, .unsupported });
+    try report.row(&w, "memory, 10,000 selections", &.{ .{ .memory = 3 << 20 }, .{ .memory = 9 << 20 }, .unsupported });
+    try expectEqualStrings(
+        \\| | neocaca | kakoune | vim |
+        \\|---|---:|---:|---:|
+        \\| make 10,000 selections | 2.00 ms | 40.0 ms | not supported |
+        \\| memory, 10,000 selections | 3.0 MiB | 9.0 MiB | not supported |
+        \\
+    , w.buffered());
 }
 
 test "row: a whole table from measured times" {

@@ -76,7 +76,7 @@ Download flow's latest release, check its checksum, unpack it in its own
 empty directory under `$SCRATCH`, and run:
 
 ```sh
-zig build compare -Dflow="$SCRATCH/flow/flow"
+zig build compare -Deditors=flow="$SCRATCH/flow/flow"
 ```
 
 Then follow "Against flow" in `docs/field-validation.md`: the "Measured" table

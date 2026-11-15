@@ -1,6 +1,6 @@
 //! Build graph: the neocaca library module (with mimalloc compiled in), the
 //! editor executable, the test step, the benchmark step, the comparison
-//! with flow and the 3:1 count.
+//! with other editors and the 3:1 count.
 
 const std = @import("std");
 
@@ -102,9 +102,10 @@ pub fn build(b: *std.Build) void {
     bench_cmd.addPassthruArgs();
     bench_step.dependOn(&bench_cmd.step);
 
-    // `zig build compare -Dflow=<path>`: neocaca as shipped (ReleaseSafe)
-    // against another editor on a pseudo-terminal.
-    const flow = b.option([]const u8, "flow", "The flow binary `zig build compare` measures neocaca against");
+    // `zig build compare [-Deditors=kak,hx,nvim,vim,flow=<path>]`: neocaca
+    // as shipped (ReleaseSafe), alone or beside other editors, on a
+    // pseudo-terminal.
+    const compared = b.option([]const u8, "editors", "The editors `zig build compare` measures beside neocaca: kakoune (kak), helix (hx), neovim (nvim), vim, flow, each name=path if not on PATH") orelse "";
     const safe_lib = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -133,17 +134,13 @@ pub fn build(b: *std.Build) void {
     });
     // Compiled on every target in CI, since nothing else uses the driver.
     b.step("compare-build", "Compile zig build compare's driver without running it").dependOn(&compare.step);
-    const compare_step = b.step("compare", "Measure neocaca against flow (-Dflow=<path>)");
-    if (flow) |path| {
-        const compare_cmd = b.addRunArtifact(compare);
-        compare_cmd.addArtifactArg(safe_exe);
-        compare_cmd.addArg(path);
-        compare_cmd.addPassthruArgs();
-        compare_cmd.has_side_effects = true;
-        compare_step.dependOn(&compare_cmd.step);
-    } else {
-        compare_step.dependOn(&b.addFail("zig build compare needs -Dflow=<path to the flow binary>").step);
-    }
+    const compare_step = b.step("compare", "Measure neocaca, beside the editors in -Deditors if any");
+    const compare_cmd = b.addRunArtifact(compare);
+    compare_cmd.addArtifactArg(safe_exe);
+    compare_cmd.addArg(compared);
+    compare_cmd.addPassthruArgs();
+    compare_cmd.has_side_effects = true;
+    compare_step.dependOn(&compare_cmd.step);
 
     // `zig build ratio -- <diff>`: the 3:1 rule over a diff, as CI runs it
     // on every pull request; run from the repository root.

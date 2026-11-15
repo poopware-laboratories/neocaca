@@ -33,7 +33,7 @@ zig build -Doptimize=safe                   # ReleaseSafe: the shipping build
 zig build test -Doptimize=safe --summary all  # the tests as shipped
 zig build bench                             # SIMD kernels against scalar (ReleaseFast)
 zig build bench -Dbench-optimize=safe       # the same, as shipped
-zig build compare -Dflow=path/to/flow       # neocaca against flow on a pseudo-terminal
+zig build compare -Deditors=kak,hx,nvim,vim # neocaca beside other editors on a pseudo-terminal
 zig build compare-build                     # compile its driver only, as CI does per target
 zig build ratio -- pr.diff                  # count the 3:1 rule over a diff, as CI does
 zig build release -- version               # the release tool: version, notes, due, ...
@@ -45,7 +45,9 @@ zig build run -- path/to/file               # run the editor
 Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 `ReleaseSafe`-style names are deprecated), `-Dtest-filter=…`,
 `-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`,
-`-Dflow=…` (the flow binary `zig build compare` runs), `-Dlto=none|full|thin`
+`-Deditors=…` (the editors `zig build compare` measures beside neocaca:
+`kak`, `hx`, `nvim`, `vim`, `flow`, each `name=path` when not on `PATH`),
+`-Dlto=none|full|thin`
 and `-Demit-relocs=true` (link-time optimization, and the relocations
 `llvm-bolt` needs; the `Makefile` sets both).
 
@@ -285,8 +287,8 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
 | `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
 | `src/simd/` | One kernel per file with its scalar reference and width-generic form: `count.zig`, `find.zig`, `control.zig`, `plain.zig`; `width.zig`: the default vector width; `kernels_test.zig`: every kernel against its reference at every width. |
-| `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. `zig build compare`: `compare.zig` runs the measurements and prints the table, `pty.zig` runs one editor on a pseudo-terminal. |
-| `src/compare/` | The pure part of `zig build compare`: `replies.zig`, the answers a terminal gives to an editor's queries; `wait.zig`, when the frame answering a key or a launch has come; `files.zig`, the files both editors open; `report.zig`, the table of results. |
+| `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. `zig build compare`: `compare.zig` runs the measurements for each editor and prints the table, `pty.zig` runs one editor on a pseudo-terminal. |
+| `src/compare/` | The pure part of `zig build compare`: `editors.zig`, the editors it knows (their arguments and keys) and the `-Deditors` list choosing them; `replies.zig`, the answers a terminal gives to an editor's queries; `wait.zig`, when the frame answering a key or a launch has come; `files.zig`, the files every editor opens; `report.zig`, the table of results. |
 | `src/ratio/` | The 3:1 rule over a diff, for `zig build ratio`: `diff.zig`, the lines a unified diff adds and removes; `path.zig`, which files count and how; `lines.zig`, which lines of a Zig file are test code; `check.zig`, the tally and its report. |
 | `src/release/` | Releases, for `zig build release`: `version.zig`, `major.minor.patch`; `commit.zig`, Conventional Commit messages and their `BREAKING CHANGE:` and `Release-As:` footers; `date.zig`, calendar days; `plan.zig`, whether a run releases and which version; `notes.zig`, the release's section of `CHANGELOG.md`; `files.zig`, the files a release commit changes; `run.zig`, the commands. |
 | `src/tools/` | Drivers for project checks and releases: `ratio.zig` runs `zig build ratio` over a diff file; `release.zig` runs `zig build release` with commit messages on standard input. |
@@ -475,7 +477,7 @@ passes are in [`docs/field-validation.md`](docs/field-validation.md); the
 - **It grows with the editor:** a piece that adds something users do adds
   its scenario to `docs/field-validation.md` in the same pull request.
 - **Against flow:** the pass that closes a phase, and every pass before a
-  release, runs `zig build compare` against flow's latest release, replaces
+  release, runs `zig build compare -Deditors=flow=…` against flow's latest release, replaces
   the "Measured" table in `TODO.md` and brings "Still behind" up to date
   from flow's documentation. Every row neocaca loses, and every row that
   got worse, gets a `TODO.md` item; the aim is to lose none.

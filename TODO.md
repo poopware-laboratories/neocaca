@@ -65,7 +65,7 @@ behavior, never its source.
 development in flow (its README roadmap); neocaca's undo tree and
 persistent undo would beat it once they land (Phase 2 and Phase 4).
 
-**Measured.** `zig build compare -Dflow=<path>` runs both editors on a
+**Measured.** `zig build compare -Deditors=flow=<path>` runs both editors on a
 120x40 pseudo-terminal with the same files and answers the queries a
 terminal would (x86_64 Linux, neocaca's ReleaseSafe build against flow
 0.7.2's release binary at its default frame rate; medians, with p90 and
@@ -467,6 +467,25 @@ Safety first, then the biggest daily gains.
   - [x] S: wrap by default (`:nowrap` to turn it off), the tests that
         scroll sideways set `:nowrap`; `vh` `vl` scroll only lines that
         are not wrapped
+- **PR: comparison with several editors.** The comparisons and
+  benchmarks are universal rather than built around one editor: neocaca
+  is measured alone or beside Kakoune, Helix, Neovim, Vim and flow, and
+  its features are compared with all of them.
+  - [x] M: `zig build compare -Deditors=kak,hx,nvim,vim,flow` runs
+        neocaca beside any editors listed, each from a profile of its
+        arguments and keys (`compare/editors.zig`), and alone with no
+        list; an editor without multiple selections reads "not
+        supported" in their rows
+  - [ ] M: "The yardstick" becomes a comparison with every editor
+        listed: a feature table with a column per editor (from their
+        user documentation and by running them), the "Measured" table
+        with a column per editor, and `README.md`, `AGENTS.md`,
+        `docs/field-validation.md` and the `field-validation` skill
+        reworded to compare with all of them rather than with flow
+  - [ ] S: memory counts every process an editor runs: Neovim's
+        terminal interface keeps its text in a child process, so the
+        first run measured 9.4 MiB for it with 1 GiB open (sum the
+        peak of each descendant, and test the sum on a scripted tree)
 - **PR: multiple buffers.** `app::Editor` holds one `Document` today;
   splits build on this.
   - [ ] M: a list of documents with a current index, each keeping its
