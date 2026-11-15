@@ -544,6 +544,33 @@ Safety first, then the biggest daily gains.
         no switch while a save is in flight
   - [ ] S: `:e` opens a second buffer; `:bn` and `:bp` switch
   - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line
+- **PR: concurrency and crash safety.** More work moves off the event
+  loop and out of the process, without races: one thread owns the
+  editing state, and nothing that changes is shared. Today the loop does
+  all editing, with one thread per save or `:e` load; a panic, SIGKILL
+  or the out-of-memory killer loses the unsaved changes that a hang-up
+  or SIGTERM would have written to the recovery file.
+  - [ ] S: the rules in `AGENTS.md`: the loop is the only owner of
+        documents, selections, registers and the view; a worker takes an
+        owned copy or a snapshot that never changes, and answers with one
+        message through the wake pipe, tagged with the document version
+        it read (a stale answer is dropped); cancelling is an atomic
+        flag; no locks in the editing code; workers injected so tests
+        run them in a fixed order
+  - [ ] S: a CI job running the tests with the thread sanitizer
+        (Linux), shown once by hand to catch a deliberate race
+  - [ ] M: a crash journal: every change set appended, bounded, to a
+        file beside the document (named as `fs/temp.zig` names its
+        temporary files), removed on a save or a clean quit, so a crash
+        of any kind loses at most the last change
+  - [ ] M: opening a file that has a journal offers to replay it; a
+        journal written against other file contents than those on disk
+        is refused, never trusted blindly
+  - [ ] M: a supervisor: neocaca starts as a small parent holding the
+        terminal's settings and runs the editor as its child; when the
+        child dies by a signal its panic handler cannot catch, the
+        parent restores the terminal and names the journal; suspending,
+        resizes and exit codes pass through unchanged
 - **PR: system clipboard through OSC 52 (write only)**
   - [ ] S: yank also copies to the system clipboard
   - [ ] S: a history of the last yanks, to paste an older one
@@ -562,7 +589,9 @@ Safety first, then the biggest daily gains.
 - **PR: mouse**
   - [ ] M: click to place a selection, drag to extend
   - [ ] S: wheel to scroll
-- **PR: shell filters, off the event loop**
+- **PR: shell filters, off the event loop**, each a child process
+  watched from its own thread, following the rules of "concurrency and
+  crash safety"
   - [ ] M: run a command on its own thread, bounded output, cancelled by
         `Esc`
   - [ ] S: `|` replaces each selection with its output
@@ -572,14 +601,6 @@ Safety first, then the biggest daily gains.
   25 ms timeout, nor Ctrl-i from Tab or Ctrl-m from Enter.
   - [ ] S: probe for it and fall back cleanly
   - [ ] M: decode its key events
-- **PR: searches off the event loop.** Today they run on the loop within
-  `max_steps`, which caps how much of a large file one search can cover:
-  on the 100 MB log, a pattern that starts with a class (`[0-9]+ZZ`,
-  `\d+ZZ`) stops after 1.5 s with "too much work for this regex" where
-  the answer is "not found", while a literal one misses all 100 MB in
-  129 ms.
-  - [ ] M: `/`, `?`, `s`, `S` and `Alt-k` run on their own thread
-  - [ ] S: `Esc` cancels them; raise the step bound
 - **PR: large files.** Today the text is one contiguous array, and every
   edit rebuilds it and its line index, so an edit costs the size of the
   file.
@@ -594,6 +615,16 @@ Safety first, then the biggest daily gains.
         refused today; Helix opens it in 0.85 s and 1.2 GiB, Vim in
         1.3 s and 1.2 GiB, see "Measured"), with the new limit tested at
         it and one past it, and the `zig build compare` row again
+- **PR: searches off the event loop**, on a snapshot of the piece table
+  (pieces never change once written, so a snapshot copies no text),
+  following the rules of "concurrency and crash safety". Today they run
+  on the loop within `max_steps`, which caps how much of a large file
+  one search can cover: on the 100 MB log, a pattern that starts with a
+  class (`[0-9]+ZZ`, `\d+ZZ`) stops after 1.5 s with "too much work for
+  this regex" where the answer is "not found", while a literal one
+  misses all 100 MB in 129 ms.
+  - [ ] M: `/`, `?`, `s`, `S` and `Alt-k` run on their own thread
+  - [ ] S: `Esc` cancels them; raise the step bound
 - **PR: memory.** Kakoune uses less memory at startup, on 1 MiB, on a 10 MiB
   line and with 10,000 selections; Helix and Vim on 100 MiB ("Measured").
   - [ ] S: startup: find where the 11.2 MiB goes (mimalloc's
@@ -666,8 +697,8 @@ Safety first, then the biggest daily gains.
 - [ ] Accessibility (see `ACCESSIBILITY.md`): honor `NO_COLOR`, show
       which text is selected without relying on color, and a screen
       reader mode that announces changes instead of redrawing the grid
-- [ ] Session restore, with the unsaved buffers backed up every few
-      minutes so a crash, not only a hang-up, loses nothing
+- [ ] Session restore, the open buffers and their places brought back
+      on the next start (unsaved changes are the crash journal's, Phase 2)
 - [ ] Saving a file you cannot write (owned by root) without restarting
       the editor
 - [ ] Android under termux, checked in CI or by hand
