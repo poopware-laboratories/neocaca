@@ -20,10 +20,10 @@
 </div>
 
 > [!WARNING]
-> **caca is in early development.** It edits one file at a time with
-> Kakoune-style modal keys, multiple selections, regular-expression search
-> and undo, and it saves atomically. Syntax highlighting, configuration
-> and multiple buffers are not yet available. The roadmap is
+> **caca is in early development.** It edits files with
+> Kakoune-style modal keys, multiple selections, regular-expression search,
+> undo and several buffers (`:e`, `:bn`, `:bp`), and it saves atomically.
+> Syntax highlighting and configuration are not yet available. The roadmap is
 > [`TODO.md`](TODO.md); the
 > [issue tracker](https://github.com/poopware-laboratories/caca/issues)
 > lists work that is open to contributors.

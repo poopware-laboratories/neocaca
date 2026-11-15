@@ -340,15 +340,16 @@ test "session: a load that cannot start says so, and keys go on" {
 test "session: a load waits for the save in flight, and the save is reported" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    try withFile(&tmp, "g", "g\n");
     var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 5);
     defer s.deinit();
     try s.feed("ix\x1b");
     try s.timeout();
-    try s.feed(":w\r:e! g\r");
+    try s.feed(":w\r:e!\r");
     try expectEqual(null, s.saving);
     try finishLoad(&s);
-    try expectEqualStrings("g\n", s.ed.doc.text());
+    // Reloaded as written.
+    try expectEqualStrings("x\n", s.ed.doc.text());
+    try expect(!s.ed.doc.isModified());
     var buf: [16]u8 = undefined;
     try expectEqualStrings("x\n", try tmp.dir.readFile(io, "f", &buf));
 }

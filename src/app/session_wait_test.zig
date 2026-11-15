@@ -150,13 +150,27 @@ test "session: :e that cannot copy its path to wait says so and waits for nothin
     try expectEqualStrings("f", s.ed.path.?);
 }
 
-test "session: :e after an edit made since the save began is refused at once" {
+test "session: :e after an edit made since the save began opens the file beside it" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.writeFile(io, .{ .sub_path = "g", .data = "g\n" });
     var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 5);
     defer s.deinit();
     try feedKeys(&s, "ix\x1b:w\riy\x1b:e g\r");
+    s.settle();
+    try expectEqualStrings("g\n", s.ed.doc.text());
+    const f = s.ed.buffer(0);
+    try expectEqualStrings("xy\n", f.doc.text());
+    // The edit after the save is still unsaved.
+    try expect(f.doc.isModified());
+}
+
+test "session: :e of the current file after an edit made since the save began is refused at once" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 5);
+    defer s.deinit();
+    try feedKeys(&s, "ix\x1b:w\riy\x1b:e f\r");
     try expectEqualStrings("unsaved changes; :e! discards them", s.ed.message.text());
     s.settle();
     try expectEqualStrings("xy\n", s.ed.doc.text());

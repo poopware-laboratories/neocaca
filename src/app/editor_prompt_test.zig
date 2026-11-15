@@ -245,7 +245,7 @@ test "editor: a failed load keeps the buffer" {
 test "editor: :e is refused over unsaved changes, :e! reloads" {
     var ed: Editor = try .init(gpa, "a", "old\n");
     defer ed.deinit();
-    try typeKeys(&ed, "d:e b\r");
+    try typeKeys(&ed, "d:e a\r");
     try expectEqual(null, ed.takeRequest());
     try expectMessage(&ed, "unsaved changes; :e! discards them", true);
     try typeKeys(&ed, ":e!\r");

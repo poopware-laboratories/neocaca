@@ -76,6 +76,8 @@ its roadmap item, and not reported again.
    alone: rename an identifier throughout a file (`%`, `s`, `c`), reorder
    a block of imports and correct a doc comment; then suspend with
    `Ctrl-z`, build and run the tests from the shell, and return with `fg`.
+   Open a second file with `:e`, change it, go back and forth with `:bn`
+   and `:bp`, and check that `:q` names the buffer still unsaved.
 2. **Serving as the Git editor.** Run `GIT_EDITOR=caca git commit` in
    `repo/` (`GIT_EDITOR` takes precedence over `core.editor` and `EDITOR`),
    write the message, save and quit. Repeat, quitting without saving: the

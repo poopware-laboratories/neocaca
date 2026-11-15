@@ -130,6 +130,12 @@ fn command(ed: *Editor, line: []const u8) Error!void {
         },
         .edit => |e| {
             const path = e.path orelse ed.path orelse return noFileName(ed);
+            if (!buffers.loadsInPlace(ed, path)) {
+                if (buffers.find(ed, path)) |i| return buffers.goTo(ed, i);
+                // The current buffer's changes stay open beside it.
+                if (ed.doc.isSaving()) return requesting.afterSave(ed, .load, path);
+                return ed.ask(.{ .load = path });
+            }
             if (!e.force and ed.doc.isSaving()) return waitForSave(ed, .load, path);
             if (!e.force and ed.doc.isModified()) return requesting.unsaved(ed, .load);
             try ed.ask(.{ .load = path });
@@ -144,6 +150,7 @@ fn command(ed: *Editor, line: []const u8) Error!void {
             };
         },
         .wrap => |on| ed.options.wrap = on,
+        .cycle => |way| buffers.cycle(ed, way == .next),
         .unmap => |u| if (!ed.mappings.remove(u.mode, u.key)) {
             var name: [input.keyname.max_name]u8 = undefined;
             ed.message.set(true, "{s} is not mapped in {t} mode", .{ input.keyname.format(u.key, &name), u.mode });

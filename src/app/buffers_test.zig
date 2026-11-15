@@ -202,15 +202,15 @@ test "buffers: :w saves the current buffer to its own path" {
     try expectEqualStrings("a.txt", ed.takeRequest().?.save.path);
 }
 
-test "buffers: a file loaded by :e replaces the current buffer only" {
+test "buffers: a reload by :e! replaces the current buffer only" {
     var ed: Editor = try .init(gpa, "a.txt", "alpha\n");
     defer ed.deinit();
     try ed.open("b.txt", "beta\n");
-    try typeKeys(&ed, ":e c.txt\r");
-    try expectEqualStrings("c.txt", ed.takeRequest().?.load);
-    ed.finishLoad("c.txt", try gpa.dupe(u8, "gamma\n"), .unknown);
+    try typeKeys(&ed, "ix\x1b:e!\r");
+    try expectEqualStrings("b.txt", ed.takeRequest().?.load);
+    ed.finishLoad("b.txt", try gpa.dupe(u8, "fresh\n"), .unknown);
     try expectEqual(2, ed.bufferCount());
-    try expectCurrent(&ed, 1, "c.txt", "gamma\n");
+    try expectCurrent(&ed, 1, "b.txt", "fresh\n");
     ed.switchTo(0);
     try expectCurrent(&ed, 0, "a.txt", "alpha\n");
 }

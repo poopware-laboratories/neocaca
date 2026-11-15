@@ -111,6 +111,41 @@ pub fn othersUnsaved(ed: *Editor) bool {
     return true;
 }
 
+/// The buffer open on `path`, as typed.
+pub fn find(ed: *const Editor, path: []const u8) ?usize {
+    for (0..bufferCount(ed)) |i| {
+        const p = buffer(ed, i).path orelse continue;
+        if (std.mem.eql(u8, p, path)) return i;
+    }
+    return null;
+}
+
+/// Whether a load of `path` takes the current buffer's place rather than
+/// opening one beside it: a reload of its file, or a file opened over an
+/// empty, unmodified buffer without one.
+pub fn loadsInPlace(ed: *const Editor, path: []const u8) bool {
+    if (ed.path) |p| return std.mem.eql(u8, p, path);
+    return !ed.doc.isModified() and std.mem.eql(u8, ed.doc.text(), "\n");
+}
+
+/// Makes buffer `index` current, or says why not: the save in flight
+/// reports back to the current buffer.
+pub fn goTo(ed: *Editor, index: usize) void {
+    if (ed.doc.isSaving()) {
+        ed.message.set(true, "cannot switch buffers while a save is being written", .{});
+        return;
+    }
+    switchTo(ed, index);
+}
+
+/// `:bn` (`next`) and `:bp`: the buffer after or before the current one,
+/// wrapping.
+pub fn cycle(ed: *Editor, next: bool) void {
+    const n = bufferCount(ed);
+    const i = ed.buffers.current;
+    goTo(ed, if (next) (i + 1) % n else (i + n - 1) % n);
+}
+
 fn park(ed: *const Editor) Parked {
     return .{ .doc = ed.doc, .path = ed.path, .disk = ed.disk, .form = ed.form, .view = ed.view };
 }
