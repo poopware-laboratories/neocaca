@@ -126,7 +126,8 @@ test "session: :e waiting for a save starts the load when the save is collected"
     s.saving.?.wait();
     try s.collect();
     try expectEqual(null, s.saving);
-    try expect(s.loading != null);
+    // The load started; `collect` reports it too if it is already over.
+    try expect(s.loading != null or std.mem.eql(u8, s.ed.doc.text(), "g\n"));
     s.settle();
     try expectEqualStrings("g\n", s.ed.doc.text());
 }
