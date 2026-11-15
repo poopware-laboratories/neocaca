@@ -1,6 +1,6 @@
-//! `Editor`: the whole editing state (the document, registers, keymap,
-//! mode, prompt, view, message) and the routing of keys and pastes to the
-//! pure modules. It does no I/O: saving and loading are handed to the
+//! `Editor`: the whole editing state (the current document and the other
+//! buffers, registers, keymap, mode, prompt, view, message) and the
+//! routing of keys and pastes to the pure modules. It does no I/O: saving and loading are handed to the
 //! shell as a `Request` (`requesting.zig`), which reports back with
 //! `finishSave` and `finishLoad`. Prompts are run by `prompting.zig`,
 //! drawing is `layout.zig`, the message line is `message.zig`.
@@ -14,6 +14,7 @@ const layout = @import("layout.zig");
 const prompting = @import("prompting.zig");
 const viewing = @import("viewing.zig");
 const requesting = @import("requesting.zig");
+const buffers = @import("buffers.zig");
 const Disk = @import("../fs.zig").disk.Disk;
 const Form = @import("../buffer.zig").form.Form;
 
@@ -109,6 +110,9 @@ pub const Editor = struct {
     /// The keys of a mapping after one that asked for a request, waiting
     /// for the shell to serve it (`resumeKeys`).
     rest: std.ArrayList(Key) = .empty,
+    /// The buffers open besides the current one, which is `doc`, `path`,
+    /// `disk`, `form` and `view` (`buffers.zig`).
+    buffers: buffers.Buffers = .{},
 
     /// An editor on `text`, the contents of `path` (null for a buffer
     /// without a file). Both are copied.
@@ -129,6 +133,7 @@ pub const Editor = struct {
         self.request_path.deinit(self.gpa);
         self.after_path.deinit(self.gpa);
         self.rest.deinit(self.gpa);
+        self.buffers.deinit(self.gpa);
         self.* = undefined;
     }
 
@@ -211,6 +216,9 @@ pub const Editor = struct {
     pub const finishLoad = requesting.finishLoad;
     pub const noticeDisk = requesting.noticeDisk;
     pub const loaded = requesting.loaded;
+    pub const open = buffers.open;
+    pub const switchTo = buffers.switchTo;
+    pub const bufferCount = buffers.bufferCount;
 
     /// Types `k`, or the keys it is mapped to, which are not mapped again.
     fn typed(self: *Editor, k: Key) Error!void {
