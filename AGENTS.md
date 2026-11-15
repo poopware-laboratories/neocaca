@@ -36,6 +36,7 @@ zig build bench -Dbench-optimize=safe       # the same, as shipped
 zig build compare -Dflow=path/to/flow       # neocaca against flow on a pseudo-terminal
 zig build compare-build                     # compile its driver only, as CI does per target
 zig build ratio -- pr.diff                  # count the 3:1 rule over a diff, as CI does
+zig build release -- version               # the release tool: version, notes, due, ...
 zig build -Dtarget=aarch64-macos            # cross-compile; also x86_64-macos, x86_64-freebsd
 make optimized-install                      # local install: LTO and BOLT, to /usr/local/bin
 zig build run -- path/to/file               # run the editor
@@ -287,7 +288,8 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/bench/` | `zig build bench`: `main.zig` runs each kernel against its scalar reference, `text.zig` makes the input, `measure.zig` times and checks. `zig build compare`: `compare.zig` runs the measurements and prints the table, `pty.zig` runs one editor on a pseudo-terminal. |
 | `src/compare/` | The pure part of `zig build compare`: `replies.zig`, the answers a terminal gives to an editor's queries; `wait.zig`, when the frame answering a key or a launch has come; `files.zig`, the files both editors open; `report.zig`, the table of results. |
 | `src/ratio/` | The 3:1 rule over a diff, for `zig build ratio`: `diff.zig`, the lines a unified diff adds and removes; `path.zig`, which files count and how; `lines.zig`, which lines of a Zig file are test code; `check.zig`, the tally and its report. |
-| `src/tools/` | Drivers for project checks: `ratio.zig` runs `zig build ratio` over a diff file. |
+| `src/release/` | Releases, for `zig build release`: `version.zig`, `major.minor.patch`; `commit.zig`, Conventional Commit messages and their `BREAKING CHANGE:` and `Release-As:` footers; `date.zig`, calendar days; `plan.zig`, whether a run releases and which version; `notes.zig`, the release's section of `CHANGELOG.md`; `files.zig`, the files a release commit changes; `run.zig`, the commands. |
+| `src/tools/` | Drivers for project checks and releases: `ratio.zig` runs `zig build ratio` over a diff file; `release.zig` runs `zig build release` with commit messages on standard input. |
 | `src/unicode/` | `utf8.zig`: decoding that never fails; `width.zig`: display width from UAX #11; `chars.zig`: characters with their combining marks; `class.zig`: word and space classes; `display.zig`: how a character is drawn (`^[` for controls); `visible.zig`: outside text written the same way where the screen does not draw it (stderr). |
 | `src/buffer/` | `buffer.zig`: one file's text with its line index (`lines.zig`); `change.zig`: change sets applied in one pass; `endings.zig`: CRLF files edited with `\n` and written back with CRLF; `form.zig`: the byte order mark, line ends, a missing final newline and an empty file taken off on load and put back on save. No I/O, no terminal. |
 | `src/regex/` | A linear-time, bounded regex engine: `parse.zig` into `ast.zig`, compiled by `program.zig` (forwards, and reversed for backward search), run by the Pike VM in `vm.zig` within a step budget, skipping to the pattern's first byte; `regex.zig`: the public `Regex`. |

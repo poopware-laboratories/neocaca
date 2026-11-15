@@ -160,6 +160,23 @@ pub fn build(b: *std.Build) void {
     ratio_cmd.addPassthruArgs();
     ratio_cmd.has_side_effects = true;
     b.step("ratio", "Count the 3:1 test rule over a diff (-- <diff file>)").dependOn(&ratio_cmd.step);
+
+    // `zig build release -- <command>`: the steps of a release,
+    // commit messages on standard input; run from the repository root.
+    const release = b.addExecutable(.{
+        .name = "neocaca-release",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tools/release.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "neocaca", .module = mod }},
+        }),
+    });
+    const release_cmd = b.addRunArtifact(release);
+    release_cmd.addPassthruArgs();
+    release_cmd.stdio = .inherit;
+    release_cmd.has_side_effects = true;
+    b.step("release", "Plan and prepare a release (-- due|prepare|version|notes|formula|pkgbuild ...)").dependOn(&release_cmd.step);
 }
 
 /// Compiles mimalloc's single-file build into `mod`. No CMake: the defines

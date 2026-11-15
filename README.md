@@ -197,7 +197,8 @@ documented in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/bench/` | `zig build bench` (kernels against their scalar references) and `zig build compare` (neocaca against flow) |
 | `src/compare/` | The pure part of `zig build compare`: terminal replies, frame waits, test files, the results table |
 | `src/ratio/` | The 3:1 rule over a diff: its added lines, which of them are tests, the tally |
-| `src/tools/` | `zig build ratio`: the 3:1 count over a diff file |
+| `src/release/` | Releases: versions, Conventional Commit messages, whether a release is due, its changelog section and the files it changes |
+| `src/tools/` | `zig build ratio` (the 3:1 count over a diff file) and `zig build release` (the release steps) |
 | `src/unicode/` | UTF-8 decoding that never fails, display widths, characters with combining marks, visible control bytes |
 | `src/buffer/` | Text with a line index, change sets, and a file's CRLF line ends, byte order mark and missing final newline |
 | `src/regex/` | A linear-time, bounded regular-expression engine (Pike VM) |
