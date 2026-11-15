@@ -552,6 +552,16 @@ Safety first, then the biggest daily gains.
   - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line;
         `:e` finds an open buffer by the file its path names (`fs/link.zig`),
         not only by the path as typed (`./a` and `a`)
+- **PR: a flaky test found by CI on 2026-11-15.** The pseudo-terminal
+  test "the terminal closing keeps the file and recovers the changes
+  beside it" failed once on macOS in ReleaseSafe, without output, and
+  passed when the job was run again (#63). It opens a single buffer, so
+  the multiple-buffer changes do not reach it.
+  - [ ] S: find which check fails (an `expect` in ReleaseSafe prints no
+        trace: make each failure say what it saw), reproduce it by
+        hanging up at varied moments, and fix the race in the test or
+        in the editor; a lost recovery file would be a data-loss bug
+        and goes ahead of everything else
 - **PR: concurrency and crash safety.** More work moves off the event
   loop and out of the process, without races: one thread owns the
   editing state, and nothing that changes is shared. Today the loop does
