@@ -1,29 +1,29 @@
 # AGENTS.md
 
 Instructions for AI coding agents (any model or tool) and for humans working
-on neocaca. This file is the single source of truth; `CLAUDE.md` and any
+on caca. This file is the single source of truth; `CLAUDE.md` and any
 other agent-specific files only point here. The Claude Code skills in
 `.claude/skills/` turn these rules into per-task checklists (a change, a
 test written first, memory and allocators, screen output, a field validation pass,
 a pull request to drive); when they disagree with this file, this file
 wins and the skill is fixed.
 
-neocaca is a modern terminal (TUI) code editor written in Zig. It talks to
+caca is a modern terminal (TUI) code editor written in Zig. It talks to
 the terminal directly (raw mode, escape sequences out, key bytes in) and
 keeps its own text buffer, input decoder and screen renderer, all tested
 without a real terminal.
 
 Its yardstick is the terminal editors people use: Kakoune, Helix, Neovim,
-Vim and [flow](https://flow-control.dev). neocaca aims to be a measurable
+Vim and [flow](https://flow-control.dev). caca aims to be a measurable
 step up from each. "The yardstick" in [`TODO.md`](TODO.md) lists where
-neocaca is ahead, where it is behind, and the item that closes each gap.
+caca is ahead, where it is behind, and the item that closes each gap.
 Compare with them through their user-facing documentation and by running
 them, never through their source (see "Clean-room policy").
 
 ## Quick reference
 
 ```sh
-zig build                                   # debug build: zig-out/bin/neocaca
+zig build                                   # debug build: zig-out/bin/caca
 zig build test --summary all                # every unit and integration test
 zig build test -Dtest-filter="regex:"       # only tests whose name matches
 zig build fmt                               # format our sources (zig fmt is the style)
@@ -33,7 +33,7 @@ zig build -Doptimize=safe                   # ReleaseSafe: the shipping build
 zig build test -Doptimize=safe --summary all  # the tests as shipped
 zig build bench                             # SIMD kernels against scalar (ReleaseFast)
 zig build bench -Dbench-optimize=safe       # the same, as shipped
-zig build compare -Deditors=kak,hx,nvim,vim # neocaca beside other editors on a pseudo-terminal
+zig build compare -Deditors=kak,hx,nvim,vim # caca beside other editors on a pseudo-terminal
 zig build compare-build                     # compile its driver only, as CI does per target
 zig build ratio -- pr.diff                  # count the 3:1 rule over a diff, as CI does
 zig build release -- version               # the release tool: version, notes, due, ...
@@ -45,7 +45,7 @@ zig build run -- path/to/file               # run the editor
 Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 `ReleaseSafe`-style names are deprecated), `-Dtest-filter=…`,
 `-Dmimalloc-secure=off|on|full` (default `on`), `-Dbench-optimize=…`,
-`-Deditors=…` (the editors `zig build compare` measures beside neocaca:
+`-Deditors=…` (the editors `zig build compare` measures beside caca:
 `kak`, `hx`, `nvim`, `vim`, `flow`, each `name=path` when not on `PATH`),
 `-Dlto=none|full|thin`
 and `-Demit-relocs=true` (link-time optimization, and the relocations
@@ -99,7 +99,7 @@ and `-Demit-relocs=true` (link-time optimization, and the relocations
 
 ## Before you start
 
-Search the open [issues](https://github.com/poopware-laboratories/neocaca/issues)
+Search the open [issues](https://github.com/poopware-laboratories/caca/issues)
 first. Someone may already be working on the change, an issue may set out
 how it should be done, or a higher-priority item may come first. Comment on
 an issue to claim it, and link the issue from your pull request
@@ -108,7 +108,7 @@ pull request that finishes them and add what you find missing.
 
 ## Clean-room policy
 
-Every line of neocaca is written from first principles. This is a hard
+Every line of caca is written from first principles. This is a hard
 rule, for editor logic as much as for decoders and data structures.
 
 - **Allowed sources:** specifications and standards (Unicode, ECMA-48, xterm
@@ -183,7 +183,7 @@ identical to the slow path it replaces, and a test must show that.
 
 ## Performance and security
 
-neocaca ships as **ReleaseSafe**: bounds, overflow and unreachable checks
+caca ships as **ReleaseSafe**: bounds, overflow and unreachable checks
 stay on in the build users run. Performance comes from better algorithms
 and SIMD, never from turning safety off.
 
@@ -282,7 +282,7 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | Path | Responsibility |
 |------|----------------|
 | `src/main.zig` | Process setup only: the process allocator, I/O, the arguments, the panic handler that restores the terminal, then `app.run`. No logic worth testing lives here. |
-| `src/root.zig` | The `neocaca` module: re-exports every subsystem namespace, so `zig build test` reaches their tests. |
+| `src/root.zig` | The `caca` module: re-exports every subsystem namespace, so `zig build test` reaches their tests. |
 | `src/app/` | `run.zig`: a command line to an exit code (tested in `run_test.zig`); `exit.zig`: the exit codes; `edit.zig`: reads the file (refusing one it cannot), opens the terminal, runs the loop, restores the terminal however it ends; `loop.zig`: the event loop, generic over the terminal so tests script it; `session.zig`: an `Editor` joined to terminal bytes, files and frames; `saving.zig`: one save on its own thread, which wakes the loop when done; `loading.zig`: one `:e` load on its own thread, the keys typed meanwhile held for the file it reads (decoded at each pause, so an Escape keeps its timeout); `recovery.zig`: the file unsaved changes go to when the terminal hangs up or the editor is told to end (SIGTERM); `editor.zig`: the editing state and key routing; `buffers.zig`: the buffers open besides the current one, which stays in the editor's fields; `message.zig`: the message line under the status line, its path shortened to fit; `requesting.zig`: the saves and loads it asks the shell for; `prompting.zig`: what a submitted prompt does; `viewing.zig`: the view keys (`v`, pages); `commands.zig`: `:` command parsing, `:map` included; `layout.zig`: the screen layout. |
 | `src/cli/` | `command.zig`: what a command line asks for, and its error messages; `parse.zig`: pure parsing; `usage.zig`: the help text. |
 | `src/alloc/` | `mimalloc.zig`: the `std.mem.Allocator` wrapper around mimalloc, the only code that calls `mi_*` (tested in `mimalloc_test.zig`). `process.zig`: which allocator each build mode uses, and `Gpa`, its init, allocator and deinit. |
@@ -302,11 +302,11 @@ terminal ◄── render::diff ◄── render::Screen ◄── app::layout �
 | `src/term/` | The only code that touches the real terminal: `tty.zig` (raw mode on and off, suspending, size, waits, resizes, hang-ups, SIGTERM, stops from outside (SIGTSTP), continues after a stop it did not make (SIGCONT) and finished saves and loads through a self-pipe, the file size signal ignored), `attr.zig` (termios through the kernel's layout on Linux), `raw.zig` (the raw settings), `modes.zig` (alternate screen, bracketed paste, focus events). POSIX only. |
 | `src/fs/` | `file.zig`: bounded loads, atomic saves that keep permissions, owner and group, and symbolic links and refuse to split hard links, new files that never replace one, and names cut between characters to fit; `temp.zig`: the temporary file a save writes, beside the file and named after it (`.notes.txt.<random>.tmp`); `disk.zig`: what a file was on disk when read or written, so a save never writes over a change made since; `link.zig`: the file a path names once its links are followed; `owner.zig`: a file's owner and group, which a save keeps where the user may; `reason.zig`: why a file failed, in words for a message. |
 | `scripts/` | `field-validation-corpus.sh`: the files a field validation pass edits, the same bytes every time (see "Field validation"); `bolt.sh`: the LTO build laid out again by `llvm-bolt` from scripted tmux sessions, and `install.sh`: a binary copied to `$PREFIX/bin`, both run by the `Makefile` for local installs. |
-| `tests/` | Integration tests, built against the `neocaca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig`, `commands_test.zig` (the `:` commands), `form_test.zig` (CRLF files, byte order marks, missing final newlines and empty files on screen and on disk), `messages_test.zig` (why a file or pattern failed, in words) and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
+| `tests/` | Integration tests, built against the `caca` module: `harness.zig` drives a whole session from scripted key bytes; `editing_test.zig`, `commands_test.zig` (the `:` commands), `form_test.zig` (CRLF files, byte order marks, missing final newlines and empty files on screen and on disk), `messages_test.zig` (why a file or pattern failed, in words) and `display_test.zig` assert on the buffers, files and `Screen`; `random_test.zig` types random keys from fixed seeds, with memory running short at random, and checks the selections, the frames and that everything undoes; `counts_test.zig` types counts before moves on one selection and on thousands, which must answer at once; `terminal_test.zig` runs the editor on a pseudo-terminal end to end; `root.zig` gathers them for the test step. |
 
 ## Keybinding model (Kakoune-inspired)
 
-neocaca's modal editing follows the *conceptual* model popularised by
+caca's modal editing follows the *conceptual* model popularised by
 Kakoune, designed and implemented independently (see "Clean-room policy"):
 
 - **Selection first, verb second.** In normal mode keys first select text
@@ -459,7 +459,7 @@ light and a dark theme. The `checking-screen-output` skill has the steps.
 ## Field validation
 
 Tests prove each piece; a field validation pass proves that real work gets done.
-For one sitting, neocaca is the only editor, in ReleaseSafe, on real
+For one sitting, caca is the only editor, in ReleaseSafe, on real
 tasks: changing this repository, writing a Git commit message, reading a
 100 MB log, editing a million-row CSV and files from other systems,
 hostile and binary files, a misbehaving terminal and a full disk. The
@@ -480,5 +480,5 @@ passes are in [`docs/field-validation.md`](docs/field-validation.md); the
   pass before a release, runs `zig build compare -Deditors=kak,hx,nvim,vim,flow`
   against their current releases, replaces the "Measured" table in
   `TODO.md` and brings the features and "Still behind" up to date from
-  their documentation. Every row neocaca loses to any of them, and every
+  their documentation. Every row caca loses to any of them, and every
   row that got worse, gets a `TODO.md` item; the aim is to lose none.

@@ -1,9 +1,9 @@
 ---
 name: steward
-description: Use when driving an open neocaca pull request to green - CI failures, title or test-ratio problems, review comments, or merge conflicts with main.
+description: Use when driving an open caca pull request to green - CI failures, title or test-ratio problems, review comments, or merge conflicts with main.
 ---
 
-# Stewarding a neocaca pull request
+# Stewarding a caca pull request
 
 ## Conventions
 

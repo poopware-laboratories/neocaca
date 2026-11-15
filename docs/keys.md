@@ -1,6 +1,6 @@
 # Key reference
 
-This document is the reference for neocaca's modal key bindings. The
+This document is the reference for caca's modal key bindings. The
 editing model (selection first, verb second, multiple selections) is
 described in [`AGENTS.md`](../AGENTS.md#keybinding-model-kakoune-inspired).
 The bindings are implemented in `src/input/keymap.zig`, and every binding

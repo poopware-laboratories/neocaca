@@ -1,20 +1,20 @@
 //! Entry point: process setup only. Picks the process allocator, sets up
-//! I/O, the arguments and the terminal, and hands them to `neocaca.app.run`;
+//! I/O, the arguments and the terminal, and hands them to `caca.app.run`;
 //! its panic handler restores the terminal first.
 
 const std = @import("std");
 const builtin = @import("builtin");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 
 /// Puts the terminal back before the default handler prints the panic.
 pub const panic = std.debug.FullPanic(restoreThenPanic);
 
 fn restoreThenPanic(msg: []const u8, first_trace_addr: ?usize) noreturn {
-    neocaca.term.tty.restoreActive();
+    caca.term.tty.restoreActive();
     std.debug.defaultPanic(msg, first_trace_addr);
 }
 
-const Gpa = neocaca.alloc.process.Gpa(neocaca.alloc.process.kindFor(builtin.mode));
+const Gpa = caca.alloc.process.Gpa(caca.alloc.process.kindFor(builtin.mode));
 
 pub fn main(init: std.process.Init.Minimal) !u8 {
     var gpa_state: Gpa = .init();
@@ -35,14 +35,14 @@ pub fn main(init: std.process.Init.Minimal) !u8 {
     var err_buf: [1024]u8 = undefined;
     var out: std.Io.File.Writer = .init(.stdout(), io, &out_buf);
     var err: std.Io.File.Writer = .init(.stderr(), io, &err_buf);
-    const env: neocaca.app.Env = .{
+    const env: caca.app.Env = .{
         .gpa = gpa,
         .io = io,
         .dir = std.Io.Dir.cwd(),
         .in = std.posix.STDIN_FILENO,
         .out = std.posix.STDOUT_FILENO,
     };
-    const code = try neocaca.app.run(env, args, &out.interface, &err.interface);
+    const code = try caca.app.run(env, args, &out.interface, &err.interface);
     try out.interface.flush();
     try err.interface.flush();
     return @backingInt(code);

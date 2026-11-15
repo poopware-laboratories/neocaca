@@ -33,14 +33,14 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
     const path: ?[]const u8 = if (files.len > 0) files[0] else null;
     var session = Session.init(env.gpa, env.io, env.dir, path, fallback_size.width, fallback_size.height) catch |e| {
         switch (e) {
-            error.OutOfMemory => try err.writeAll("neocaca: out of memory\n"),
-            else => try err.print("neocaca: cannot open \"{f}\": {s}\n", .{ visible.of(path.?), fs.describe(e) }),
+            error.OutOfMemory => try err.writeAll("caca: out of memory\n"),
+            else => try err.print("caca: cannot open \"{f}\": {s}\n", .{ visible.of(path.?), fs.describe(e) }),
         }
         return .failure;
     };
     defer session.deinit();
     var tty = term.Tty.open(env.in, env.out) catch |e| {
-        try err.print("neocaca: {s}\n", .{describeOpen(e)});
+        try err.print("caca: {s}\n", .{describeOpen(e)});
         return .failure;
     };
     defer tty.restore();
@@ -63,9 +63,9 @@ pub fn edit(env: Env, files: []const []const u8, err: *std.Io.Writer) std.Io.Wri
 /// Says what stopped the loop, then saves what can be saved.
 fn stopped(session: *Session, e: anyerror, err: *std.Io.Writer) std.Io.Writer.Error!void {
     if (stopDetail(e)) |detail| {
-        try err.print("neocaca: {s}: {s}\n", .{ describeStop(e), detail });
+        try err.print("caca: {s}: {s}\n", .{ describeStop(e), detail });
     } else {
-        try err.print("neocaca: {s}\n", .{describeStop(e)});
+        try err.print("caca: {s}\n", .{describeStop(e)});
     }
     _ = try recover(session, err);
 }
@@ -79,11 +79,11 @@ fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code
     switch (session.recover(&buf)) {
         .none => return .ok,
         .written => |where| {
-            try err.print("neocaca: unsaved changes written to \"{f}\"\n", .{visible.of(where)});
+            try err.print("caca: unsaved changes written to \"{f}\"\n", .{visible.of(where)});
             return .ok;
         },
         .failed => |e| {
-            try err.print("neocaca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)});
+            try err.print("caca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)});
             return .failure;
         },
     }
@@ -153,8 +153,8 @@ test "edit: a bug that stops the loop is reported, and the changes kept" {
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.FinalNewline, &err);
     try std.testing.expectEqualStrings(
-        \\neocaca: an internal error stopped the editor (please report it): FinalNewline
-        \\neocaca: unsaved changes written to "f.recovered"
+        \\caca: an internal error stopped the editor (please report it): FinalNewline
+        \\caca: unsaved changes written to "f.recovered"
         \\
     , err.buffered());
     var text: [16]u8 = undefined;
@@ -170,7 +170,7 @@ test "edit: a terminal that fails after :q has nothing to recover" {
     var err_buf: [256]u8 = undefined;
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.InputOutput, &err);
-    try std.testing.expectEqualStrings("neocaca: the terminal failed: an input/output error\n", err.buffered());
+    try std.testing.expectEqualStrings("caca: the terminal failed: an input/output error\n", err.buffered());
 }
 
 test "edit: changes that cannot be recovered are said to be lost" {
@@ -184,8 +184,8 @@ test "edit: changes that cannot be recovered are said to be lost" {
     var err: std.Io.Writer = .fixed(&err_buf);
     try stopped(&session, error.OutOfMemory, &err);
     try std.testing.expectEqualStrings(
-        \\neocaca: out of memory
-        \\neocaca: the unsaved changes could not be written: no such file or directory
+        \\caca: out of memory
+        \\caca: the unsaved changes could not be written: no such file or directory
         \\
     , err.buffered());
 }
@@ -212,8 +212,8 @@ test "edit: after a hang-up, the exit fails only when changes were lost" {
     try lost.timeout();
     try std.testing.expectEqual(.failure, try recover(&lost, &err));
     try std.testing.expectEqualStrings(
-        \\neocaca: unsaved changes written to "k.recovered"
-        \\neocaca: the unsaved changes could not be written: no such file or directory
+        \\caca: unsaved changes written to "k.recovered"
+        \\caca: the unsaved changes could not be written: no such file or directory
         \\
     , err.buffered());
 }
@@ -227,7 +227,7 @@ test "edit: standard input that is not a terminal is a failure, said plainly" {
     var err: std.Io.Writer = .fixed(&err_buf);
     const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = std.Io.Dir.cwd(), .in = p[0], .out = p[1] };
     try std.testing.expectEqual(.failure, try edit(env, &.{"x"}, &err));
-    try std.testing.expectEqualStrings("neocaca: standard input is not a terminal\n", err.buffered());
+    try std.testing.expectEqualStrings("caca: standard input is not a terminal\n", err.buffered());
 }
 
 test "edit: a file that cannot be read is refused before the terminal is touched" {
@@ -242,7 +242,7 @@ test "edit: a file that cannot be read is refused before the terminal is touched
     var err: std.Io.Writer = .fixed(&err_buf);
     const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = tmp.dir, .in = p[0], .out = p[1] };
     try std.testing.expectEqual(.failure, try edit(env, &.{"d"}, &err));
-    try std.testing.expectEqualStrings("neocaca: cannot open \"d\": is a directory\n", err.buffered());
+    try std.testing.expectEqualStrings("caca: cannot open \"d\": is a directory\n", err.buffered());
 }
 
 test "edit: a name too long to open is refused with its reason whole" {
@@ -251,7 +251,7 @@ test "edit: a name too long to open is refused with its reason whole" {
     var err: std.Io.Writer = .fixed(&err_buf);
     const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = std.Io.Dir.cwd(), .in = -1, .out = -1 };
     try std.testing.expectEqual(.failure, try edit(env, &.{long}, &err));
-    try std.testing.expectEqualStrings("neocaca: cannot open \"" ++ long ++ "\": the name is too long\n", err.buffered());
+    try std.testing.expectEqualStrings("caca: cannot open \"" ++ long ++ "\": the name is too long\n", err.buffered());
 }
 
 test "edit: a file in a missing directory is not refused, it goes on to the terminal" {
@@ -265,5 +265,5 @@ test "edit: a file in a missing directory is not refused, it goes on to the term
     var err: std.Io.Writer = .fixed(&err_buf);
     const env: Env = .{ .gpa = std.testing.allocator, .io = std.testing.io, .dir = tmp.dir, .in = p[0], .out = p[1] };
     try std.testing.expectEqual(.failure, try edit(env, &.{"gone/f"}, &err));
-    try std.testing.expectEqualStrings("neocaca: standard input is not a terminal\n", err.buffered());
+    try std.testing.expectEqualStrings("caca: standard input is not a terminal\n", err.buffered());
 }

@@ -14,12 +14,12 @@ pub const Env = editing.Env;
 /// names.
 pub fn run(env: Env, args: []const []const u8, out: *std.Io.Writer, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code {
     const command = cli.parse(args) catch |e| {
-        try err.print("neocaca: {s}\n\n{s}", .{ cli.describe(e), cli.usage });
+        try err.print("caca: {s}\n\n{s}", .{ cli.describe(e), cli.usage });
         return .usage;
     };
     switch (command) {
         .help => try out.writeAll(cli.usage),
-        .version => try out.print("neocaca {s}\n", .{build_options.version}),
+        .version => try out.print("caca {s}\n", .{build_options.version}),
         .edit => |files| return editing.edit(env, files, err),
     }
     return .ok;

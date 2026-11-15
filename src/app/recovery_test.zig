@@ -16,8 +16,8 @@ test "recovery: the names tried, in order" {
     try expectEqualStrings("notes.txt.recovered.1", try recovery.name(&buf, "notes.txt", 1));
     try expectEqualStrings("d/f.recovered.99", try recovery.name(&buf, "d/f", 99));
     // A scratch buffer has no file of its own.
-    try expectEqualStrings("neocaca.recovered", try recovery.name(&buf, null, 0));
-    try expectEqualStrings("neocaca.recovered.2", try recovery.name(&buf, null, 2));
+    try expectEqualStrings("caca.recovered", try recovery.name(&buf, null, 0));
+    try expectEqualStrings("caca.recovered.2", try recovery.name(&buf, null, 2));
 }
 
 test "recovery: a name too long for its suffix is cut to fit" {
@@ -109,9 +109,9 @@ test "recovery: a scratch buffer is written in the directory" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     var buf: [recovery.max_name]u8 = undefined;
-    try expectEqualStrings("neocaca.recovered", try recovery.write(io, tmp.dir, null, "x\n", &buf));
+    try expectEqualStrings("caca.recovered", try recovery.write(io, tmp.dir, null, "x\n", &buf));
     var text: [16]u8 = undefined;
-    try expectEqualStrings("x\n", try tmp.dir.readFile(io, "neocaca.recovered", &text));
+    try expectEqualStrings("x\n", try tmp.dir.readFile(io, "caca.recovered", &text));
 }
 
 test "recovery: the last name is still tried" {

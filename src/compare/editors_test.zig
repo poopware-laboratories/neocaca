@@ -25,7 +25,7 @@ test "editors: a list names editors by name or command, with optional paths" {
     try expectEqualStrings("./flow", got[4].path.?);
 }
 
-test "editors: an empty list measures neocaca alone" {
+test "editors: an empty list measures caca alone" {
     var buf: [editors.max_editors]Choice = undefined;
     try expectEqual(0, (try parse("", &buf)).len);
     try expectEqual(0, (try parse("  ", &buf)).len);
@@ -58,19 +58,19 @@ test "editors: an unknown editor, an empty name or an empty path is an error" {
     try expectError(error.EmptyPath, parse("kak= ", &buf));
 }
 
-test "editors: an editor listed twice, or neocaca itself, is an error" {
+test "editors: an editor listed twice, or caca itself, is an error" {
     var buf: [editors.max_editors]Choice = undefined;
     try expectError(error.Duplicate, parse("kak,hx,kakoune", &buf));
     try expectError(error.Duplicate, parse("vim=/a,vim=/b", &buf));
-    // neocaca is always the first column.
-    try expectError(error.Duplicate, parse("neocaca", &buf));
+    // caca is always the first column.
+    try expectError(error.Duplicate, parse("caca", &buf));
 }
 
 test "editors: each error says what was wrong" {
     try expectEqualStrings("unknown editor; known: kakoune (kak), helix (hx), neovim (nvim), vim, flow", editors.message(error.UnknownEditor));
     try expectEqualStrings("an empty name in the list", editors.message(error.EmptyName));
     try expectEqualStrings("an empty path after =", editors.message(error.EmptyPath));
-    try expectEqualStrings("an editor listed twice (neocaca is always measured)", editors.message(error.Duplicate));
+    try expectEqualStrings("an editor listed twice (caca is always measured)", editors.message(error.Duplicate));
 }
 
 test "editors: every editor known can be listed at once" {
@@ -82,7 +82,7 @@ test "editors: every editor known can be listed at once" {
 test "editors: lookup finds a profile by its name or its command only" {
     try expectEqualStrings("helix", editors.lookup("hx").?.name);
     try expectEqualStrings("helix", editors.lookup("helix").?.name);
-    try expectEqualStrings("neocaca", editors.lookup("neocaca").?.name);
+    try expectEqualStrings("caca", editors.lookup("caca").?.name);
     try expectEqual(null, editors.lookup("h"));
     try expectEqual(null, editors.lookup(""));
 }
@@ -150,7 +150,7 @@ test "editors: tabs count as blanks" {
     try expectEqualStrings("/usr/bin/nvim", got[1].path.?);
 }
 
-test "editors: every editor but neocaca can be listed by each of its commands" {
+test "editors: every editor but caca can be listed by each of its commands" {
     for (editors.profiles[1..]) |*p| {
         for (p.commands) |c| {
             var buf: [editors.max_editors]Choice = undefined;
@@ -170,7 +170,7 @@ test "editors: the first wrong item decides the error" {
     try expectError(error.Duplicate, parse("kak,kak=", &buf));
 }
 
-test "editors: neocaca comes first" {
-    try expectEqualStrings("neocaca", editors.profiles[0].name);
-    try expectEqual(&editors.profiles[0], editors.neocaca);
+test "editors: caca comes first" {
+    try expectEqualStrings("caca", editors.profiles[0].name);
+    try expectEqual(&editors.profiles[0], editors.caca);
 }

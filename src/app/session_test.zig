@@ -132,7 +132,7 @@ test "session: recovering a scratch buffer, and failing to" {
     defer s.deinit();
     try typeKeys(&s, "iscratch\x1b");
     var buf: [recovery.max_name]u8 = undefined;
-    try expectEqualStrings("neocaca.recovered", (s.recover(&buf)).written);
+    try expectEqualStrings("caca.recovered", (s.recover(&buf)).written);
     var t: Session = try .init(gpa, io, tmp.dir, "gone/f", 20, 4);
     defer t.deinit();
     try typeKeys(&t, "ix\x1b");

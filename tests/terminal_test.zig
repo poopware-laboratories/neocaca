@@ -5,11 +5,11 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 
 const posix = std.posix;
 const io = std.testing.io;
-const modes = neocaca.term.modes;
+const modes = caca.term.modes;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
@@ -32,7 +32,7 @@ const Run = struct {
     tmp: std.testing.TmpDir,
     /// The editor's thread, until it is joined.
     thread: ?std.Thread = null,
-    code: neocaca.app.exit.Code = .failure,
+    code: caca.app.exit.Code = .failure,
     /// Room for a message naming a file of the longest name there is.
     err_buf: [1024]u8 = undefined,
     err: std.Io.Writer = undefined,
@@ -76,14 +76,14 @@ const Run = struct {
     }
 
     fn edit(self: *Run, files: []const []const u8) void {
-        const env: neocaca.app.Env = .{
+        const env: caca.app.Env = .{
             .gpa = std.testing.allocator,
             .io = io,
             .dir = self.tmp.dir,
             .in = self.slave,
             .out = self.slave,
         };
-        self.code = neocaca.app.edit.edit(env, files, &self.err) catch .failure;
+        self.code = caca.app.edit.edit(env, files, &self.err) catch .failure;
     }
 
     /// Reads what the editor writes until it has been quiet for `quiet_ms`.
@@ -122,7 +122,7 @@ const Run = struct {
     }
 
     /// Waits for the editor to finish; its exit code.
-    fn finish(self: *Run) !neocaca.app.exit.Code {
+    fn finish(self: *Run) !caca.app.exit.Code {
         // Keep reading so the editor's last writes never block on a full
         // terminal.
         var done = std.atomic.Value(bool).init(false);
@@ -150,7 +150,7 @@ test "terminal: edit a file, write it and quit, leaving the terminal as it was" 
     try r.open(40, 8);
     defer r.close();
     try r.tmp.dir.writeFile(io, .{ .sub_path = "a.txt", .data = "world\n" });
-    const before = try neocaca.term.attr.get(r.slave);
+    const before = try caca.term.attr.get(r.slave);
 
     try r.start(&.{"a.txt"});
     try r.drain(200);
@@ -169,7 +169,7 @@ test "terminal: edit a file, write it and quit, leaving the terminal as it was" 
     try expect(std.mem.endsWith(u8, r.seen.items, modes.leave));
     try expectEqual(1, r.sawCount(modes.enter));
     try expectEqual(1, r.sawCount(modes.leave));
-    const after = try neocaca.term.attr.get(r.slave);
+    const after = try caca.term.attr.get(r.slave);
     try expectEqual(before.lflag, after.lflag);
     try expectEqual(before.iflag, after.iflag);
     try expectEqual(before.oflag, after.oflag);
@@ -242,7 +242,7 @@ test "terminal: being asked to end (SIGTERM) restores the terminal and recovers 
     try r.open(30, 6);
     defer r.close();
     try r.tmp.dir.writeFile(io, .{ .sub_path = "keep", .data = "safe\n" });
-    const before = try neocaca.term.attr.get(r.slave);
+    const before = try caca.term.attr.get(r.slave);
     try r.start(&.{"keep"});
     try r.drain(200);
     const typed = r.seen.items.len;
@@ -257,7 +257,7 @@ test "terminal: being asked to end (SIGTERM) restores the terminal and recovers 
     try expect(std.mem.indexOf(u8, r.err.buffered(), "unsaved changes written to \"keep.recovered\"") != null);
     // The terminal is as it was: the modes left, the settings back.
     try expect(std.mem.endsWith(u8, r.seen.items, modes.leave));
-    const after = try neocaca.term.attr.get(r.slave);
+    const after = try caca.term.attr.get(r.slave);
     try expectEqual(before.lflag, after.lflag);
     try expectEqual(before.iflag, after.iflag);
 }
@@ -310,7 +310,7 @@ test "terminal: a file that cannot be opened is named on stderr with its control
     try r.tmp.dir.createDir(io, name, .default_dir);
     try r.start(&.{name});
     try expectEqual(.failure, try r.finish());
-    try expectEqualStrings("neocaca: cannot open \"x^[]0;T^Gy\": is a directory\n", r.err.buffered());
+    try expectEqualStrings("caca: cannot open \"x^[]0;T^Gy\": is a directory\n", r.err.buffered());
 }
 
 test "terminal: a recovery file named with control bytes is named on stderr with them drawn" {
@@ -330,7 +330,7 @@ test "terminal: a recovery file named with control bytes is named on stderr with
     r.thread = null;
     var buf: [64]u8 = undefined;
     try expectEqualStrings("xsafe\n", try r.tmp.dir.readFile(io, name ++ ".recovered", &buf));
-    try expectEqualStrings("neocaca: unsaved changes written to \"a^[[2Jb.recovered\"\n", r.err.buffered());
+    try expectEqualStrings("caca: unsaved changes written to \"a^[[2Jb.recovered\"\n", r.err.buffered());
 }
 
 test "terminal: getting the focus back says the file changed on disk" {

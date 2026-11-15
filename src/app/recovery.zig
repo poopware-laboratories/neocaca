@@ -1,6 +1,6 @@
 //! Recovery files: when the terminal goes away with changes unsaved, the
 //! text is written beside its file as `<file>.recovered` (a scratch buffer
-//! as `neocaca.recovered`), or `.recovered.1` and on when that is taken.
+//! as `caca.recovered`), or `.recovered.1` and on when that is taken.
 //! A file name too long for the suffix is cut, between characters, so the
 //! recovery name fits the system's limit on a name. A recovery file never
 //! replaces anything.
@@ -28,7 +28,7 @@ pub fn describe(e: Error) []const u8 {
 /// Only the file's own name is cut to fit; a path whose directories leave
 /// no room fails.
 pub fn name(buf: *[max_name]u8, path: ?[]const u8, n: usize) error{NameTooLong}![]const u8 {
-    const full = path orelse "neocaca";
+    const full = path orelse "caca";
     const dir_len = if (std.mem.lastIndexOfScalar(u8, full, '/')) |i| i + 1 else 0;
     var suffix_buf: [".recovered.".len + 20]u8 = undefined;
     const suffix = if (n == 0) ".recovered" else std.fmt.bufPrint(&suffix_buf, ".recovered.{d}", .{n}) catch unreachable;

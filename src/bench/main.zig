@@ -5,8 +5,8 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const neocaca = @import("neocaca");
-const kernels = neocaca.simd;
+const caca = @import("caca");
+const kernels = caca.simd;
 const measure = @import("measure.zig");
 const sample = @import("text.zig");
 
@@ -14,7 +14,7 @@ const input_len = 64 << 20;
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
-    const gpa = neocaca.alloc.mimalloc.allocator();
+    const gpa = caca.alloc.mimalloc.allocator();
     const text = try gpa.alloc(u8, input_len);
     defer gpa.free(text);
     sample.fill(text);

@@ -1,4 +1,4 @@
-//! Build graph: the neocaca library module (with mimalloc compiled in), the
+//! Build graph: the caca library module (with mimalloc compiled in), the
 //! editor executable, the test step, the benchmark step, the comparison
 //! with other editors and the 3:1 count.
 
@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "version", @import("build.zig.zon").version);
     const options_mod = options.createModule();
 
-    const mod = b.addModule("neocaca", .{
+    const mod = b.addModule("caca", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -41,12 +41,12 @@ pub fn build(b: *std.Build) void {
     addMimalloc(mod, mimalloc, optimize, secure);
 
     const exe = b.addExecutable(.{
-        .name = "neocaca",
+        .name = "caca",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "neocaca", .module = mod }},
+            .imports = &.{.{ .name = "caca", .module = mod }},
         }),
     });
     exe.lto = lto;
@@ -69,7 +69,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "neocaca", .module = mod }},
+        .imports = &.{.{ .name = "caca", .module = mod }},
     });
 
     const test_step = b.step("test", "Run all tests");
@@ -89,12 +89,12 @@ pub fn build(b: *std.Build) void {
     });
     addMimalloc(bench_lib, mimalloc, bench_optimize, secure);
     const bench = b.addExecutable(.{
-        .name = "neocaca-bench",
+        .name = "caca-bench",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/bench/main.zig"),
             .target = target,
             .optimize = bench_optimize,
-            .imports = &.{.{ .name = "neocaca", .module = bench_lib }},
+            .imports = &.{.{ .name = "caca", .module = bench_lib }},
         }),
     });
     const bench_step = b.step("bench", "Run the benchmarks");
@@ -102,10 +102,10 @@ pub fn build(b: *std.Build) void {
     bench_cmd.addPassthruArgs();
     bench_step.dependOn(&bench_cmd.step);
 
-    // `zig build compare [-Deditors=kak,hx,nvim,vim,flow=<path>]`: neocaca
+    // `zig build compare [-Deditors=kak,hx,nvim,vim,flow=<path>]`: caca
     // as shipped (ReleaseSafe), alone or beside other editors, on a
     // pseudo-terminal.
-    const compared = b.option([]const u8, "editors", "The editors `zig build compare` measures beside neocaca: kakoune (kak), helix (hx), neovim (nvim), vim, flow, each name=path if not on PATH") orelse "";
+    const compared = b.option([]const u8, "editors", "The editors `zig build compare` measures beside caca: kakoune (kak), helix (hx), neovim (nvim), vim, flow, each name=path if not on PATH") orelse "";
     const safe_lib = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -115,26 +115,26 @@ pub fn build(b: *std.Build) void {
     });
     addMimalloc(safe_lib, mimalloc, .safe, secure);
     const safe_exe = b.addExecutable(.{
-        .name = "neocaca",
+        .name = "caca",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = .safe,
-            .imports = &.{.{ .name = "neocaca", .module = safe_lib }},
+            .imports = &.{.{ .name = "caca", .module = safe_lib }},
         }),
     });
     const compare = b.addExecutable(.{
-        .name = "neocaca-compare",
+        .name = "caca-compare",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/bench/compare.zig"),
             .target = target,
             .optimize = .safe,
-            .imports = &.{.{ .name = "neocaca", .module = safe_lib }},
+            .imports = &.{.{ .name = "caca", .module = safe_lib }},
         }),
     });
     // Compiled on every target in CI, since nothing else uses the driver.
     b.step("compare-build", "Compile zig build compare's driver without running it").dependOn(&compare.step);
-    const compare_step = b.step("compare", "Measure neocaca, beside the editors in -Deditors if any");
+    const compare_step = b.step("compare", "Measure caca, beside the editors in -Deditors if any");
     const compare_cmd = b.addRunArtifact(compare);
     compare_cmd.addArtifactArg(safe_exe);
     compare_cmd.addArg(compared);
@@ -145,12 +145,12 @@ pub fn build(b: *std.Build) void {
     // `zig build ratio -- <diff>`: the 3:1 rule over a diff, as CI runs it
     // on every pull request; run from the repository root.
     const ratio = b.addExecutable(.{
-        .name = "neocaca-ratio",
+        .name = "caca-ratio",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/tools/ratio.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "neocaca", .module = mod }},
+            .imports = &.{.{ .name = "caca", .module = mod }},
         }),
     });
     const ratio_cmd = b.addRunArtifact(ratio);
@@ -161,12 +161,12 @@ pub fn build(b: *std.Build) void {
     // `zig build release -- <command>`: the steps of a release,
     // commit messages on standard input; run from the repository root.
     const release = b.addExecutable(.{
-        .name = "neocaca-release",
+        .name = "caca-release",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/tools/release.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "neocaca", .module = mod }},
+            .imports = &.{.{ .name = "caca", .module = mod }},
         }),
     });
     const release_cmd = b.addRunArtifact(release);

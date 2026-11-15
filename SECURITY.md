@@ -1,7 +1,7 @@
 # Security policy
 
 An editor opens files it did not write, inside a terminal that obeys
-escape sequences. neocaca treats both as hostile. This document describes
+escape sequences. caca treats both as hostile. This document describes
 the threats it defends against, the limits it enforces, and how to report
 a vulnerability.
 
@@ -16,7 +16,7 @@ a vulnerability.
 > [!CAUTION]
 > **Security problems must not be reported in public issues.** Report
 > them privately through GitHub:
-> [**Report a vulnerability**](https://github.com/poopware-laboratories/neocaca/security/advisories/new)
+> [**Report a vulnerability**](https://github.com/poopware-laboratories/caca/security/advisories/new)
 > (the *Security* tab, then *Report a vulnerability*).
 
 Where that form is unavailable, open an issue that asks only for a private
@@ -43,14 +43,14 @@ disclosing the problem.
 
 ## Supported versions
 
-neocaca has no releases yet. Fixes go to `main` only. Once releases exist,
+caca has no releases yet. Fixes go to `main` only. Once releases exist,
 this section will list which ones receive security fixes.
 
 ## Untrusted input
 
 Each kind of input below is assumed to be crafted by an attacker.
 
-| Input | What could go wrong | How neocaca handles it |
+| Input | What could go wrong | How caca handles it |
 |-------|---------------------|------------------------|
 | File contents | Escape sequences that retitle, recolor or reprogram the terminal; invalid UTF-8; NUL bytes; huge lines and files | Control bytes are drawn as visible text (`^[`), never written raw; UTF-8 decoding never fails and shows bad bytes as U+FFFD; loads are capped at 256 MiB (`fs.max_file`) |
 | Special files | A named pipe that never answers, a device that never ends (`/dev/zero`) | Only regular files are loaded; anything else is refused with `NotAFile` |
@@ -92,7 +92,7 @@ The following are not treated as vulnerabilities:
 
 - attacks that require the attacker to run code as the user already, or
   to modify the build environment;
-- defects in the terminal emulator itself, unless neocaca sends it
+- defects in the terminal emulator itself, unless caca sends it
   something that came from a file;
 - assertion failures in Debug builds. These are bugs and should be
   reported through an ordinary issue, unless they lead to something more

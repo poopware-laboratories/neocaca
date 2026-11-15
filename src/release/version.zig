@@ -1,6 +1,6 @@
 //! Release versions: `major.minor.patch`, three plain decimal numbers
 //! (Semantic Versioning 2.0.0, section 2, without its pre-release and
-//! build suffixes, which neocaca's releases do not use).
+//! build suffixes, which caca's releases do not use).
 
 const std = @import("std");
 

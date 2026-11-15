@@ -3,8 +3,8 @@
 const std = @import("std");
 
 pub const text =
-    \\Usage: neocaca [file...]
-    \\       neocaca -- [file...]   (names after -- are never flags)
+    \\Usage: caca [file...]
+    \\       caca -- [file...]   (names after -- are never flags)
     \\
     \\  -h, --help      Show this help
     \\  -V, --version   Show the version

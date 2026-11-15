@@ -3,7 +3,7 @@
 //! typed as a person types it (the `:` commands are in `commands_test.zig`).
 
 const std = @import("std");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 const Harness = @import("harness.zig").Harness;
 
 const expect = std.testing.expect;
@@ -321,8 +321,8 @@ test "editing: indenting a line that starts with a mark keeps the selection on a
     try h.typeKeys(">");
     const sel = h.session.ed.doc.sels()[0];
     const text = h.text();
-    try expectEqual(neocaca.unicode.chars.holding(text, sel.anchor), sel.anchor);
-    try expectEqual(neocaca.unicode.chars.holding(text, sel.cursor), sel.cursor);
+    try expectEqual(caca.unicode.chars.holding(text, sel.anchor), sel.anchor);
+    try expectEqual(caca.unicode.chars.holding(text, sel.cursor), sel.cursor);
     // Deleting it takes whole characters, never half of one.
     try h.typeKeys("d");
     try h.expectText("   a\n");

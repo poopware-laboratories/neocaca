@@ -79,7 +79,7 @@ printf 'all:\n\tzig build\n\ntest:\n\tzig build test\n' >Makefile
 # Hostile and binary content: escape sequences, NUL, invalid UTF-8, an
 # executable.
 printf 'title \033]0;owned\007 clear \033[2J red \033[31mred\033[0m nul \000 bad \377\376 c1 \302\233\n' >escapes.txt
-cp "$repo/zig-out/bin/neocaca" binary 2>/dev/null || cp /bin/sh binary
+cp "$repo/zig-out/bin/caca" binary 2>/dev/null || cp /bin/sh binary
 
 # Paths that are not plain files.
 ln -s unicode.txt link-to-unicode.txt

@@ -1,4 +1,4 @@
-//! The neocaca library: everything the editor is made of, importable by
+//! The caca library: everything the editor is made of, importable by
 //! the executable, the tests and the benchmarks. Each subsystem is a
 //! namespace file here with its own folder (`app.zig` and `app/`, ...).
 

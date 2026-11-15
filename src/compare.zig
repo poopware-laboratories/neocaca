@@ -1,4 +1,4 @@
-//! Measuring neocaca, alone or beside other editors, on a pseudo-terminal,
+//! Measuring caca, alone or beside other editors, on a pseudo-terminal,
 //! for `zig build compare` (`src/bench/compare.zig` runs the editors):
 //! `compare/editors.zig` (the editors known and the list choosing them),
 //! `compare/replies.zig` (the answers a terminal gives to the queries an

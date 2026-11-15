@@ -1,8 +1,8 @@
 #!/bin/sh
-# Installs a built neocaca binary system-wide, for local use; packaging
+# Installs a built caca binary system-wide, for local use; packaging
 # comes later.
 #
-#   scripts/install.sh BINARY     # copies BINARY to $PREFIX/bin/neocaca
+#   scripts/install.sh BINARY     # copies BINARY to $PREFIX/bin/caca
 #   scripts/install.sh --uninstall
 #
 # Run it as yourself: it asks for root (sudo or doas) only to copy, so the
@@ -41,8 +41,8 @@ if [ ! -w "$target" ]; then
 fi
 
 if [ "$1" = --uninstall ]; then
-	$as_root rm -f "$bindir/neocaca"
-	echo "Removed $bindir/neocaca"
+	$as_root rm -f "$bindir/caca"
+	echo "Removed $bindir/caca"
 	exit 0
 fi
 
@@ -51,6 +51,6 @@ fi
 	exit 1
 }
 # install(1) replaces the file instead of writing into it, so a running
-# neocaca keeps its old binary.
-$as_root install -D -m 755 "$1" "$bindir/neocaca"
-echo "Installed $bindir/neocaca ($("$bindir/neocaca" --version))"
+# caca keeps its old binary.
+$as_root install -D -m 755 "$1" "$bindir/caca"
+echo "Installed $bindir/caca ($("$bindir/caca" --version))"

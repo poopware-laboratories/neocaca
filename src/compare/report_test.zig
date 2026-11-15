@@ -92,8 +92,8 @@ test "row: a measurement and one cell per editor, as a table row" {
 test "row: the header names the editors and rules the table" {
     var buf: [256]u8 = undefined;
     var w: std.Io.Writer = .fixed(&buf);
-    try report.header(&w, &.{ "neocaca", "flow" });
-    try expectEqualStrings("| | neocaca | flow |\n|---|---:|---:|\n", w.buffered());
+    try report.header(&w, &.{ "caca", "flow" });
+    try expectEqualStrings("| | caca | flow |\n|---|---:|---:|\n", w.buffered());
 }
 
 test "row: a table that does not fit is an error" {
@@ -154,17 +154,17 @@ test "cell: formats through print as well" {
 test "row: one editor, and none" {
     var buf: [256]u8 = undefined;
     var w: std.Io.Writer = .fixed(&buf);
-    try report.header(&w, &.{"neocaca"});
+    try report.header(&w, &.{"caca"});
     try report.row(&w, "startup", &.{.timed_out});
     try report.header(&w, &.{});
     try report.row(&w, "nothing", &.{});
-    try expectEqualStrings("| | neocaca |\n|---|---:|\n| startup | timed out |\n| |\n|---|\n| nothing |\n", w.buffered());
+    try expectEqualStrings("| | caca |\n|---|---:|\n| startup | timed out |\n| |\n|---|\n| nothing |\n", w.buffered());
 }
 
 test "row: a header that does not fit is an error" {
     var buf: [12]u8 = undefined;
     var w: std.Io.Writer = .fixed(&buf);
-    try std.testing.expectError(error.WriteFailed, report.header(&w, &.{ "neocaca", "flow" }));
+    try std.testing.expectError(error.WriteFailed, report.header(&w, &.{ "caca", "flow" }));
 }
 
 test "cell: seconds round half up at their last place" {
@@ -182,11 +182,11 @@ test "cell: repeated times each in the unit that fits it" {
 test "row: a column per editor, those without a feature marked so" {
     var buf: [512]u8 = undefined;
     var w: std.Io.Writer = .fixed(&buf);
-    try report.header(&w, &.{ "neocaca", "kakoune", "vim" });
+    try report.header(&w, &.{ "caca", "kakoune", "vim" });
     try report.row(&w, "make 10,000 selections", &.{ .{ .time = 2 * ms }, .{ .time = 40 * ms }, .unsupported });
     try report.row(&w, "memory, 10,000 selections", &.{ .{ .memory = 3 << 20 }, .{ .memory = 9 << 20 }, .unsupported });
     try expectEqualStrings(
-        \\| | neocaca | kakoune | vim |
+        \\| | caca | kakoune | vim |
         \\|---|---:|---:|---:|
         \\| make 10,000 selections | 2.00 ms | 40.0 ms | not supported |
         \\| memory, 10,000 selections | 3.0 MiB | 9.0 MiB | not supported |
@@ -199,12 +199,12 @@ test "row: a whole table from measured times" {
     var w: std.Io.Writer = .fixed(&buf);
     var a = [_]u64{ 4 * ms, 2 * ms, 3 * ms };
     var b = [_]u64{ 20 * ms, 10 * ms };
-    try report.header(&w, &.{ "neocaca", "flow" });
+    try report.header(&w, &.{ "caca", "flow" });
     try report.row(&w, "startup", &.{ .{ .times = report.summarize(&a).? }, .{ .times = report.summarize(&b).? } });
     try report.row(&w, "open 1 GiB", &.{ .refused, .{ .time = 43_610 * ms } });
     try report.row(&w, "memory", &.{ .{ .memory = 11 << 20 }, .{ .memory = 7 << 20 } });
     try expectEqualStrings(
-        \\| | neocaca | flow |
+        \\| | caca | flow |
         \\|---|---:|---:|
         \\| startup | 3.00 ms (p90 4.00 ms, max 4.00 ms) | 10.0 ms (p90 20.0 ms, max 20.0 ms) |
         \\| open 1 GiB | refused | 43.61 s |

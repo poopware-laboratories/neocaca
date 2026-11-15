@@ -1,19 +1,19 @@
-//! `zig build compare [-Deditors=kak,hx,nvim,vim,flow=<path>]`: neocaca
+//! `zig build compare [-Deditors=kak,hx,nvim,vim,flow=<path>]`: caca
 //! (ReleaseSafe, as shipped), alone or beside the editors listed, each
 //! run on a fresh pseudo-terminal with the same files and the same keys,
 //! timed from the start (launch, key sent) to the last byte of the frame
 //! that answers it. Prints a Markdown table, a column per editor.
 //!
-//! The pure parts live in `neocaca.compare`: the replies to the editors'
+//! The pure parts live in `caca.compare`: the replies to the editors'
 //! terminal queries, when a frame has come, the files and the report.
 //! This file only makes the files and runs the measurements;
 //! `pty.zig` runs an editor on its pseudo-terminal. POSIX only.
 
 const std = @import("std");
 const builtin = @import("builtin");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 
-const compare = neocaca.compare;
+const compare = caca.compare;
 const files = compare.files;
 const Cell = compare.report.Cell;
 const pty = @import("pty.zig");
@@ -159,7 +159,7 @@ pub fn main(init: std.process.Init) !void {
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
     if (args.len < 2) {
-        std.debug.print("usage: neocaca-compare <neocaca> [<editors, as kak,hx,flow=path>] [--trace]\n", .{});
+        std.debug.print("usage: caca-compare <caca> [<editors, as kak,hx,flow=path>] [--trace]\n", .{});
         return error.Usage;
     }
     var trace = false;
@@ -174,7 +174,7 @@ pub fn main(init: std.process.Init) !void {
     };
     // The editors run in the scratch directory: their paths must hold there.
     const all = try arena.alloc(Editor, 1 + others.len);
-    all[0] = .{ .profile = compare.editors.neocaca, .path = try absolute(arena, io, args[1]) };
+    all[0] = .{ .profile = compare.editors.caca, .path = try absolute(arena, io, args[1]) };
     for (others, all[1..]) |c, *e| {
         const path = c.path orelse try onPath(arena, io, init.environ_map.get("PATH") orelse "", c.profile.commands);
         e.* = .{ .profile = c.profile, .path = try absolute(arena, io, path) };
@@ -183,7 +183,7 @@ pub fn main(init: std.process.Init) !void {
 
     // A fresh directory for the files and for each editor's home.
     const base = init.environ_map.get("TMPDIR") orelse "/tmp";
-    const dir = try arena.printSentinel("{s}/neocaca-compare-{d}", .{ base, std.c.getpid() }, 0);
+    const dir = try arena.printSentinel("{s}/caca-compare-{d}", .{ base, std.c.getpid() }, 0);
     const cwd = std.Io.Dir.cwd();
     try cwd.createDirPath(io, dir);
     defer cwd.deleteTree(io, dir) catch {}; // Only scratch files are lost if this fails.
@@ -252,7 +252,7 @@ pub fn main(init: std.process.Init) !void {
     var out_buf: [4096]u8 = undefined;
     var out: std.Io.File.Writer = .init(.stdout(), io, &out_buf);
     const w = &out.interface;
-    try w.print("{d}x{d} pseudo-terminal, {t}-{t}; neocaca {t} build, the others as installed, each without user configuration\n\n", .{ pty.cols, pty.rows, builtin.target.cpu.arch, builtin.target.os.tag, std.lang.Optimize.safe });
+    try w.print("{d}x{d} pseudo-terminal, {t}-{t}; caca {t} build, the others as installed, each without user configuration\n\n", .{ pty.cols, pty.rows, builtin.target.cpu.arch, builtin.target.os.tag, std.lang.Optimize.safe });
     const names_row = try arena.alloc([]const u8, all.len);
     for (all, names_row) |e, *n| n.* = e.name();
     try compare.report.header(w, names_row);
