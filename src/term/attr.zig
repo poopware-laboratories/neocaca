@@ -3,9 +3,11 @@
 //! On Linux, std's `termios` has the kernel's layout (19 control
 //! characters), but glibc's `tcgetattr` and `tcsetattr` take glibc's own,
 //! 16 bytes longer (32 control characters): through libc they write and
-//! read past the end of std's struct. So on Linux the settings go through
-//! the kernel's `TCGETS` and `TCSETS*` ioctls, whose struct fits in std's;
-//! elsewhere libc's functions match std's layout.
+//! read past the end of std's struct. Zig 0.17.1 set `std.c.NCCS` to
+//! glibc's 32 but kept the kernel's struct (44 bytes on x86_64), so this
+//! still holds. On Linux the settings go through the kernel's `TCGETS`
+//! and `TCSETS*` ioctls, whose struct fits in std's; elsewhere libc's
+//! functions match std's layout.
 
 const std = @import("std");
 const builtin = @import("builtin");

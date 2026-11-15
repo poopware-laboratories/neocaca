@@ -6,7 +6,7 @@
 Fast where it counts, careful everywhere else.
 
 [![CI](https://github.com/poopware-laboratories/neocaca/actions/workflows/ci.yml/badge.svg)](https://github.com/poopware-laboratories/neocaca/actions/workflows/ci.yml)
-[![Zig 0.17.0](https://img.shields.io/badge/zig-0.17.0-f7a41d?logo=zig&logoColor=white)](https://ziglang.org/download/)
+[![Zig 0.17.1](https://img.shields.io/badge/zig-0.17.1-f7a41d?logo=zig&logoColor=white)](https://ziglang.org/download/)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
 </div>
@@ -79,7 +79,7 @@ vulnerability are in [`SECURITY.md`](SECURITY.md).
 
 ## Getting started
 
-You need [Zig 0.17.0](https://ziglang.org/download/). mimalloc is fetched
+You need [Zig 0.17.1](https://ziglang.org/download/). mimalloc is fetched
 and built from source by `zig build`; no CMake or system packages needed.
 
 ```sh
