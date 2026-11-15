@@ -35,8 +35,16 @@ pub const Session = struct {
     /// The save being written, off the event loop; owned.
     saving: ?*Saving = null,
     /// The file being read, off the event loop; owned. The bytes typed
-    /// meanwhile wait in the decoder.
+    /// meanwhile wait in the decoder, and in `held` once a pause made
+    /// them keys.
     loading: ?*Loading = null,
+    /// Events decoded at an Escape timeout during a load, waiting for it
+    /// in order; owned, pastes included. From `held_next` on, not typed
+    /// yet.
+    held: std.ArrayList(input.decoder.Event) = .empty,
+    held_next: usize = 0,
+    /// The bytes `held` was decoded from, counted against `max_held`.
+    held_bytes: usize = 0,
     /// The most bytes held while a file is read; more are dropped.
     max_held: usize = default_max_held,
     /// Bytes were dropped during the load in flight.
@@ -82,6 +90,8 @@ pub const Session = struct {
     /// save.
     pub fn deinit(self: *Session) void {
         self.settle();
+        self.clearHeld();
+        self.held.deinit(self.gpa);
         self.ed.deinit();
         self.decoder.deinit();
         self.front.deinit();
@@ -128,16 +138,18 @@ pub const Session = struct {
         self.shown = false;
     }
 
-    /// Whether bytes wait for more input, so `timeout` is due if none come.
-    /// Not while a file is read: the bytes wait for it.
+    /// Whether bytes wait for more input, so `timeout` is due if none come;
+    /// during a load too, so a pause after an Escape is kept. Also when
+    /// keys held for a load that is over are still to be typed.
     pub fn waiting(self: *const Session) bool {
-        return self.loading == null and self.decoder.pendingLen() > 0;
+        if (self.loading == null and self.held_next < self.held.items.len) return true;
+        return self.decoder.pendingLen() > 0;
     }
 
     /// Bytes read from the terminal. While a file is read they are held,
     /// up to `max_held` (a read that does not fit is dropped whole).
     pub fn feed(self: *Session, bytes: []const u8) editor.Error!void {
-        if (self.loading != null and self.decoder.pendingLen() + bytes.len > self.max_held) {
+        if (self.loading != null and self.decoder.pendingLen() + self.held_bytes + bytes.len > self.max_held) {
             self.dropped = true;
             return;
         }
@@ -149,8 +161,46 @@ pub const Session = struct {
     }
 
     /// No more bytes came soon after the last ones: a lone Escape is a key.
+    /// During a load the keys are decoded now and held for it.
     pub fn timeout(self: *Session) editor.Error!void {
+        if (self.loading != null) return self.hold();
         try self.drain(true);
+    }
+
+    /// Decodes every pending byte into `held`. Out of memory, the bytes
+    /// not decoded stay pending for the next timeout; a paste decoded but
+    /// not copied is dropped, and said so once the load is in.
+    fn hold(self: *Session) void {
+        while (true) {
+            const before = self.decoder.pendingLen();
+            self.held.ensureUnusedCapacity(self.gpa, 1) catch return self.outOfMemory();
+            const next = self.decoder.next(true) catch return self.outOfMemory();
+            var event = next orelse return;
+            if (event == .paste) {
+                // Borrowed from the decoder until its next call.
+                event.paste = self.gpa.dupe(u8, event.paste) catch {
+                    self.dropped = true;
+                    continue;
+                };
+            }
+            self.held.appendAssumeCapacity(event);
+            self.held_bytes += before - self.decoder.pendingLen();
+        }
+    }
+
+    fn outOfMemory(self: *Session) void {
+        self.ed.message.set(true, "out of memory", .{});
+    }
+
+    /// Frees the held events, typed or not.
+    fn clearHeld(self: *Session) void {
+        for (self.held.items) |event| switch (event) {
+            .paste => |bytes| self.gpa.free(bytes),
+            else => {},
+        };
+        self.held.clearRetainingCapacity();
+        self.held_next = 0;
+        self.held_bytes = 0;
     }
 
     fn drain(self: *Session, final: bool) editor.Error!void {
@@ -161,18 +211,26 @@ pub const Session = struct {
                 self.serve();
                 continue;
             }
-            const next = self.decoder.next(final) catch {
-                self.ed.message.set(true, "out of memory", .{});
-                return;
-            };
-            const event = next orelse return;
-            switch (event) {
-                .key => |k| try self.ed.key(k),
-                .paste => |bytes| try self.ed.paste(bytes),
-                .focus_in => self.checkDisk(),
+            // Then the keys held for a load, before the bytes after them.
+            if (self.held_next < self.held.items.len) {
+                const event = self.held.items[self.held_next];
+                self.held_next += 1;
+                try self.handle(event);
+                if (self.held_next == self.held.items.len) self.clearHeld();
+                continue;
             }
-            self.serve();
+            const next = self.decoder.next(final) catch return self.outOfMemory();
+            try self.handle(next orelse return);
         }
+    }
+
+    fn handle(self: *Session, event: input.decoder.Event) editor.Error!void {
+        switch (event) {
+            .key => |k| try self.ed.key(k),
+            .paste => |bytes| try self.ed.paste(bytes),
+            .focus_in => self.checkDisk(),
+        }
+        self.serve();
     }
 
     /// Tells the editor what the open file is on disk now, so a change made
