@@ -13,12 +13,12 @@ the terminal directly (raw mode, escape sequences out, key bytes in) and
 keeps its own text buffer, input decoder and screen renderer, all tested
 without a real terminal.
 
-Its yardstick is [flow](https://flow-control.dev), another Zig terminal
-editor: neocaca aims to be a measurable step up from it. "The yardstick"
-in [`TODO.md`](TODO.md) lists where neocaca is ahead, where it is behind,
-and the item that closes each gap. Compare with flow through its
-user-facing documentation and by running it, never through its source
-(see "Clean-room policy").
+Its yardstick is the terminal editors people use: Kakoune, Helix, Neovim,
+Vim and [flow](https://flow-control.dev). neocaca aims to be a measurable
+step up from each. "The yardstick" in [`TODO.md`](TODO.md) lists where
+neocaca is ahead, where it is behind, and the item that closes each gap.
+Compare with them through their user-facing documentation and by running
+them, never through their source (see "Clean-room policy").
 
 ## Quick reference
 
@@ -476,8 +476,9 @@ passes are in [`docs/field-validation.md`](docs/field-validation.md); the
   of everything else on the roadmap.
 - **It grows with the editor:** a piece that adds something users do adds
   its scenario to `docs/field-validation.md` in the same pull request.
-- **Against flow:** the pass that closes a phase, and every pass before a
-  release, runs `zig build compare -Deditors=flow=…` against flow's latest release, replaces
-  the "Measured" table in `TODO.md` and brings "Still behind" up to date
-  from flow's documentation. Every row neocaca loses, and every row that
-  got worse, gets a `TODO.md` item; the aim is to lose none.
+- **Against the other editors:** the pass that closes a phase, and every
+  pass before a release, runs `zig build compare -Deditors=kak,hx,nvim,vim,flow`
+  against their current releases, replaces the "Measured" table in
+  `TODO.md` and brings the features and "Still behind" up to date from
+  their documentation. Every row neocaca loses to any of them, and every
+  row that got worse, gets a `TODO.md` item; the aim is to lose none.
