@@ -48,7 +48,7 @@ Build options: `-Doptimize=debug|safe|fast|small` (Zig 0.17 names; the old
 and `-Demit-relocs=true` (link-time optimization, and the relocations
 `llvm-bolt` needs; the `Makefile` sets both).
 
-- **Toolchain:** Zig 0.17.0, pinned by `minimum_zig_version` in
+- **Toolchain:** Zig 0.17.1, pinned by `minimum_zig_version` in
   `build.zig.zon`. Use exactly that version; Zig's standard library changes
   between releases, so code that builds on another version proves nothing.
 - **Formatting:** `zig fmt`, no exceptions. Run `zig build fmt` before every

@@ -21,7 +21,7 @@ to it rather than repeating it, so read it before your first change.
 
 ## Set up
 
-You need exactly [Zig 0.17.0](https://ziglang.org/download/), the version
+You need exactly [Zig 0.17.1](https://ziglang.org/download/), the version
 pinned in `build.zig.zon`. Nothing else: `zig build` fetches and compiles
 mimalloc itself.
 
