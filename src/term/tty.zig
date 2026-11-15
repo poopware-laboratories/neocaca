@@ -148,9 +148,19 @@ pub const Tty = struct {
 
     /// Reads what the terminal sent; 0 when it has gone.
     pub fn read(self: *Tty, buf: []u8) ReadError!usize {
-        return posix.read(self.in, buf);
+        return endOfInput(posix.read(self.in, buf));
     }
 };
+
+/// A read failing with EIO means the terminal has gone (POSIX gives it
+/// for a hung-up or lost terminal; Linux while it hangs up a pseudo-
+/// terminal whose other side closed), so it ends the input as 0 does.
+fn endOfInput(got: ReadError!usize) ReadError!usize {
+    return got catch |e| switch (e) {
+        error.InputOutput => 0,
+        else => e,
+    };
+}
 
 const ProcessStopper = struct {
     fn stop(_: *const ProcessStopper) void {
@@ -261,4 +271,15 @@ fn writeAll(fd: fd_t, bytes: []const u8) void {
 
 test {
     _ = @import("tty_test.zig");
+}
+
+test "tty: a terminal failing a read (EIO) has gone, as end of input does" {
+    // Linux fails the read while it is hanging the terminal up after the
+    // emulator's side closed, before reads start returning 0.
+    try std.testing.expectEqual(0, endOfInput(error.InputOutput));
+    try std.testing.expectEqual(0, endOfInput(0));
+    try std.testing.expectEqual(5, endOfInput(5));
+    // Other failures stay failures.
+    try std.testing.expectError(error.WouldBlock, endOfInput(error.WouldBlock));
+    try std.testing.expectError(error.SystemResources, endOfInput(error.SystemResources));
 }

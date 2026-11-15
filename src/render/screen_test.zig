@@ -98,6 +98,31 @@ test "screen: a character with too many marks becomes a replacement" {
     try expectEqualStrings("b", s.at(1, 0).text());
 }
 
+test "screen: a wide character with too many marks keeps both its columns" {
+    // `display.columns` counts it as two columns, so the cursor and every
+    // character after it are placed as if it took two; it must.
+    var s: Screen = try .init(gpa, 4, 1);
+    defer s.deinit();
+    var many: [44]u8 = undefined;
+    many[0..3].* = "中".*;
+    for (0..20) |i| many[3 + 2 * i ..][0..2].* = "\u{301}".*;
+    many[43] = 'b';
+    try expectEqual(3, s.text(0, 0, &many, .{}));
+    try expectEqualStrings("\u{fffd}", s.at(0, 0).text());
+    try expectEqualStrings(" ", s.at(1, 0).text());
+    try expectEqualStrings("b", s.at(2, 0).text());
+}
+
+test "screen: a wide character with too many marks at the edge leaves a space" {
+    var s: Screen = try .init(gpa, 1, 1);
+    defer s.deinit();
+    var many: [43]u8 = undefined;
+    many[0..3].* = "中".*;
+    for (0..20) |i| many[3 + 2 * i ..][0..2].* = "\u{301}".*;
+    try expectEqual(1, s.text(0, 0, &many, .{}));
+    try expectEqualStrings(" ", s.at(0, 0).text());
+}
+
 test "screen: control characters are drawn in caret form" {
     var s: Screen = try .init(gpa, 8, 1);
     defer s.deinit();

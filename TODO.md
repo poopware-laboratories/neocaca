@@ -408,6 +408,19 @@ Safety first, then the biggest daily gains.
   - [x] S: when the terminal reports focus (xterm focus events, mode
         1004), compare the file with its stamp and say it changed, before
         any edit is made on the old text
+- **PR: fixes from the 2026-11-14 check.** CI on `main` failed once
+  after #43, and a read of the screen code found a second bug.
+  - [x] S: a terminal closed under the editor could end it with "the
+        terminal failed: an input/output error" and a failed exit,
+        changes recovered all the same: Linux fails a read with EIO,
+        not 0, while it hangs up a pseudo-terminal whose other side
+        closed. `Tty.read` now takes EIO as the end of input. The
+        pseudo-terminal test of the longest recovered name hit it on
+        Alpine (ReleaseSafe, `-Dmimalloc-secure=off`).
+  - [x] S: a wide character with more than 32 bytes of combining marks
+        was drawn as a one-column replacement while the layout gave it
+        two, so the rest of its row sat one column left of the cursor;
+        the replacement now keeps both columns.
 - **PR: keys typed during a load keep their pauses.**
   - [ ] S: an Escape typed while `:e` is still reading the file, then
         `:` or another key, is read as Alt plus that key when the held
