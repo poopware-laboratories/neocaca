@@ -112,18 +112,20 @@ pub const Session = struct {
         failed: recovery.Error,
     };
 
-    /// Writes unsaved changes to a recovery file (see `recovery.zig`) in
-    /// the file's form, once a save in flight is over; for a terminal that
-    /// went away. Without the memory for that, the text is written as it
-    /// is, with `\n` line ends: the changes matter more.
-    pub fn recover(self: *Session, buf: *[recovery.max_name]u8) Recovery {
+    /// Writes buffer `index`'s unsaved changes to a recovery file (see
+    /// `recovery.zig`) in its file's form, once a save in flight is over;
+    /// for a terminal that went away. Without the memory for that, the
+    /// text is written as it is, with `\n` line ends: the changes matter
+    /// more.
+    pub fn recover(self: *Session, index: usize, buf: *[recovery.max_name]u8) Recovery {
         self.settle();
-        if (!self.ed.doc.isModified()) return .none;
-        const text = self.ed.doc.text();
-        const plain = std.meta.eql(self.ed.form, form.Form{});
-        const encoded = if (plain) null else form.encode(self.gpa, text, self.ed.form) catch null;
+        const b = self.ed.buffer(index);
+        if (!b.doc.isModified()) return .none;
+        const text = b.doc.text();
+        const plain = std.meta.eql(b.form, form.Form{});
+        const encoded = if (plain) null else form.encode(self.gpa, text, b.form) catch null;
         defer if (encoded) |t| self.gpa.free(t);
-        const where = recovery.write(self.io, self.dir, self.ed.path, encoded orelse text, buf) catch |e| return .{ .failed = e };
+        const where = recovery.write(self.io, self.dir, b.path, encoded orelse text, buf) catch |e| return .{ .failed = e };
         return .{ .written = where };
     }
 

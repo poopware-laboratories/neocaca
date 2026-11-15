@@ -9,6 +9,7 @@ const ui = @import("../ui.zig");
 const Disk = @import("../fs.zig").disk.Disk;
 const Form = @import("../buffer.zig").form.Form;
 const Editor = @import("editor.zig").Editor;
+const Message = @import("editor.zig").Message;
 
 /// A buffer while another is current.
 const Parked = struct {
@@ -71,6 +72,43 @@ pub fn switchTo(ed: *Editor, index: usize) void {
     b.others.insertAssumeCapacity(if (b.current < index) b.current else b.current - 1, park(ed));
     b.current = index;
     unpark(ed, next);
+}
+
+/// A buffer read where it is. Borrowed: valid until the next `open` or
+/// `switchTo`.
+pub const Ref = struct {
+    doc: *const edit.Document,
+    path: ?[]const u8,
+    form: Form,
+};
+
+/// Buffer `index` (below `bufferCount`), current or parked.
+pub fn buffer(ed: *const Editor, index: usize) Ref {
+    const b = &ed.buffers;
+    std.debug.assert(index < bufferCount(ed));
+    if (index == b.current) return .{ .doc = &ed.doc, .path = ed.path, .form = ed.form };
+    const p = &b.others.items[if (index < b.current) index else index - 1];
+    return .{ .doc = &p.doc, .path = p.path, .form = p.form };
+}
+
+/// The first buffer besides the current one with unsaved changes.
+pub fn otherModified(ed: *const Editor) ?usize {
+    for (0..bufferCount(ed)) |i| {
+        if (i != ed.buffers.current and buffer(ed, i).doc.isModified()) return i;
+    }
+    return null;
+}
+
+/// Refuses to quit, saying why, while a buffer besides the current one
+/// has unsaved changes. True when it refused.
+pub fn othersUnsaved(ed: *Editor) bool {
+    const i = otherModified(ed) orelse return false;
+    if (buffer(ed, i).path) |p| {
+        ed.message.set(true, "\"{f}\" has unsaved changes; :q! discards them", .{Message.path(p)});
+    } else {
+        ed.message.set(true, "a buffer without a file has unsaved changes; :q! discards them", .{});
+    }
+    return true;
 }
 
 fn park(ed: *const Editor) Parked {

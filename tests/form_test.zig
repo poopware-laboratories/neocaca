@@ -127,7 +127,7 @@ test "endings: the recovery file of a CRLF file has CRLF line ends" {
     defer h.deinit();
     try h.typeKeys("ox\x1b");
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectEqualStrings("f.recovered", h.session.recover(0, &buf).written);
     try expectFile(&h, "f.recovered", "a\r\nx\r\n");
 }
 
@@ -186,7 +186,7 @@ test "bom: the recovery file keeps the byte order mark" {
     defer h.deinit();
     try h.typeKeys("ox\x1b");
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectEqualStrings("f.recovered", h.session.recover(0, &buf).written);
     try expectFile(&h, "f.recovered", "\xef\xbb\xbfa\nx\n");
 }
 
@@ -259,7 +259,7 @@ test "final newline: the recovery file has none when the file had none" {
     defer h.deinit();
     try h.typeKeys("ox\x1b");
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectEqualStrings("f.recovered", h.session.recover(0, &buf).written);
     try expectFile(&h, "f.recovered", "a\nx");
 }
 
@@ -306,6 +306,6 @@ test "empty: the recovery file of an empty file with no text left is empty" {
     defer h.deinit();
     try h.typeKeys("ix\x1bhd");
     var buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-    try expectEqualStrings("f.recovered", h.session.recover(&buf).written);
+    try expectEqualStrings("f.recovered", h.session.recover(0, &buf).written);
     try expectFile(&h, "f.recovered", "");
 }
