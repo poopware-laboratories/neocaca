@@ -56,7 +56,7 @@ test "run: `prepare` releases the version set, the first time" {
     try expectEqualStrings(
         \\# Changelog
         \\
-        \\Every release of neocaca.
+        \\Every release of caca.
         \\
         \\## 0.1.0 — 2026-11-16
         \\
@@ -246,7 +246,7 @@ test "run: `prepare` changes only the version line of build.zig.zon" {
     try r.init();
     defer r.deinit();
     try expectEqual(0, try r.cmd(&.{ "prepare", "2026-11-23", "next" }, two_commits));
-    try expectEqualStrings(".{\n    .name = .neocaca,\n    .version = \"0.1.1\",\n}\n", try r.read("build.zig.zon"));
+    try expectEqualStrings(".{\n    .name = .caca,\n    .version = \"0.1.1\",\n}\n", try r.read("build.zig.zon"));
 }
 
 test "run: each `prepare` puts its section above the last one" {
@@ -259,7 +259,7 @@ test "run: each `prepare` puts its section above the last one" {
     try expectEqualStrings(
         \\# Changelog
         \\
-        \\Every release of neocaca.
+        \\Every release of caca.
         \\
         \\## 0.1.2 — 2026-11-30
         \\
@@ -295,7 +295,7 @@ test "run: a build.zig.zon without a version stops `prepare` before the changelo
     var r: Repo = undefined;
     try r.init();
     defer r.deinit();
-    try r.tmp.dir.writeFile(io, .{ .sub_path = "build.zig.zon", .data = ".{ .name = .neocaca }\n" });
+    try r.tmp.dir.writeFile(io, .{ .sub_path = "build.zig.zon", .data = ".{ .name = .caca }\n" });
     try expectError(error.UnexpectedFile, r.cmd(&.{ "prepare", "2026-11-16", "next" }, two_commits));
     try expectEqualStrings(changelog, try r.read("CHANGELOG.md"));
 }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Profile-guided layout for local installs: builds neocaca in ReleaseSafe
+# Profile-guided layout for local installs: builds caca in ReleaseSafe
 # with link-time optimization, instruments it with llvm-bolt, trains it on
 # scripted editing sessions in tmux, and lays it out again for the code the
 # training ran (hot blocks and functions together, cold ones split off).
@@ -29,10 +29,10 @@ caller=$PWD
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 out=$root/zig-out/bolt
-base=$out/base/bin/neocaca
+base=$out/base/bin/caca
 instrumented=$out/instrumented
 profiles=$out/profiles
-optimized=$out/neocaca
+optimized=$out/caca
 llvm_bolt=${LLVM_BOLT:-llvm-bolt}
 merge_fdata=${MERGE_FDATA:-merge-fdata}
 # Seconds between keys: the editor draws a frame for each, as for a person.
@@ -65,11 +65,11 @@ instrument() {
 	build_base
 	[ -x "$instrumented" ] && return
 	"$llvm_bolt" "$base" -o "$instrumented" -instrument \
-		-instrumentation-file="$profiles/neocaca" -instrumentation-file-append-pid
+		-instrumentation-file="$profiles/caca" -instrumentation-file-append-pid
 }
 
 # One tmux server of our own, without the user's configuration.
-sock=neocaca-bolt-$$
+sock=caca-bolt-$$
 tm() {
 	tmux -L "$sock" -f /dev/null "$@"
 }

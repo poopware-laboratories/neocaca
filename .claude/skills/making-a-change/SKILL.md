@@ -1,9 +1,9 @@
 ---
 name: making-a-change
-description: Use when starting any code change, bug fix or feature in neocaca, and again before committing, pushing or opening a pull request.
+description: Use when starting any code change, bug fix or feature in caca, and again before committing, pushing or opening a pull request.
 ---
 
-# Making a change in neocaca
+# Making a change in caca
 
 AGENTS.md is the rulebook; this is the order to apply it in. Every step is
 required. Skipping one is how pull requests go red.

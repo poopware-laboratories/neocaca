@@ -80,7 +80,7 @@ test "file: a file whose directory is missing is told apart from a new file" {
 test "file: an absolute path in a missing directory is told apart too" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    try expectError(error.NoDirectory, file.load(io, gpa, std.Io.Dir.cwd(), "/neocaca-no-such-directory/f", file.max_file));
+    try expectError(error.NoDirectory, file.load(io, gpa, std.Io.Dir.cwd(), "/caca-no-such-directory/f", file.max_file));
     try std.testing.expectEqual(null, try file.load(io, gpa, tmp.dir, "./new", file.max_file));
 }
 

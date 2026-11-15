@@ -15,7 +15,7 @@ fn v(text: []const u8) version.Version {
 
 const zon =
     \\.{
-    \\    .name = .neocaca,
+    \\    .name = .caca,
     \\    .version = "0.1.0",
     \\    .minimum_zig_version = "0.17.1",
     \\    .dependencies = .{
@@ -74,16 +74,16 @@ test "files: the newest section is the release's notes" {
 }
 
 const formula =
-    \\class Neocaca < Formula
+    \\class Caca < Formula
     \\  version "0.1.0"
     \\  on_macos do
     \\    on_arm do
-    \\      url "https://example/v#{version}/neocaca-aarch64-macos.tar.gz"
-    \\      sha256 "0000000000000000000000000000000000000000000000000000000000000000" # neocaca-aarch64-macos.tar.gz
+    \\      url "https://example/v#{version}/caca-aarch64-macos.tar.gz"
+    \\      sha256 "0000000000000000000000000000000000000000000000000000000000000000" # caca-aarch64-macos.tar.gz
     \\    end
     \\  end
     \\  on_linux do
-    \\    sha256 "1111111111111111111111111111111111111111111111111111111111111111" # neocaca-x86_64-linux-musl.tar.gz
+    \\    sha256 "1111111111111111111111111111111111111111111111111111111111111111" # caca-x86_64-linux-musl.tar.gz
     \\  end
     \\end
     \\
@@ -94,21 +94,21 @@ const sha_b = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 test "files: the formula's version and each asset's checksum" {
     const out = try files.setFormula(gpa, formula, v("0.1.1"), &.{
-        .{ .name = "neocaca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
-        .{ .name = "neocaca-aarch64-macos.tar.gz", .sha256 = sha_a },
+        .{ .name = "caca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
+        .{ .name = "caca-aarch64-macos.tar.gz", .sha256 = sha_a },
     });
     defer gpa.free(out);
     try expectEqualStrings(
-        \\class Neocaca < Formula
+        \\class Caca < Formula
         \\  version "0.1.1"
         \\  on_macos do
         \\    on_arm do
-        \\      url "https://example/v#{version}/neocaca-aarch64-macos.tar.gz"
-        \\      sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # neocaca-aarch64-macos.tar.gz
+        \\      url "https://example/v#{version}/caca-aarch64-macos.tar.gz"
+        \\      sha256 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # caca-aarch64-macos.tar.gz
         \\    end
         \\  end
         \\  on_linux do
-        \\    sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" # neocaca-x86_64-linux-musl.tar.gz
+        \\    sha256 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" # caca-x86_64-linux-musl.tar.gz
         \\  end
         \\end
         \\
@@ -118,29 +118,29 @@ test "files: the formula's version and each asset's checksum" {
 test "files: every checksum line of the formula needs its asset, once" {
     // One asset not given: its old checksum would ship with a new binary.
     try expectError(error.UnexpectedFile, files.setFormula(gpa, formula, v("0.1.1"), &.{
-        .{ .name = "neocaca-aarch64-macos.tar.gz", .sha256 = sha_a },
+        .{ .name = "caca-aarch64-macos.tar.gz", .sha256 = sha_a },
     }));
     // An asset with no line of its own.
     try expectError(error.UnexpectedFile, files.setFormula(gpa, formula, v("0.1.1"), &.{
-        .{ .name = "neocaca-aarch64-macos.tar.gz", .sha256 = sha_a },
-        .{ .name = "neocaca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
-        .{ .name = "neocaca-x86_64-freebsd.tar.gz", .sha256 = sha_b },
+        .{ .name = "caca-aarch64-macos.tar.gz", .sha256 = sha_a },
+        .{ .name = "caca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
+        .{ .name = "caca-x86_64-freebsd.tar.gz", .sha256 = sha_b },
     }));
 }
 
 test "files: a checksum must be 64 lower-case hex digits" {
     for ([_][]const u8{ "abc", sha_a ++ "a", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "g" ++ sha_a[1..] }) |bad| {
         try expectError(error.BadChecksum, files.setFormula(gpa, formula, v("0.1.1"), &.{
-            .{ .name = "neocaca-aarch64-macos.tar.gz", .sha256 = bad },
-            .{ .name = "neocaca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
+            .{ .name = "caca-aarch64-macos.tar.gz", .sha256 = bad },
+            .{ .name = "caca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
         }));
     }
 }
 
 test "files: the PKGBUILD's version, and its release back to 1" {
-    const out = try files.setPkgbuild(gpa, "pkgname=neocaca\npkgver=0.1.0\npkgrel=3\narch=('x86_64')\n", v("0.1.1"));
+    const out = try files.setPkgbuild(gpa, "pkgname=caca\npkgver=0.1.0\npkgrel=3\narch=('x86_64')\n", v("0.1.1"));
     defer gpa.free(out);
-    try expectEqualStrings("pkgname=neocaca\npkgver=0.1.1\npkgrel=1\narch=('x86_64')\n", out);
+    try expectEqualStrings("pkgname=caca\npkgver=0.1.1\npkgrel=1\narch=('x86_64')\n", out);
     try expectError(error.UnexpectedFile, files.setPkgbuild(gpa, "pkgver=0.1.0\n", v("0.1.1")));
     try expectError(error.UnexpectedFile, files.setPkgbuild(gpa, "pkgver=1\npkgver=2\npkgrel=1\n", v("0.1.1")));
 }
@@ -153,8 +153,8 @@ test "files: running out of memory leaves nothing allocated" {
             const c = try files.prependChangelog(a, "# Changelog\n\n## 0.1.0\n", "## 0.1.1\n");
             defer a.free(c);
             const f = try files.setFormula(a, formula, v("0.1.1"), &.{
-                .{ .name = "neocaca-aarch64-macos.tar.gz", .sha256 = sha_a },
-                .{ .name = "neocaca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
+                .{ .name = "caca-aarch64-macos.tar.gz", .sha256 = sha_a },
+                .{ .name = "caca-x86_64-linux-musl.tar.gz", .sha256 = sha_b },
             });
             defer a.free(f);
             const p = try files.setPkgbuild(a, "pkgver=0.1.0\npkgrel=2\n", v("0.1.1"));

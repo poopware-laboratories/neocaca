@@ -3,10 +3,10 @@
 //! every frame draws, and undoing everything gives back the file.
 
 const std = @import("std");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 const Harness = @import("harness.zig").Harness;
 
-const chars = neocaca.unicode.chars;
+const chars = caca.unicode.chars;
 
 /// What a person might type, a key or a few at a time, weighted toward
 /// the keys that change text or selections.

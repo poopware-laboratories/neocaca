@@ -1,9 +1,9 @@
 ---
 name: test-driven-development
-description: Use before writing or changing any neocaca production code (a feature, a bug fix, a refactor), and when a test passed the first time it ran or the 3:1 test ratio is hard to meet.
+description: Use before writing or changing any caca production code (a feature, a bug fix, a refactor), and when a test passed the first time it ran or the 3:1 test ratio is hard to meet.
 ---
 
-# Test-driven development in neocaca
+# Test-driven development in caca
 
 No production line is written before a test that fails without it. This is
 not negotiable, including for "trivial" fixes.

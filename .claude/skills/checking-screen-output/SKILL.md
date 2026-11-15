@@ -1,6 +1,6 @@
 ---
 name: checking-screen-output
-description: Use when changing anything neocaca shows (src/render, src/ui, the status line, gutter, cursor, colors, scrolling, wrapping, wide characters) or the escape bytes it writes, before claiming the change looks right.
+description: Use when changing anything caca shows (src/render, src/ui, the status line, gutter, cursor, colors, scrolling, wrapping, wide characters) or the escape bytes it writes, before claiming the change looks right.
 ---
 
 # Checking screen output
@@ -55,7 +55,7 @@ sessions check the same through `h.written()`.
 
 ```sh
 zig build
-tmux new-session -d -s nc -x 80 -y 24 'zig-out/bin/neocaca /tmp/sample.txt'
+tmux new-session -d -s nc -x 80 -y 24 'zig-out/bin/caca /tmp/sample.txt'
 tmux send-keys -t nc 'ihello' Escape
 tmux capture-pane -t nc -p -e > after.txt   # -e keeps colors
 tmux resize-window -t nc -x 40 -y 10        # check the resize path

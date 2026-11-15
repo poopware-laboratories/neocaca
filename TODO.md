@@ -1,6 +1,6 @@
 # TODO
 
-The neocaca roadmap. Tick an item in the pull request that finishes it, and
+The caca roadmap. Tick an item in the pull request that finishes it, and
 add items when you find gaps. Phases run roughly in order; within a phase,
 items are independent. Every item follows `AGENTS.md`: tests first, 3:1,
 clean room.
@@ -13,12 +13,12 @@ pieces when you reach it.
 
 ## The yardstick: a step up from every editor compared
 
-neocaca is compared with five terminal editors: Kakoune and Helix, which
+caca is compared with five terminal editors: Kakoune and Helix, which
 share its selection-first model; Neovim and Vim, the most widely used
 modal editors; and [flow](https://flow-control.dev), another editor
 written in Zig. A step up means two things: whatever a user of any of
-them relies on works in neocaca too, and wherever neocaca and another
-editor both do something, neocaca does it measurably better (faster, in
+them relies on works in caca too, and wherever caca and another
+editor both do something, caca does it measurably better (faster, in
 less memory, safer, or on more terminals). What each editor does comes
 from its user-facing documentation (manuals, key references, release
 notes) and from running it, as of Kakoune 2026.05.21, Helix 25.07.1,
@@ -29,7 +29,7 @@ documentation and their behavior, never their source.
 **Features.** "Plugin" means through a plugin or an outside program, not
 built in.
 
-| | neocaca | Kakoune | Helix | Neovim | Vim | flow |
+| | caca | Kakoune | Helix | Neovim | Vim | flow |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | Selections as the editing model (split, filter, rotate) | yes | yes | yes | no | no | no (its manual: multiple cursors, without selection operations) |
 | Registers | yes | yes | yes | yes | yes | no (its manual) |
@@ -51,7 +51,7 @@ built in.
 **Already ahead.**
 
 - **Selections are the editing model, and the fastest.** Of the editors
-  that have them, neocaca makes 10,000 selections and types at them
+  that have them, caca makes 10,000 selections and types at them
   fastest ("Measured"); Vim and Neovim have none, and flow's manual says
   its Helix mode lacks selection operations, registers and macros.
 - **Ships with safety checks on.** Only Helix is also built with bounds
@@ -64,7 +64,7 @@ built in.
 
 **Still behind.** Each gap is a roadmap item below:
 
-| Gap | Who has it | neocaca's item |
+| Gap | Who has it | caca's item |
 |-----|------------|----------------|
 | Syntax highlighting (Tree-sitter in Helix, Neovim and flow) | all five | Phase 3: syntax highlighting |
 | Language servers: completion, hover, definitions, references, diagnostics, formatting | Helix, Neovim, flow; Kakoune and Vim by plugin | Phase 3: language server client |
@@ -87,19 +87,19 @@ built in.
 | Many themes | all five; VS Code themes imported in flow | Phase 4: themes |
 | The kitty text sizing protocol | flow | Phase 4: kitty text sizing |
 | Android (termux) | all five | Phase 4: termux |
-| An integrated terminal, remote control | Neovim, Vim, flow; Kakoune's clients | Phase 4: decide whether neocaca wants them |
-| Windows | Helix, Neovim, Vim, flow | Not planned: neocaca is POSIX only |
+| An integrated terminal, remote control | Neovim, Vim, flow; Kakoune's clients | Phase 4: decide whether caca wants them |
+| Windows | Helix, Neovim, Vim, flow | Not planned: caca is POSIX only |
 | Several key modes (Vim, Helix, Emacs) | flow | Not planned: one modal model done well, with `:map` |
 
 **Measured.** `zig build compare -Deditors=kak,hx,nvim,vim,flow` runs
-neocaca and the editors listed on a 120x40 pseudo-terminal with the same
+caca and the editors listed on a 120x40 pseudo-terminal with the same
 files and answers the queries a terminal would (x86_64 Linux, 2026-11-15:
-neocaca's ReleaseSafe build, the others as Arch Linux packages them,
+caca's ReleaseSafe build, the others as Arch Linux packages them,
 flow from its development build, each without user configuration;
 medians, with p90 and max). A frame is timed to its last byte, once the
 screen has been quiet for 60 ms:
 
-| | neocaca | kakoune | helix | neovim | vim | flow |
+| | caca | kakoune | helix | neovim | vim | flow |
 |---|---:|---:|---:|---:|---:|---:|
 | startup to first frame (10 runs) | 0.99 ms (p90 1.18 ms, max 1.23 ms) | 1.78 ms (p90 1.92 ms, max 2.11 ms) | 16.4 ms (p90 20.5 ms, max 21.1 ms) | 13.4 ms (p90 14.2 ms, max 21.2 ms) | 10.7 ms (p90 11.2 ms, max 12.6 ms) | 31.7 ms (p90 31.8 ms, max 49.7 ms) |
 | memory at startup | 11.2 MiB | 6.7 MiB | 20.7 MiB | 9.7 MiB* | 19.2 MiB | 22.6 MiB |
@@ -123,11 +123,14 @@ it does (an item below).
 † Every one of the 200 keys takes the same time: the editor seems to
 draw again after the key, and the 60 ms wait for a quiet screen counts
 it. Not counted as lost or won until checked (an item below).
+The files measured began with the marker `neocaca-compare-top`; since
+the rename to caca it reads `caca-compare-top`, four bytes shorter,
+every other byte the same.
 
 The pass that closes each phase, and every pass before a release,
 measures again against the editors' current releases and replaces this
 table ("Against the other editors" in `docs/field-validation.md`); the
-aim is a table with no row neocaca loses to any of them. neocaca is
+aim is a table with no row caca loses to any of them. caca is
 fastest to start, to open small files and long lines, and with 10,000
 selections. It is behind in these rows, each an item below:
 
@@ -244,13 +247,13 @@ back clean and the change-on-disk fix it led to was in (#15).
         words (`fs.describe`, `regex.describe`). Testing it found a
         crash: a path part over 255 bytes made the standard library
         panic in Debug builds; `fs/file.zig` now refuses it first.
-  - [x] S: `neocaca <directory>` opens an empty buffer named after the
+  - [x] S: `caca <directory>` opens an empty buffer named after the
         directory; refuse it at startup with an exit code instead. A file
         in a directory that does not exist says "new file" and fails only
         at `:w`; say so when it opens. So does a path through a file
         (`:e f/x`) on macOS, where Linux says it is not a directory. Any
         file that cannot be read (a directory, one over the size limit,
-        an unreadable one) now stops `neocaca` before the terminal is
+        an unreadable one) now stops `caca` before the terminal is
         touched, with exit code 1, since `:w` on the empty buffer would
         have replaced it; a missing directory, or a path through a file,
         opens new and says "its directory does not exist" on every
@@ -283,7 +286,7 @@ back clean and the change-on-disk fix it led to was in (#15).
   clean.
   - [x] S: a save past the file size limit kills the editor. `ulimit -f 1`
         in the shell, then `:w` on `unicode.txt` (9 KB): `SIGXFSZ` ends
-        neocaca with exit code 153, the unsaved edit is lost, the
+        caca with exit code 153, the unsaved edit is lost, the
         terminal is left in raw mode without echo, and a 512-byte
         temporary file (`4efc61bb66dd3e91`) stays beside the original,
         which is untouched. Ignore `SIGXFSZ`, so the write fails with
@@ -512,11 +515,11 @@ Safety first, then the biggest daily gains.
         scroll sideways set `:nowrap`; `vh` `vl` scroll only lines that
         are not wrapped
 - **PR: comparison with several editors.** The comparisons and
-  benchmarks are universal rather than built around one editor: neocaca
+  benchmarks are universal rather than built around one editor: caca
   is measured alone or beside Kakoune, Helix, Neovim, Vim and flow, and
   its features are compared with all of them.
   - [x] M: `zig build compare -Deditors=kak,hx,nvim,vim,flow` runs
-        neocaca beside any editors listed, each from a profile of its
+        caca beside any editors listed, each from a profile of its
         arguments and keys (`compare/editors.zig`), and alone with no
         list; an editor without multiple selections reads "not
         supported" in their rows
@@ -566,7 +569,7 @@ Safety first, then the biggest daily gains.
   - [ ] M: opening a file that has a journal offers to replay it; a
         journal written against other file contents than those on disk
         is refused, never trusted blindly
-  - [ ] M: a supervisor: neocaca starts as a small parent holding the
+  - [ ] M: a supervisor: caca starts as a small parent holding the
         terminal's settings and runs the editor as its child; when the
         child dies by a signal its panic handler cannot catch, the
         parent restores the terminal and names the journal; suspending,
@@ -575,7 +578,7 @@ Safety first, then the biggest daily gains.
   - [ ] S: yank also copies to the system clipboard
   - [ ] S: a history of the last yanks, to paste an older one
 - **PR: command line**
-  - [ ] S: `neocaca file:12` and `neocaca +12 file` open at line 12
+  - [ ] S: `caca file:12` and `caca +12 file` open at line 12
 - **PR: smart-case search**
   - [ ] S: a pattern without capitals matches either case, one with
         capitals matches exactly
@@ -662,7 +665,7 @@ Safety first, then the biggest daily gains.
   - [ ] M: every scenario of `docs/field-validation.md`, with those Phase 2 added
   - [ ] S: against the other editors' current releases ("Against the other
         editors" in `docs/field-validation.md`): "Measured", "Features" and
-        "Still behind" redone, an item for every row neocaca loses
+        "Still behind" redone, an item for every row caca loses
 
 ## Phase 3: code awareness
 
@@ -703,7 +706,7 @@ Safety first, then the biggest daily gains.
       the editor
 - [ ] Android under termux, checked in CI or by hand
 - [ ] An integrated terminal and remote control over a socket (flow has
-      both): decide whether neocaca wants them
+      both): decide whether caca wants them
 - [ ] Plugins: programs the editor starts, over a bounded, versioned
       message protocol shared with shell filters, the language server
       client and remote control. Plugin edits are change sets against a

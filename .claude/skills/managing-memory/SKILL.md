@@ -1,9 +1,9 @@
 ---
 name: managing-memory
-description: Use when writing or reviewing neocaca code that allocates, frees, stores an allocator, returns owned or borrowed slices, uses arenas, or when a test reports a leak, double free or use after free.
+description: Use when writing or reviewing caca code that allocates, frees, stores an allocator, returns owned or borrowed slices, uses arenas, or when a test reports a leak, double free or use after free.
 ---
 
-# Managing memory in neocaca
+# Managing memory in caca
 
 Every allocation is explicit, owned by someone, and freed on every path,
 error paths included. The rules are in AGENTS.md ("Memory and

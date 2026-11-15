@@ -180,9 +180,9 @@ test "files: the bytes measured stay the bytes measured" {
     // new measurement, so it shows here first.
     const text = try make(.lines, 1 << 20);
     defer gpa.free(text);
-    try expectEqual(8866223100451619444, std.hash.Wyhash.hash(0, text));
+    try expectEqual(4025733716586465141, std.hash.Wyhash.hash(0, text));
     try expectEqual(18924, std.mem.countScalar(u8, text, '\n'));
     const line = try make(.one_line, 10 << 20);
     defer gpa.free(line);
-    try expectEqual(16876633536796132287, std.hash.Wyhash.hash(0, line));
+    try expectEqual(980646941307546544, std.hash.Wyhash.hash(0, line));
 }

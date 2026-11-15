@@ -5,9 +5,9 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 
-const compare = neocaca.compare;
+const compare = caca.compare;
 const Cell = compare.report.Cell;
 const posix = std.posix;
 const c = std.c;

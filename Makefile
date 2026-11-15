@@ -1,4 +1,4 @@
-# Local installs, for using neocaca as the everyday editor; packaging
+# Local installs, for using caca as the everyday editor; packaging
 # comes later. Every build is ReleaseSafe, as shipped, with link-time
 # optimization; scripts/bolt.sh adds the profile-guided layout (llvm-bolt).
 #
@@ -20,7 +20,7 @@ DESTDIR ?=
 RUNS ?= 5
 FILE ?=
 
-release = zig-out/release/bin/neocaca
+release = zig-out/release/bin/caca
 
 all:
 	env -u DESTDIR zig build -Doptimize=safe -Dlto=full -p zig-out/release

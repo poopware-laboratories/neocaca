@@ -1,6 +1,6 @@
 //! The editors `zig build compare` can measure, each with the arguments
 //! and keys its user documentation gives, and the list that chooses them
-//! (`-Deditors=kak,hx,flow=/opt/flow`). neocaca is always measured, in
+//! (`-Deditors=kak,hx,flow=/opt/flow`). caca is always measured, in
 //! the first column. Pure: looking commands up on `PATH` is the driver's.
 
 const std = @import("std");
@@ -27,11 +27,11 @@ pub const Profile = struct {
 const down = "\x1b[B";
 
 /// Select the whole file, then every match of `word` in it: `%` and `s`
-/// in neocaca's `docs/keys.md` and in Kakoune's and Helix's key
+/// in caca's `docs/keys.md` and in Kakoune's and Helix's key
 /// references; `i` then types before every selection.
 const select_word: []const []const u8 = &.{ "%", "s", "word", "\r" };
 
-/// Every editor known, neocaca first, one a row, from each one's user
+/// Every editor known, caca first, one a row, from each one's user
 /// documentation:
 /// - Kakoune: `-n`, no kakrc.
 /// - Helix: installed as `hx` upstream, as `helix` by some systems.
@@ -42,7 +42,7 @@ const select_word: []const []const u8 = &.{ "%", "s", "word", "\r" };
 ///   to all matches, in its command palette), sent as the kitty keyboard
 ///   protocol encodes them: flow turns the protocol on once answered.
 pub const profiles = [_]Profile{
-    .{ .name = "neocaca", .commands = &.{"neocaca"}, .args = &.{}, .down = down, .select = select_word, .insert = "i" },
+    .{ .name = "caca", .commands = &.{"caca"}, .args = &.{}, .down = down, .select = select_word, .insert = "i" },
     .{ .name = "kakoune", .commands = &.{"kak"}, .args = &.{"-n"}, .down = down, .select = select_word, .insert = "i" },
     .{ .name = "helix", .commands = &.{ "hx", "helix" }, .args = &.{}, .down = down, .select = select_word, .insert = "i" },
     .{ .name = "neovim", .commands = &.{"nvim"}, .args = &.{"--clean"}, .down = down, .select = null, .insert = null },
@@ -51,9 +51,9 @@ pub const profiles = [_]Profile{
 };
 
 /// The editor measured in the first column.
-pub const neocaca: *const Profile = &profiles[0];
+pub const caca: *const Profile = &profiles[0];
 
-/// Editors a list can name: every one but neocaca.
+/// Editors a list can name: every one but caca.
 pub const max_editors = profiles.len - 1;
 
 /// An editor from the list, and the path it gave, if any.
@@ -87,7 +87,7 @@ pub fn parse(list: []const u8, buf: *[max_editors]Choice) Error![]Choice {
         const name = std.mem.trim(u8, item[0 .. eq orelse item.len], blank);
         if (name.len == 0) return error.EmptyName;
         const profile = lookup(name) orelse return error.UnknownEditor;
-        if (profile == neocaca) return error.Duplicate;
+        if (profile == caca) return error.Duplicate;
         for (buf[0..n]) |c| if (c.profile == profile) return error.Duplicate;
         const path = if (eq) |i| std.mem.trim(u8, item[i + 1 ..], blank) else null;
         if (path) |p| if (p.len == 0) return error.EmptyPath;
@@ -104,6 +104,6 @@ pub fn message(err: Error) []const u8 {
         error.UnknownEditor => "unknown editor; known: kakoune (kak), helix (hx), neovim (nvim), vim, flow",
         error.EmptyName => "an empty name in the list",
         error.EmptyPath => "an empty path after =",
-        error.Duplicate => "an editor listed twice (neocaca is always measured)",
+        error.Duplicate => "an editor listed twice (caca is always measured)",
     };
 }

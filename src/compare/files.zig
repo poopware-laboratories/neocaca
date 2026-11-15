@@ -6,7 +6,7 @@ const std = @import("std");
 
 const Writer = std.Io.Writer;
 
-pub const marker = "neocaca-compare-top";
+pub const marker = "caca-compare-top";
 
 /// The start of every file: the marker after one character, since an
 /// editor draws the character under its cursor or selection in a style of

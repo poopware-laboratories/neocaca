@@ -93,13 +93,13 @@ jobs:
         name: The shipping build, packed
         run: |
           zig build -Doptimize=safe
-          tar -czf "neocaca-$RUNNER_OS-$RUNNER_ARCH.tar.gz" -C zig-out/bin neocaca
+          tar -czf "caca-$RUNNER_OS-$RUNNER_ARCH.tar.gz" -C zig-out/bin caca
       # Uploaded as it is (no zip around the tarball), which keeps the
       # binary's executable bit.
       - if: matrix.optimize == 'safe'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          path: neocaca-${{ runner.os }}-${{ runner.arch }}.tar.gz
+          path: caca-${{ runner.os }}-${{ runner.arch }}.tar.gz
           archive: false
           retention-days: 14
           if-no-files-found: error
@@ -149,13 +149,13 @@ jobs:
       - if: matrix.optimize == 'safe'
         name: The binary is statically linked
         run: |
-          file zig-out/bin/neocaca
-          file zig-out/bin/neocaca | grep -q 'statically linked'
-          tar -czf neocaca-x86_64-linux-musl-static.tar.gz -C zig-out/bin neocaca
+          file zig-out/bin/caca
+          file zig-out/bin/caca | grep -q 'statically linked'
+          tar -czf caca-x86_64-linux-musl-static.tar.gz -C zig-out/bin caca
       - if: matrix.optimize == 'safe'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          path: neocaca-x86_64-linux-musl-static.tar.gz
+          path: caca-x86_64-linux-musl-static.tar.gz
           archive: false
           retention-days: 14
           if-no-files-found: error
@@ -206,11 +206,11 @@ jobs:
       - name: The shipping build, packed
         run: |
           zig build -Dtarget=${{ matrix.target }} -Doptimize=safe
-          tar -czf neocaca-${{ matrix.target }}.tar.gz -C zig-out/bin neocaca
+          tar -czf caca-${{ matrix.target }}.tar.gz -C zig-out/bin caca
       - run: zig build compare-build -Dtarget=${{ matrix.target }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          path: neocaca-${{ matrix.target }}.tar.gz
+          path: caca-${{ matrix.target }}.tar.gz
           archive: false
           retention-days: 14
           if-no-files-found: error

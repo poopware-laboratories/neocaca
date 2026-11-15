@@ -2,9 +2,9 @@
 //! key per read as a person types, with its frames kept for inspection.
 
 const std = @import("std");
-const neocaca = @import("neocaca");
+const caca = @import("caca");
 
-const Session = neocaca.app.Session;
+const Session = caca.app.Session;
 const io = std.testing.io;
 
 pub const Harness = struct {

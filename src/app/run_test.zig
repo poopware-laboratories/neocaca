@@ -29,18 +29,18 @@ test "--help prints the usage and succeeds" {
 }
 
 test "--version prints the version from build.zig.zon" {
-    try expectRun(&.{"-V"}, .ok, "neocaca " ++ build_options.version ++ "\n", "");
+    try expectRun(&.{"-V"}, .ok, "caca " ++ build_options.version ++ "\n", "");
 }
 
 test "an unknown flag is a usage error on stderr" {
-    try expectRun(&.{"--nope"}, .usage, "", "neocaca: unknown flag\n\n" ++ cli.usage);
+    try expectRun(&.{"--nope"}, .usage, "", "caca: unknown flag\n\n" ++ cli.usage);
 }
 
 test "files before -- explain how to fix the command" {
-    try expectRun(&.{ "a", "--", "b" }, .usage, "", "neocaca: put every file after --\n\n" ++ cli.usage);
+    try expectRun(&.{ "a", "--", "b" }, .usage, "", "caca: put every file after --\n\n" ++ cli.usage);
 }
 
 test "editing without a terminal fails and says why" {
-    try expectRun(&.{"a.zig"}, .failure, "", "neocaca: standard input is not a terminal\n");
-    try expectRun(&.{}, .failure, "", "neocaca: standard input is not a terminal\n");
+    try expectRun(&.{"a.zig"}, .failure, "", "caca: standard input is not a terminal\n");
+    try expectRun(&.{}, .failure, "", "caca: standard input is not a terminal\n");
 }

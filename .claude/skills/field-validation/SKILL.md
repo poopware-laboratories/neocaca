@@ -1,6 +1,6 @@
 ---
 name: field-validation
-description: Use when doing a neocaca field validation pass (the last item of a phase, before a release, or after a piece that changes how files are opened, saved or shown), or when asked to try the editor on real work.
+description: Use when doing a caca field validation pass (the last item of a phase, before a release, or after a piece that changes how files are opened, saved or shown), or when asked to try the editor on real work.
 ---
 
 # A field validation pass
@@ -21,7 +21,7 @@ repository.
 ## 2. Drive it through tmux
 
 ```sh
-B="$PWD/zig-out/bin/neocaca"
+B="$PWD/zig-out/bin/caca"
 tmux new-session -d -s nc -x 80 -y 24 "cd $SCRATCH/validation && $B server.log; echo EXIT=\$?; sleep 600"
 tmux send-keys -t nc -l '%'                # -l: the text as it is
 tmux send-keys -t nc Enter                 # named keys without -l
@@ -41,11 +41,11 @@ The traps, each of which looks like an editor bug the first time:
 - **Wait on the screen, not a guess.** Time an action by polling
   `capture-pane` for the expected status (`grep -q ' 1:1$'`), and check
   the pattern matches before trusting a long time as slow.
-- **`echo EXIT=$?; sleep` in the session** keeps the pane after neocaca
+- **`echo EXIT=$?; sleep` in the session** keeps the pane after caca
   exits, so the exit code and anything printed stay readable.
 - **Set `GIT_EDITOR`, not `EDITOR`,** for the Git scenario: a session
   may export `GIT_EDITOR=true`, which makes `git commit` abort at once
-  without starting neocaca.
+  without starting caca.
 - **Root ignores file permissions.** As root, `unreadable.txt` behaves
   like a plain file (`read-only.txt` is refused by its mode, even for
   root, but nothing else about permissions is). Make a user and run the
@@ -53,7 +53,7 @@ The traps, each of which looks like an editor bug the first time:
   that these were not checked:
 
   ```sh
-  useradd -m tester && cp zig-out/bin/neocaca /home/tester/
+  useradd -m tester && cp zig-out/bin/caca /home/tester/
   runuser -u tester -- scripts/field-validation-corpus.sh /home/tester/validation
   runuser -u tester -- tmux new-session -d -s nc -x 80 -y 24 "cd ~/validation && exec sh"
   ```
@@ -62,7 +62,7 @@ The traps, each of which looks like an editor bug the first time:
   size=64k,mode=0777 tmpfs /home/tester/full`, a file to edit in it, then
   fill the rest with `dd if=/dev/zero of=/home/tester/full/filler`.
 
-Memory: `ps -o rss= -C neocaca` while the scenario holds the state.
+Memory: `ps -o rss= -C caca` while the scenario holds the state.
 
 ## 3. Work the scenarios
 
@@ -84,7 +84,7 @@ zig build compare -Deditors=kak,hx,nvim,vim,flow   # name=path for one not on PA
 Then follow "Against the other editors" in `docs/field-validation.md`:
 the "Measured" table in `TODO.md` replaced, "Features" and "Still behind"
 updated from each editor's documentation (never its source), and an item
-for every row neocaca loses to any of them.
+for every row caca loses to any of them.
 
 ## 5. Report
 

@@ -6,8 +6,8 @@ const run = @import("run.zig");
 
 const io = std.testing.io;
 
-pub const zon = ".{\n    .name = .neocaca,\n    .version = \"0.1.0\",\n}\n";
-pub const changelog = "# Changelog\n\nEvery release of neocaca.\n";
+pub const zon = ".{\n    .name = .caca,\n    .version = \"0.1.0\",\n}\n";
+pub const changelog = "# Changelog\n\nEvery release of caca.\n";
 
 pub const Repo = struct {
     tmp: std.testing.TmpDir,

@@ -1,10 +1,10 @@
 # Accessibility
 
-neocaca runs inside a terminal emulator, so much of its accessibility
+caca runs inside a terminal emulator, so much of its accessibility
 comes from the terminal: font, size, colors, contrast, zoom and screen
-reader support all belong to the terminal, and neocaca is designed to
+reader support all belong to the terminal, and caca is designed to
 work with them rather than against them. This document describes what
-neocaca provides, where it currently falls short, and how to report an
+caca provides, where it currently falls short, and how to report an
 obstacle.
 
 **Contents:** [Current support](#current-support) ·
@@ -18,7 +18,7 @@ obstacle.
 | **Keyboard only** | Every feature is a key or a `:` command; nothing requires a mouse. Each binding is listed in [`docs/keys.md`](docs/keys.md). |
 | **No time pressure** | Prefix keys such as `g` and `v` wait indefinitely. The only timer is the 25 ms that distinguishes a lone Esc from an Alt key, and it affects only keys that a terminal sends as a single burst. |
 | **Custom keys** | `:map` rebinds keys in normal and insert mode, for example to move a binding that is hard to reach, or to make one key type a sequence (see "Mappings" in [`docs/keys.md`](docs/keys.md#mappings)). |
-| **The terminal's colors** | The interface uses only the sixteen basic terminal colors, with bold and reverse video. A light, dark or high-contrast palette configured in the terminal applies to neocaca as well. neocaca sets no fixed RGB colors and never changes the terminal's palette. |
+| **The terminal's colors** | The interface uses only the sixteen basic terminal colors, with bold and reverse video. A light, dark or high-contrast palette configured in the terminal applies to caca as well. caca sets no fixed RGB colors and never changes the terminal's palette. |
 | **State in words, not only color** | The status line states the mode (`NORMAL`, `INSERT`, `PROMPT`), the file name, `[+]` when there are unsaved changes, the number of selections (`3 sels`) and the cursor position (`line:column`). Errors and confirmations appear as text on the last line. |
 | **A real cursor** | The terminal's own cursor is placed on the main selection's cursor, so magnifiers and screen readers that follow the cursor follow the editing. |
 | **Visible special characters** | Control characters are shown as `^[`-style text and invalid bytes as U+FFFD, rather than as blank or shifting space. Wide characters, combining marks and tabs align by display column. |
@@ -51,8 +51,8 @@ The roadmap items that address these gaps are listed in
 
 Users of a screen reader, a magnifier, switch access, an alternative
 keyboard layout, a high-contrast theme, or any other setup with which
-neocaca does not work well are invited to
-[open an issue](https://github.com/poopware-laboratories/neocaca/issues)
+caca does not work well are invited to
+[open an issue](https://github.com/poopware-laboratories/caca/issues)
 stating:
 
 - the setup in use (terminal emulator, assistive technology, operating

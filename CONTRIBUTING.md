@@ -1,4 +1,4 @@
-# Contributing to neocaca
+# Contributing to caca
 
 Contributions are welcome. This document describes the path from an idea
 to a merged pull request. The rules themselves are set out in
@@ -18,7 +18,7 @@ and it should be read before a first change.
   unticked piece; [Work in pieces](AGENTS.md#branches-pull-requests-and-commits)
   explains how pieces stack.
 - **The issue tracker.** Search the
-  [open issues](https://github.com/poopware-laboratories/neocaca/issues)
+  [open issues](https://github.com/poopware-laboratories/caca/issues)
   before starting: the work may already be in progress, or the issue may
   specify how it should be done. Claim an issue by commenting on it.
 - **New proposals.** For anything on neither list, open an issue first
@@ -33,8 +33,8 @@ exactly the version pinned in `build.zig.zon`; `zig build` fetches and
 compiles mimalloc itself.
 
 ```sh
-git clone https://github.com/poopware-laboratories/neocaca
-cd neocaca
+git clone https://github.com/poopware-laboratories/caca
+cd caca
 zig build test --summary all     # every test; all must pass
 zig build run -- README.md       # try the editor
 ```
@@ -101,6 +101,6 @@ lint, test, build and benchmark job has passed, and the `title` check. The detai
 
 ## License
 
-neocaca is licensed under the
+caca is licensed under the
 [GNU Affero General Public License v3.0](LICENSE). Contributions are
 accepted under the same terms.
