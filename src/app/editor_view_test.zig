@@ -154,6 +154,7 @@ test "editor: vl and vh scroll the view by columns, moving the cursor only out o
     var ed: Editor = try .init(gpa, null, &text);
     defer ed.deinit();
     ed.resize(30, 6);
+    ed.options.wrap = false; // Columns scroll when lines do not wrap.
     const width = ui.document.textWidth(30, 1);
     try expectEqual(27, width);
     try typeKeys(&ed, "vl");
@@ -185,6 +186,7 @@ test "editor: vl over wide characters puts the cursor on a whole character" {
     var ed: Editor = try .init(gpa, null, &line);
     defer ed.deinit();
     ed.resize(30, 6);
+    ed.options.wrap = false; // Columns scroll when lines do not wrap.
     try typeKeys(&ed, "vl");
     // Column 4 starts the third character.
     try expectEqual(6, cursorOffset(&ed));
@@ -199,6 +201,7 @@ test "editor: vl moves every selection as far as the main one" {
     var ed: Editor = try .init(gpa, null, "abcdefghijklmnop\nabcdefghijklmnop\n");
     defer ed.deinit();
     ed.resize(30, 6);
+    ed.options.wrap = false; // Columns scroll when lines do not wrap.
     try typeKeys(&ed, "C");
     try expectEqual(2, ed.doc.sels().len);
     try typeKeys(&ed, "2vl");
@@ -210,6 +213,7 @@ test "editor: vl on a short line leaves the cursor on its end" {
     var ed: Editor = try .init(gpa, null, "ab\n");
     defer ed.deinit();
     ed.resize(30, 6);
+    ed.options.wrap = false; // Columns scroll when lines do not wrap.
     try typeKeys(&ed, "5vl");
     try expectEqual(2, cursorOffset(&ed));
 }
@@ -220,6 +224,7 @@ test "editor: vl past a tab puts the cursor after it" {
     var ed: Editor = try .init(gpa, null, "a\tbcdefghijklmnopqrstuvwxyz0123456789\n");
     defer ed.deinit();
     ed.resize(30, 6);
+    ed.options.wrap = false; // Columns scroll when lines do not wrap.
     try typeKeys(&ed, "vl");
     try expectEqual(1, ed.view.left);
     try expectEqual(2, cursorOffset(&ed));
@@ -230,6 +235,7 @@ test "editor: vh at the left edge and the largest count change nothing they shou
     var ed: Editor = try .init(gpa, null, "abc\ndef\n");
     defer ed.deinit();
     ed.resize(30, 6);
+    ed.options.wrap = false; // Columns scroll when lines do not wrap.
     try typeKeys(&ed, "lvh");
     try expectEqual(0, ed.view.left);
     try expectEqual(1, cursorOffset(&ed));

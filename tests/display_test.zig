@@ -168,7 +168,7 @@ test "display: the end of a long line shows its last characters and column" {
     var h: Harness = undefined;
     try h.init("long", text, 20, 3);
     defer h.deinit();
-    try h.typeKeys("gl");
+    try h.typeKeys(":nowrap\rgl");
     try expectEqual(100_003, h.session.ed.doc.primary().cursor);
     // From column 99989 ('t'), so the cursor on é has its scroll-off of
     // three columns to the right.
