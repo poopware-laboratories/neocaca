@@ -163,6 +163,57 @@ test "document wrap: rows past the area are not drawn" {
     try f.expectRow(1, "   fghij");
 }
 
+test "document wrap: an area too narrow for the gutter wraps the whole width" {
+    var f: Fixture = try .init("abcdefg\n", 4, 3);
+    defer f.deinit();
+    f.draw(.{});
+    try f.expectRow(0, "abcd");
+    try f.expectRow(1, "efg ");
+    try f.expectRow(2, "~   ");
+}
+
+test "document wrap: an area off the screen's corner wraps within it" {
+    var f: Fixture = try .init("abcdefgh\n", 12, 3);
+    defer f.deinit();
+    ui_doc.draw(&f.screen, &f.doc, .{
+        .view = .{},
+        .area = .{ .x = 2, .y = 1, .width = 8, .height = 2 },
+        .theme = &theme,
+        .tab_width = 4,
+        .wrap = true,
+    });
+    try f.expectRow(0, "            ");
+    try f.expectRow(1, "   1 abcde  ");
+    try f.expectRow(2, "     fgh    ");
+}
+
+test "document wrap: an area taller than the screen stops at its bottom" {
+    var f: Fixture = try .init("abcdefghijklmnop\n", 8, 2);
+    defer f.deinit();
+    ui_doc.draw(&f.screen, &f.doc, .{
+        .view = .{},
+        .area = .{ .x = 0, .y = 0, .width = 8, .height = 9 },
+        .theme = &theme,
+        .tab_width = 4,
+        .wrap = true,
+    });
+    try f.expectRow(0, " 1 abcde");
+    try f.expectRow(1, "   fghij");
+}
+
+test "document wrap: selections on two rows of one line, and on the next line" {
+    var f: Fixture = try .init("abcdefgh\nxy\n", 8, 3);
+    defer f.deinit();
+    try f.doc.select(&.{ .at(1), .at(6), .at(10) }, 1);
+    f.draw(.{});
+    try f.expectStyle(theme.cursor, 4, 0); // b
+    try f.expectStyle(theme.main_cursor, 4, 1); // g
+    try f.expectStyle(theme.cursor, 4, 2); // y
+    // The main cursor's number is highlighted, the other line's not.
+    try f.expectStyle(theme.gutter_current, 1, 0);
+    try f.expectStyle(theme.gutter, 1, 2);
+}
+
 test "document wrap: a line too long to wrap is one row, scrolled sideways" {
     const text = try gpa.alloc(u8, wrap.max_line + 2);
     defer gpa.free(text);

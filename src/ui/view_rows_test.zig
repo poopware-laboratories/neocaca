@@ -108,3 +108,61 @@ test "view rows: following by line, placing and scrolling start at a line's firs
     v.scroll(1, 10);
     try expectEqual(View{ .top = 4 }, v);
 }
+
+test "view rows: with one row a line, rows follow exactly as lines do, from a fixed seed" {
+    const seed = 0x0f01_1035;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    for (0..2000) |_| {
+        const lines = 1 + random.uintLessThan(usize, ones.len);
+        const start: View = .{ .top = random.uintLessThan(usize, lines) };
+        const line = random.uintLessThan(usize, lines);
+        const height = random.uintLessThan(usize, 12);
+        const scrolloff = random.uintLessThan(usize, 6);
+        var by_line = start;
+        by_line.follow(.{ .line = line, .col = 0, .lines = lines, .height = height, .width = 80, .scrolloff = scrolloff });
+        const by_row = followRows(start, ones[0..lines], line, 0, height, scrolloff);
+        expectEqual(by_line, by_row) catch |e| {
+            std.debug.print("seed {x}: top {d} line {d}/{d} height {d} scrolloff {d}\n", .{ seed, start.top, line, lines, height, scrolloff });
+            return e;
+        };
+    }
+}
+
+test "view rows: the cursor's row is shown with its margin, from a fixed seed" {
+    const seed = 0x0f01_1036;
+    var prng: std.Random.DefaultPrng = .init(seed);
+    const random = prng.random();
+    var counts: [8]usize = undefined;
+    for (0..2000) |_| {
+        const lines = 1 + random.uintLessThan(usize, counts.len);
+        for (counts[0..lines]) |*c| c.* = 1 + random.uintLessThan(usize, 6);
+        const line = random.uintLessThan(usize, lines);
+        const row = random.uintLessThan(usize, counts[line]);
+        const height = 1 + random.uintLessThan(usize, 10);
+        const scrolloff = random.uintLessThan(usize, 4);
+        const start: View = .{ .top = random.uintLessThan(usize, lines), .row = random.uintLessThan(usize, 8) };
+        const v = followRows(start, counts[0..lines], line, row, height, scrolloff);
+        checkShown(counts[0..lines], v, line, row, height, scrolloff) catch |e| {
+            std.debug.print("seed {x}: counts {any} cursor {d},{d} height {d} scrolloff {d}\n", .{ seed, counts[0..lines], line, row, height, scrolloff });
+            return e;
+        };
+    }
+}
+
+/// The view starts on a row of its line, the cursor's row is inside the
+/// window, and the margin around it is too where the buffer has rows.
+fn checkShown(counts: []const usize, v: View, line: usize, row: usize, height: usize, scrolloff: usize) !void {
+    try std.testing.expect(v.top < counts.len and v.row < counts[v.top]);
+    // Rows from the top of the buffer, to compare places as numbers.
+    var before: [9]usize = undefined;
+    before[0] = 0;
+    for (counts, 0..) |c, i| before[i + 1] = before[i] + c;
+    const top = before[v.top] + v.row;
+    const cursor = before[line] + row;
+    const total = before[counts.len];
+    const m = @min(scrolloff, (height - 1) / 2);
+    try std.testing.expect(cursor >= top and cursor < top + height);
+    try std.testing.expect(cursor -| m >= top);
+    try std.testing.expect(@min(cursor + m, total - 1) < top + height);
+}

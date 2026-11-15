@@ -40,6 +40,8 @@ pub const Command = union(enum) {
     },
     /// `:unmap <normal|insert> <key>`.
     unmap: struct { mode: input.mapping.Mode, key: Key },
+    /// `:wrap` (true), `:nowrap` (false).
+    wrap: bool,
 };
 
 pub const ParseError = error{
@@ -96,9 +98,10 @@ pub fn parse(line: []const u8) ParseError!Command {
         if (arg != null) return error.TooManyArguments;
         return .{ .goto_line = std.fmt.parseInt(usize, name, 10) catch return error.BadLine };
     }
-    const Name = enum { w, write, @"w!", wq, x, q, quit, @"q!", e, edit, @"e!" };
+    const Name = enum { w, write, @"w!", wq, x, q, quit, @"q!", e, edit, @"e!", wrap, nowrap };
     const which = std.meta.stringToEnum(Name, name) orelse return error.UnknownCommand;
     switch (which) {
+        .wrap, .nowrap => return if (arg != null) error.TooManyArguments else .{ .wrap = which == .wrap },
         .w, .write => return .{ .write = .{ .path = arg } },
         .@"w!" => return .{ .write = .{ .path = arg, .force = true } },
         .wq => return .{ .write = .{ .path = arg, .quit = true } },

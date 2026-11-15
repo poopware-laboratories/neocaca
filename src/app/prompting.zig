@@ -142,6 +142,7 @@ fn command(ed: *Editor, line: []const u8) Error!void {
                 error.OutOfMemory => |oom| return oom,
             };
         },
+        .wrap => |on| ed.options.wrap = on,
         .unmap => |u| if (!ed.mappings.remove(u.mode, u.key)) {
             var name: [input.keyname.max_name]u8 = undefined;
             ed.message.set(true, "{s} is not mapped in {t} mode", .{ input.keyname.format(u.key, &name), u.mode });

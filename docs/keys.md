@@ -156,6 +156,8 @@ make more change nothing, and the message line says "too many selections
 | `:<n>` | go to line `n` |
 | `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
 | `:unmap <mode> <key>` | forget the mapping of `key` in that mode |
+| `:wrap` | wrap long lines onto the rows below, breaking after a blank where one fits; the view follows the cursor by rows. A line over 1 MiB stays one row, scrolled sideways |
+| `:nowrap` | show long lines on one row, scrolled sideways (the default) |
 
 When the terminal window gets the focus back (terminals that send xterm
 focus events, mode 1004), the editor looks at the open file on disk and

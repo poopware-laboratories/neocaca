@@ -454,12 +454,17 @@ Safety first, then the biggest daily gains.
         the edge; widths in characters and display columns, the line's
         end takes a column, and a line over `max_line` (1 MiB) is one
         row, scrolled sideways
-  - [ ] M: draw it, with the cursor and scrolling over wrapped lines:
-        `View` keeps a row within its top line, scroll-off and the page
-        keys count screen rows, continuation rows have a blank gutter,
-        and `j`/`k` still move by buffer line. On by default; `:wrap`
-        and `:nowrap` turn it on and off (`docs/keys.md`), with a
-        field-validation scenario
+  - [x] M: draw it, with the cursor and scrolling over wrapped lines:
+        `View` keeps a row within its top line (`row`) and follows the
+        cursor by rows with scroll-off (`followRows`); continuation rows
+        have a blank gutter; `j`/`k` still move by buffer line. `:wrap`
+        and `:nowrap` turn it on and off, off by default for now
+  - [ ] S: the page keys (`Ctrl-d` `Ctrl-u` `Ctrl-f` `Ctrl-b`), `v`
+        (`vt` `vc` `vb`, `vj` `vk`) and a taller window filling its
+        rows count screen rows when wrapping; today they count buffer
+        lines, which a long wrapped line makes jump past what fits
+  - [ ] S: wrap by default (`:nowrap` to turn it off), the tests that
+        scroll sideways set `:nowrap`
 - **PR: multiple buffers.** `app::Editor` holds one `Document` today;
   splits build on this.
   - [ ] M: a list of documents with a current index, each keeping its
