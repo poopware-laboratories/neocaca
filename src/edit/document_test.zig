@@ -283,3 +283,36 @@ test "document: a save that ends where it began marks the current text" {
     doc.endSave(true);
     try std.testing.expect(!doc.isModified());
 }
+
+test "document: whether the newest save in flight writes the text as it is now" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    // No save in flight writes anything.
+    try std.testing.expect(!doc.savesCurrent());
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try std.testing.expect(doc.savesCurrent());
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    try std.testing.expect(!doc.savesCurrent());
+    _ = try doc.undo();
+    try std.testing.expect(doc.savesCurrent());
+    // A second save of the text now: the newest one is what counts.
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "3" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    try std.testing.expect(doc.savesCurrent());
+    doc.endSave(true);
+    try std.testing.expect(doc.savesCurrent());
+    doc.endSave(true);
+    try std.testing.expect(!doc.savesCurrent());
+}
+
+test "document: a save whose text was undone and replaced does not write the text now" {
+    var doc: Document = try .init(gpa, "a\n");
+    defer doc.deinit();
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "1" }}, &.{.at(0)}, 0);
+    doc.beginSave();
+    _ = try doc.undo();
+    // As far from the start as "1a" was, on another branch.
+    try doc.edit(&.{.{ .start = 0, .end = 0, .text = "2" }}, &.{.at(0)}, 0);
+    try std.testing.expect(!doc.savesCurrent());
+}

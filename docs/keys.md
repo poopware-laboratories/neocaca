@@ -147,11 +147,11 @@ make more change nothing, and the message line says "too many selections
 |---------|--------|
 | `:w [file]`, `:write` | write the buffer (atomically), optionally to `file`; refused for a read-only file, and for the open file once something else changed it on disk |
 | `:w! [file]` | write, a read-only file (it stays read-only), one changed on disk or one with other hard links (only this name gets the new text) too |
-| `:q`, `:quit` | quit; refused while there are unsaved changes |
+| `:q`, `:quit` | quit; refused while there are unsaved changes. Typed while a save of the text is still being written, it waits for the save (keys typed meanwhile are dropped), then quits, or stays if the save failed |
 | `:q!` | quit, discarding changes |
 | `:wq [file]` | write, optionally to `file`, then quit |
 | `:x` | write only if there are unsaved changes, then quit |
-| `:e <file>`, `:edit` | edit another file; refused while there are unsaved changes |
+| `:e <file>`, `:edit` | edit another file; refused while there are unsaved changes. During a save it waits, as `:q` does |
 | `:e! [file]` | reload the file from disk, or edit `file`, discarding changes |
 | `:<n>` | go to line `n` |
 | `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |

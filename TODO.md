@@ -431,11 +431,13 @@ Safety first, then the biggest daily gains.
         (pastes copied), which wait for the load in order and count
         against `max_held`. Found by the CRLF tests.
 - **PR: quit after a save in flight.**
-  - [ ] S: `:q` (and `:e`) typed while a save is still being written
+  - [x] S: `:q` (and `:e`) typed while a save is still being written
         waits for it to finish, then quits (or opens), instead of
-        refusing with "a save is still being written". Today `:w` then
-        `:q` typed quickly, or mapped to one key, is refused; the
-        pseudo-terminal test hit it under load.
+        refusing with "a save is still being written", which `:w` then
+        `:q` typed quickly, or mapped to one key, hit. Keys typed while
+        it waits are dropped, as during `:wq`. Refused at once when the
+        text changed since the save began; a failed save, or one to
+        another file, leaves the editor open and says why.
 - **PR: tidy-ups from the 2026-10-26 scan.** Small rule breaks; nothing
   wrong in behavior.
   - [ ] S: `term/tty.zig` drops the error of the self-pipe drain read

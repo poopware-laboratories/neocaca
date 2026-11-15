@@ -79,7 +79,9 @@ its roadmap item, and not reported again.
 2. **Serving as the Git editor.** Run `GIT_EDITOR=neocaca git commit` in
    `repo/` (`GIT_EDITOR` takes precedence over `core.editor` and `EDITOR`),
    write the message, save and quit. Repeat, quitting without saving: the
-   commit must be aborted.
+   commit must be aborted. Repeat once more with `:w` and `:q` typed in
+   quick succession: the quit waits for the save and the commit goes
+   through.
 3. **Reading a log.** Open `server.log`, go to the end, search backwards
    for an `ERROR`, keep only the error lines (`%`, `Alt-s`, `Alt-k`) and
    inspect a stack trace. Time the opening and every search.

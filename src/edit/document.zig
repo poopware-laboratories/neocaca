@@ -162,6 +162,11 @@ pub const Document = struct {
         return self.saves > 0;
     }
 
+    /// Whether the newest save in flight writes the text as it is now.
+    pub fn savesCurrent(self: *const Document) bool {
+        return self.saves > 0 and self.saving_at[self.saves - 1] == self.history.done;
+    }
+
     /// The text as it is now is being saved; edits may follow before
     /// `endSave`. At most `max_saves` are in flight.
     pub fn beginSave(self: *Document) void {

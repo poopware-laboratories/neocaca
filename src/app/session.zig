@@ -303,6 +303,8 @@ pub const Session = struct {
         self.saving = null;
         defer job.destroy();
         self.ed.finishSave(job.save, job.result);
+        // An `:e` that waited for the save asks for its load now.
+        self.serve();
     }
 
     /// The terminal is now `width` by `height` cells; one too large to
