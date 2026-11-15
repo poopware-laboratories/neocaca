@@ -581,8 +581,23 @@ Safety first, then the biggest daily gains.
 - [x] Local installs for everyday use: `make install` (ReleaseSafe
       with LTO) and `make optimized-install` (also laid out by
       `llvm-bolt` from scripted sessions, `scripts/bolt.sh`)
-- [ ] Packaging and releases, each release after a field validation pass with the
-      1 GB log (`BIG=1`) and a measurement against flow; the release
-      build takes the `Makefile`'s LTO and BOLT steps
+- **PR: weekly releases**, brought ahead of the phase at the
+  maintainer's request (2026-11-15). Versions follow the phases: each
+  weekly release bumps the patch, and a phase closing sets the minor
+  through a `Release-As:` footer (Phase 2 gives 0.2.0, Phase 3 0.3.0,
+  Phase 4 1.0.0); a security fix (`fix(security): …`) releases at once.
+  - [x] M: the release tool, `zig build release` (`src/release/`): whether
+        a run releases (weekly, at once for a security fix, a
+        `Release-As:` footer or a missed week), the next version, the
+        changelog section from the Conventional Commits, and the version
+        in build.zig.zon, the Homebrew formula and the PKGBUILD
+  - [ ] M: publishing: CHANGELOG.md, the release job on a weekly
+        schedule, a write deploy key the `main` ruleset lets through,
+        Debian and RPM packages from the static musl builds, a Homebrew
+        formula and an Arch PKGBUILD, each built and installed in CI; a
+        field validation pass with the 1 GB log (`BIG=1`) and the
+        measurement against flow before every major release
+  - [ ] S: the release builds laid out by BOLT, as `make
+        optimized-install` lays out the local one
 - [ ] The field validation pass that closes Phase 4 (`docs/field-validation.md`), with
       its measurement against flow
