@@ -1,6 +1,7 @@
 //! The editor application: a command line to an exit code (`run.zig`,
-//! codes in `exit.zig`); the editor state (`editor.zig`) with the
-//! requests it hands the shell (`requesting.zig`), its `:` commands
+//! codes in `exit.zig`); the editor state (`editor.zig`) with its message
+//! line (`message.zig`), the requests it hands the shell
+//! (`requesting.zig`), its `:` commands
 //! (`commands.zig`), prompts (`prompting.zig`), view keys
 //! (`viewing.zig`) and screen layout (`layout.zig`); a session joining it
 //! to bytes, files and frames (`session.zig`), saving and loading off the
@@ -33,7 +34,8 @@ test {
     _ = @import("app/editor_stop_test.zig");
     _ = @import("app/editor_view_test.zig");
     _ = @import("app/editor_map_test.zig");
-    _ = @import("app/editor_message_test.zig");
+    _ = @import("app/message.zig");
+    _ = @import("app/message_test.zig");
     _ = @import("app/requesting.zig");
     _ = @import("app/prompting.zig");
     _ = @import("app/viewing.zig");
