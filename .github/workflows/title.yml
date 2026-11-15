@@ -11,9 +11,15 @@ on:
 
 permissions: {}
 
+# Only the newest title of a pull request matters.
+concurrency:
+  group: title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   title:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: The title is a Conventional Commit
         # Through the environment, never pasted into the script: a title
@@ -22,11 +28,18 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           types='feat|fix|perf|refactor|docs|test|bench|build|ci|style|chore|revert'
+          # The backticks in single quotes are Markdown for the summary.
+          # shellcheck disable=SC2016
           if printf '%s\n' "$TITLE" | grep -Eq "^($types)(\([a-z0-9/_.-]+\))?!?: [^A-Z. ](.*[^.])?$"; then
             echo "ok: $TITLE"
+            printf '### Title\n\n✅ `%s` is a Conventional Commit.\n' "$TITLE" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "not a Conventional Commit: $TITLE"
-            echo "expected: type(scope)!: summary in lower case, no final period"
-            echo "types: $types"
+            echo "::error title=Not a Conventional Commit::expected type(scope)!: summary in lower case, no final period; types: $types"
+            {
+              printf '### Title\n\n❌ `%s` is not a Conventional Commit.\n\n' "$TITLE"
+              echo 'Expected `type(scope)!: summary`: the summary in lower case, without a final period.'
+              echo
+              echo "Types: $types."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi

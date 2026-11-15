@@ -84,8 +84,8 @@ which are listed in the [quick reference](AGENTS.md#quick-reference).
 | Scope | One concern per pull request; a large change is usually better split into several small ones, each easier to review and to test |
 
 Every CI check must pass before a merge. `main` requires the `ci` job,
-which passes only when every test, build and benchmark job has passed,
-and the `title` check. The details are in
+which starts with the others, waits for them, and passes only when every
+lint, test, build and benchmark job has passed, and the `title` check. The details are in
 [Branches, pull requests and commits](AGENTS.md#branches-pull-requests-and-commits).
 
 ## Other contributions
