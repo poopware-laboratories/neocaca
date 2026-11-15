@@ -36,7 +36,7 @@ built in.
 | Macros | no | yes | yes | yes | yes | no (its manual) |
 | Syntax highlighting | no | yes | yes | yes | yes | yes |
 | Language servers | no | plugin | yes | yes | plugin | yes |
-| Several buffers | no | yes | yes | yes | yes | yes |
+| Several buffers | partly (`:e`, `:bn`, `:bp`) | yes | yes | yes | yes | yes |
 | Splits | no | through its clients | yes | yes | yes | vertical |
 | Mouse | no | yes | yes | yes | yes | yes |
 | System clipboard | no | plugin | yes | yes | yes | yes |
@@ -547,9 +547,11 @@ Safety first, then the biggest daily gains.
         recovery on a hang-up, each beside its own file and in its own
         form; `switchTo` asserts that no save is in flight, and the keys
         that switch refuse it with a message
-  - [ ] S: `:e` opens a second buffer; `:bn` and `:bp` switch, refused
+  - [x] S: `:e` opens a second buffer; `:bn` and `:bp` switch, refused
         with a message while the current buffer is being saved
-  - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line
+  - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line;
+        `:e` finds an open buffer by the file its path names (`fs/link.zig`),
+        not only by the path as typed (`./a` and `a`)
 - **PR: concurrency and crash safety.** More work moves off the event
   loop and out of the process, without races: one thread owns the
   editing state, and nothing that changes is shared. Today the loop does

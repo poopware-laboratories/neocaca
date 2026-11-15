@@ -157,8 +157,10 @@ make more change nothing, and the message line says "too many selections
 | `:q!` | quit, discarding the changes in every buffer |
 | `:wq [file]` | write, optionally to `file`, then quit, unless another buffer has unsaved changes |
 | `:x` | write only if there are unsaved changes, then quit, unless another buffer has unsaved changes |
-| `:e <file>`, `:edit` | edit another file; refused while there are unsaved changes. During a save it waits, as `:q` does |
-| `:e! [file]` | reload the file from disk, or edit `file`, discarding changes |
+| `:e <file>`, `:edit` | open `file` in a new buffer after the others and make it current, keeping the unsaved changes of the one left; switch to it if it is already open (the path as typed). An empty, unmodified buffer without a file gives its place to it. `:e` of the current file reloads it, refused while there are unsaved changes. During a save it waits, as `:q` does |
+| `:e! [file]` | reload the current file from disk, discarding changes; with another `file`, as `:e` |
+| `:bn`, `:bnext` | switch to the next buffer, from the last to the first; refused while the current buffer is being saved |
+| `:bp`, `:bprevious` | switch to the previous buffer, from the first to the last; likewise |
 | `:<n>` | go to line `n` |
 | `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
 | `:unmap <mode> <key>` | forget the mapping of `key` in that mode |

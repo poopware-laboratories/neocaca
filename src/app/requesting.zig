@@ -96,8 +96,10 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) e
     ed.message.set(false, "\"{f}\" written, {d} line{s}", .{ editor.Message.path(s.path), s.lines, plural(s.lines) });
     if (s.quit) ed.quit = !buffers.othersUnsaved(ed);
     if (after == .nothing) return;
-    // A save to another file leaves the changes unsaved.
-    if (ed.doc.isModified()) return unsaved(ed, after);
+    // A save to another file leaves the changes unsaved; a file opened
+    // beside them keeps them.
+    const beside = after == .load and !buffers.loadsInPlace(ed, ed.after_path.items);
+    if (ed.doc.isModified() and !beside) return unsaved(ed, after);
     switch (after) {
         .nothing => unreachable,
         .quit => ed.quit = !buffers.othersUnsaved(ed),
@@ -132,16 +134,20 @@ pub fn loaded(ed: *Editor, path: []const u8, result: fs.file.LoadError!?[]u8, di
     };
     defer if (contents) |t| ed.gpa.free(t);
     const decoded: form.Decoded = if (contents) |t| form.decode(t) else .{ .text = "", .form = .{} };
-    var doc: Document = try .init(ed.gpa, decoded.text);
-    errdefer doc.deinit();
-    const owned = try ed.gpa.dupe(u8, path);
-    ed.doc.deinit();
-    ed.doc = doc;
-    if (ed.path) |p| ed.gpa.free(p);
-    ed.path = owned;
+    if (buffers.loadsInPlace(ed, path)) {
+        var doc: Document = try .init(ed.gpa, decoded.text);
+        errdefer doc.deinit();
+        const owned = try ed.gpa.dupe(u8, path);
+        ed.doc.deinit();
+        ed.doc = doc;
+        if (ed.path) |p| ed.gpa.free(p);
+        ed.path = owned;
+        ed.view = .{};
+    } else {
+        try buffers.open(ed, path, decoded.text);
+    }
     ed.disk = disk;
     ed.form = decoded.form;
-    ed.view = .{};
     if (std.meta.isError(result)) {
         ed.message.set(true, "\"{f}\" new file; its directory does not exist", .{editor.Message.path(path)});
     } else if (contents == null) {

@@ -32,6 +32,7 @@ test {
     _ = editor;
     _ = @import("app/editor_test.zig");
     _ = @import("app/buffers_test.zig");
+    _ = @import("app/buffers_keys_test.zig");
     _ = @import("app/editor_prompt_test.zig");
     _ = @import("app/editor_stop_test.zig");
     _ = @import("app/editor_view_test.zig");

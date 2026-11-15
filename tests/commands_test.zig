@@ -36,18 +36,21 @@ test "commands: :q refuses over changes, :q! leaves them unwritten" {
     try expectEqualStrings("x\n", try h.file("a", &buf));
 }
 
-test "commands: :e opens another file, refused over changes until written" {
+test "commands: :e opens another file beside the changes, :bp goes back to them" {
     var h: Harness = undefined;
     try h.init("a", "first\n", 30, 4);
     defer h.deinit();
     try h.tmp.dir.writeFile(std.testing.io, .{ .sub_path = "b", .data = "second\n" });
     try h.typeKeys("d:e b\r");
-    try h.expectText("irst\n");
-    // Typed after the write is reported: `:e` waits for it.
-    try h.typeKeys(":w\r");
-    try h.typeKeys(":e b\r");
     try h.expectText("second\n");
     try h.expectRow(2, " NORMAL  b                1:1 ");
+    try h.typeKeys(":bp\r");
+    try h.expectText("irst\n");
+    // Still unsaved, so :q names it from b.
+    try h.typeKeys(":bn\r:q\r");
+    try h.expectRow(3, "…ed changes; :q! discards them");
+    try expectEqualStrings("\"a\" has unsaved changes; :q! discards them", h.session.ed.message.text());
+    try h.typeKeys(":bp\r:w\r");
     var buf: [16]u8 = undefined;
     try expectEqualStrings("irst\n", try h.file("a", &buf));
 }

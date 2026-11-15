@@ -47,6 +47,15 @@ test "commands: edit and reload" {
     try expectParse("e! c", .{ .edit = .{ .path = "c", .force = true } });
 }
 
+test "commands: the next and the previous buffer" {
+    try expectParse("bn", .{ .cycle = .next });
+    try expectParse("bnext", .{ .cycle = .next });
+    try expectParse("bp", .{ .cycle = .previous });
+    try expectParse("bprevious", .{ .cycle = .previous });
+    try std.testing.expectError(error.TooManyArguments, commands.parse("bn 2"));
+    try std.testing.expectError(error.UnknownCommand, commands.parse("bn!"));
+}
+
 test "commands: a number goes to that line" {
     try expectParse("12", .{ .goto_line = 12 });
     try expectParse(" 1 ", .{ .goto_line = 1 });
