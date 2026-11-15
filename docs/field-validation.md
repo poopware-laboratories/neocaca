@@ -163,7 +163,7 @@ against each other; a short pass after a single piece does not.
 
 1. **Run the comparison** against the binary of flow's latest release,
    downloaded from its releases page with its checksum verified:
-   `zig build compare -Dflow=path/to/flow`. Use the same machine as the
+   `zig build compare -Deditors=flow=path/to/flow`. Use the same machine as the
    previous pass where possible. The command builds neocaca in
    ReleaseSafe itself.
 2. **Replace the "Measured" table** in the yardstick section of

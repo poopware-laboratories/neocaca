@@ -149,7 +149,7 @@ Every binding is documented in [`docs/keys.md`](docs/keys.md).
 | `zig build test -fincremental --watch` | Rerun the tests incrementally on every save (x86_64-linux) |
 | `zig build fmt` | Format the sources (`fmt-check` only checks) |
 | `zig build bench` | SIMD kernels against their scalar references |
-| `zig build compare -Dflow=<path>` | neocaca against flow on a pseudo-terminal |
+| `zig build compare -Deditors=kak,hx,nvim,vim,flow` | neocaca, beside the editors listed, on a pseudo-terminal |
 | `zig build ratio -- <diff>` | The 3:1 test rule counted over a diff, as CI counts it |
 
 ### Installing locally
@@ -194,8 +194,8 @@ documented in [`AGENTS.md`](AGENTS.md#architecture-in-one-screen).
 | `src/cli/` | Commands, parsing and help text |
 | `src/alloc/` | mimalloc as a `std.mem.Allocator`, and the process allocator for each build mode |
 | `src/simd/` | One file per kernel: byte counting, byte search, control-byte search, printable-ASCII runs |
-| `src/bench/` | `zig build bench` (kernels against their scalar references) and `zig build compare` (neocaca against flow) |
-| `src/compare/` | The pure part of `zig build compare`: terminal replies, frame waits, test files, the results table |
+| `src/bench/` | `zig build bench` (kernels against their scalar references) and `zig build compare` (neocaca beside other editors) |
+| `src/compare/` | The pure part of `zig build compare`: the editors known, terminal replies, frame waits, test files, the results table |
 | `src/ratio/` | The 3:1 rule over a diff: its added lines, which of them are tests, the tally |
 | `src/release/` | Releases: versions, Conventional Commit messages, whether a release is due, its changelog section and the files it changes |
 | `src/tools/` | `zig build ratio` (the 3:1 count over a diff file) and `zig build release` (the release steps) |
