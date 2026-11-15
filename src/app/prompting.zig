@@ -9,6 +9,7 @@ const regex = @import("../regex.zig");
 const commands = @import("commands.zig");
 const editor = @import("editor.zig");
 const requesting = @import("requesting.zig");
+const buffers = @import("buffers.zig");
 
 const Editor = editor.Editor;
 const Error = editor.Error;
@@ -117,11 +118,11 @@ fn command(ed: *Editor, line: []const u8) Error!void {
         .quit => |q| {
             if (!q.force and ed.doc.isSaving()) return waitForSave(ed, .quit, null);
             if (!q.force and ed.doc.isModified()) return requesting.unsaved(ed, .quit);
-            ed.quit = true;
+            ed.quit = q.force or !buffers.othersUnsaved(ed);
         },
         .write => |w| {
             if (w.only_if_modified and !ed.doc.isModified()) {
-                ed.quit = w.quit;
+                ed.quit = w.quit and !buffers.othersUnsaved(ed);
                 return;
             }
             const path = w.path orelse ed.path orelse return noFileName(ed);

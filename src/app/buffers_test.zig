@@ -245,3 +245,93 @@ test "buffers: the screen shows the current buffer, its text and its name" {
     try expect(shows(&screen, "alpha") and shows(&screen, "a.txt"));
     try expect(!shows(&screen, "beta") and !shows(&screen, "b.txt"));
 }
+
+test "buffers: each buffer can be read by its place, current or not" {
+    var ed: Editor = try .init(gpa, "a.txt", "alpha\n");
+    defer ed.deinit();
+    ed.form.ending = .crlf;
+    try ed.open(null, "beta\n");
+    const a = ed.buffer(0);
+    try expectEqualStrings("a.txt", a.path.?);
+    try expectEqualStrings("alpha\n", a.doc.text());
+    try expectEqual(.crlf, a.form.ending);
+    const b = ed.buffer(1);
+    try expectEqual(null, b.path);
+    try expectEqualStrings("beta\n", b.doc.text());
+    try expect(b.doc == &ed.doc);
+}
+
+test "buffers: the first modified buffer besides the current one" {
+    var ed: Editor = try .init(gpa, "a.txt", "alpha\n");
+    defer ed.deinit();
+    try ed.open("b.txt", "beta\n");
+    try ed.open("c.txt", "gamma\n");
+    try typeKeys(&ed, "ix\x1b");
+    // Only the current one is modified.
+    try expectEqual(null, ed.otherModified());
+    ed.switchTo(1);
+    try typeKeys(&ed, "ix\x1b");
+    ed.switchTo(0);
+    try expectEqual(1, ed.otherModified());
+    ed.switchTo(1);
+    try expectEqual(2, ed.otherModified());
+}
+
+const refused = "\"b.txt\" has unsaved changes; :q! discards them";
+
+/// An editor on a.txt, with b.txt modified while a.txt is current.
+fn twoBuffers() !Editor {
+    var ed: Editor = try .init(gpa, "a.txt", "alpha\n");
+    errdefer ed.deinit();
+    try ed.open("b.txt", "beta\n");
+    try typeKeys(&ed, "ix\x1b");
+    ed.switchTo(0);
+    return ed;
+}
+
+test "buffers: :q refuses while another buffer has unsaved changes, naming it" {
+    var ed = try twoBuffers();
+    defer ed.deinit();
+    try typeKeys(&ed, ":q\r");
+    try expect(!ed.quit);
+    try expectEqualStrings(refused, ed.message.text());
+    try typeKeys(&ed, ":q!\r");
+    try expect(ed.quit);
+}
+
+test "buffers: the current buffer's unsaved changes are named first" {
+    var ed = try twoBuffers();
+    defer ed.deinit();
+    try typeKeys(&ed, "iy\x1b:q\r");
+    try expect(!ed.quit);
+    try expectEqualStrings("unsaved changes; :q! discards them", ed.message.text());
+}
+
+test "buffers: a buffer without a file is named as one" {
+    var ed: Editor = try .init(gpa, "a.txt", "alpha\n");
+    defer ed.deinit();
+    try ed.open(null, "");
+    try typeKeys(&ed, "ix\x1b");
+    ed.switchTo(0);
+    try typeKeys(&ed, ":q\r");
+    try expect(!ed.quit);
+    try expectEqualStrings("a buffer without a file has unsaved changes; :q! discards them", ed.message.text());
+}
+
+test "buffers: :x and :wq quit only once no other buffer has unsaved changes" {
+    var ed = try twoBuffers();
+    defer ed.deinit();
+    // Nothing to write here, so :x would quit at once.
+    try typeKeys(&ed, ":x\r");
+    try expect(!ed.quit);
+    try expectEqualStrings(refused, ed.message.text());
+    try typeKeys(&ed, ":wq\r");
+    ed.finishSave(ed.takeRequest().?.save, .unknown);
+    try expect(!ed.quit);
+    try expectEqualStrings(refused, ed.message.text());
+    // Once b.txt is written too, :wq there quits.
+    ed.switchTo(1);
+    try typeKeys(&ed, ":wq\r");
+    ed.finishSave(ed.takeRequest().?.save, .unknown);
+    try expect(ed.quit);
+}

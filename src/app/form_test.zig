@@ -105,7 +105,7 @@ test "endings: without memory for CRLF the recovery file still holds the changes
     }
     failing.fail_index = failing.alloc_index;
     var buf: [recovery.max_name]u8 = undefined;
-    try expectEqualStrings("f.recovered", s.recover(&buf).written);
+    try expectEqualStrings("f.recovered", s.recover(0, &buf).written);
     var text: [16]u8 = undefined;
     try expectEqualStrings("a\nx\n", try tmp.dir.readFile(io, "f.recovered", &text));
 }

@@ -71,22 +71,21 @@ fn stopped(session: *Session, e: anyerror, err: *std.Io.Writer) std.Io.Writer.Er
 }
 
 /// After the terminal went away rather than the editor quitting, writes
-/// the unsaved changes to a recovery file and says where; a failure when
-/// they could not be written.
+/// every buffer's unsaved changes to a recovery file and says where; a
+/// failure when any could not be written.
 fn recover(session: *Session, err: *std.Io.Writer) std.Io.Writer.Error!exit.Code {
     if (session.done()) return .ok;
+    var code: exit.Code = .ok;
     var buf: [recovery.max_name]u8 = undefined;
-    switch (session.recover(&buf)) {
-        .none => return .ok,
-        .written => |where| {
-            try err.print("caca: unsaved changes written to \"{f}\"\n", .{visible.of(where)});
-            return .ok;
-        },
+    for (0..session.ed.bufferCount()) |i| switch (session.recover(i, &buf)) {
+        .none => {},
+        .written => |where| try err.print("caca: unsaved changes written to \"{f}\"\n", .{visible.of(where)}),
         .failed => |e| {
             try err.print("caca: the unsaved changes could not be written: {s}\n", .{recovery.describe(e)});
-            return .failure;
+            code = .failure;
         },
-    }
+    };
+    return code;
 }
 
 /// What stopped the loop: the terminal, memory, or a bug in the editor.
@@ -188,6 +187,33 @@ test "edit: changes that cannot be recovered are said to be lost" {
         \\caca: the unsaved changes could not be written: no such file or directory
         \\
     , err.buffered());
+}
+
+test "edit: after a hang-up, every buffer's changes are recovered, one failing or not" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var session: Session = try .init(std.testing.allocator, std.testing.io, tmp.dir, "a", 20, 4);
+    defer session.deinit();
+    try session.ed.open("gone/b", "beta\n");
+    try session.feed("ix\x1b");
+    try session.timeout();
+    try session.ed.open("c", "gamma\n");
+    try session.feed("iz\x1b");
+    try session.timeout();
+    session.ed.switchTo(0);
+    try session.feed("iy\x1b");
+    try session.timeout();
+    var err_buf: [256]u8 = undefined;
+    var err: std.Io.Writer = .fixed(&err_buf);
+    try std.testing.expectEqual(.failure, try recover(&session, &err));
+    try std.testing.expectEqualStrings(
+        \\caca: unsaved changes written to "a.recovered"
+        \\caca: the unsaved changes could not be written: no such file or directory
+        \\caca: unsaved changes written to "c.recovered"
+        \\
+    , err.buffered());
+    var text: [16]u8 = undefined;
+    try std.testing.expectEqualStrings("zgamma\n", try tmp.dir.readFile(std.testing.io, "c.recovered", &text));
 }
 
 test "edit: after a hang-up, the exit fails only when changes were lost" {

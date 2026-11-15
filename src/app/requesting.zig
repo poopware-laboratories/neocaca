@@ -5,6 +5,7 @@ const std = @import("std");
 const fs = @import("../fs.zig");
 const form = @import("../buffer.zig").form;
 const editor = @import("editor.zig");
+const buffers = @import("buffers.zig");
 
 const Editor = editor.Editor;
 const Request = editor.Request;
@@ -93,13 +94,13 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) e
     ed.doc.endSave(same);
     if (same) ed.disk = written;
     ed.message.set(false, "\"{f}\" written, {d} line{s}", .{ editor.Message.path(s.path), s.lines, plural(s.lines) });
-    if (s.quit) ed.quit = true;
+    if (s.quit) ed.quit = !buffers.othersUnsaved(ed);
     if (after == .nothing) return;
     // A save to another file leaves the changes unsaved.
     if (ed.doc.isModified()) return unsaved(ed, after);
     switch (after) {
         .nothing => unreachable,
-        .quit => ed.quit = true,
+        .quit => ed.quit = !buffers.othersUnsaved(ed),
         .load => try ask(ed, .{ .load = ed.after_path.items }),
     }
 }

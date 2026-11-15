@@ -47,6 +47,7 @@ test {
     _ = @import("app/layout_wrap_test.zig");
     _ = session;
     _ = @import("app/session_test.zig");
+    _ = @import("app/session_buffers_test.zig");
     _ = @import("app/session_open_test.zig");
     _ = @import("app/session_save_test.zig");
     _ = @import("app/session_wait_test.zig");

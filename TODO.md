@@ -542,10 +542,13 @@ Safety first, then the biggest daily gains.
         own path, selections, history and save state (no new keys yet):
         the current one stays in `Editor`'s fields, the others wait in
         `app/buffers.zig`
-  - [ ] S: every buffer, not only the current one, is checked by `:q`
-        for unsaved changes and written by the recovery on a hang-up;
-        no switch while a save is in flight
-  - [ ] S: `:e` opens a second buffer; `:bn` and `:bp` switch
+  - [x] S: every buffer, not only the current one, is checked by `:q`
+        (and `:x`, `:wq`) for unsaved changes and written by the
+        recovery on a hang-up, each beside its own file and in its own
+        form; `switchTo` asserts that no save is in flight, and the keys
+        that switch refuse it with a message
+  - [ ] S: `:e` opens a second buffer; `:bn` and `:bp` switch, refused
+        with a message while the current buffer is being saved
   - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line
 - **PR: concurrency and crash safety.** More work moves off the event
   loop and out of the process, without races: one thread owns the

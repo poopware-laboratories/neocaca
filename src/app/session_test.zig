@@ -101,12 +101,12 @@ test "session: recovering an unmodified buffer writes nothing" {
     var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 4);
     defer s.deinit();
     var buf: [recovery.max_name]u8 = undefined;
-    try expectEqual(.none, s.recover(&buf));
+    try expectEqual(.none, s.recover(0, &buf));
     try typeKeys(&s, "ix\x1b:w");
     try s.feed("\r");
     // The save is still in flight: what it writes is not unsaved.
     try expect(s.saving != null);
-    try expectEqual(.none, s.recover(&buf));
+    try expectEqual(.none, s.recover(0, &buf));
     var text: [16]u8 = undefined;
     try std.testing.expectError(error.FileNotFound, readFile(tmp.dir, "f.recovered", &text));
 }
@@ -119,7 +119,7 @@ test "session: recovering writes the unsaved text beside the file" {
     defer s.deinit();
     try typeKeys(&s, "ix\x1b");
     var buf: [recovery.max_name]u8 = undefined;
-    try expectEqualStrings("f.recovered", (s.recover(&buf)).written);
+    try expectEqualStrings("f.recovered", (s.recover(0, &buf)).written);
     var text: [16]u8 = undefined;
     try expectEqualStrings("xsaved\n", try readFile(tmp.dir, "f.recovered", &text));
     try expectEqualStrings("saved\n", try readFile(tmp.dir, "f", &text));
@@ -132,11 +132,11 @@ test "session: recovering a scratch buffer, and failing to" {
     defer s.deinit();
     try typeKeys(&s, "iscratch\x1b");
     var buf: [recovery.max_name]u8 = undefined;
-    try expectEqualStrings("caca.recovered", (s.recover(&buf)).written);
+    try expectEqualStrings("caca.recovered", (s.recover(0, &buf)).written);
     var t: Session = try .init(gpa, io, tmp.dir, "gone/f", 20, 4);
     defer t.deinit();
     try typeKeys(&t, "ix\x1b");
-    try expectEqual(error.FileNotFound, (t.recover(&buf)).failed);
+    try expectEqual(error.FileNotFound, (t.recover(0, &buf)).failed);
 }
 
 test "session: typed keys edit, and :w writes the file" {

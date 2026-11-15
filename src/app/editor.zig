@@ -219,6 +219,8 @@ pub const Editor = struct {
     pub const open = buffers.open;
     pub const switchTo = buffers.switchTo;
     pub const bufferCount = buffers.bufferCount;
+    pub const buffer = buffers.buffer;
+    pub const otherModified = buffers.otherModified;
 
     /// Types `k`, or the keys it is mapped to, which are not mapped again.
     fn typed(self: *Editor, k: Key) Error!void {
