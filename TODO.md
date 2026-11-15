@@ -534,10 +534,14 @@ Safety first, then the biggest daily gains.
         (Kakoune 50.6 ms, flow 302 ms on 2026-11-15): find with
         `--trace` what each draws after the key, and time the frame
         that answers it rather than the redraws after, or say why not
-- **PR: multiple buffers.** `app::Editor` holds one `Document` today;
-  splits build on this.
-  - [ ] M: a list of documents with a current index, each keeping its
-        own path, selections, history and save state (no new keys yet)
+- **PR: multiple buffers.** Splits build on this.
+  - [x] M: a list of documents with a current index, each keeping its
+        own path, selections, history and save state (no new keys yet):
+        the current one stays in `Editor`'s fields, the others wait in
+        `app/buffers.zig`
+  - [ ] S: every buffer, not only the current one, is checked by `:q`
+        for unsaved changes and written by the recovery on a hang-up;
+        no switch while a save is in flight
   - [ ] S: `:e` opens a second buffer; `:bn` and `:bp` switch
   - [ ] S: `:b <name>` and `:bd`, and the buffer in the status line
 - **PR: system clipboard through OSC 52 (write only)**
