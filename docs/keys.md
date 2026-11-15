@@ -54,12 +54,13 @@ roadmap in [`TODO.md`](../TODO.md).
 | `Ctrl-f` `Ctrl-b`, PageDown, PageUp | a page down / up |
 | `vc` `vv` / `vt` / `vb` | put the cursor's line in the middle / at the top / at the bottom of the view |
 | `vj` / `vk` | scroll the view a line down / up (with a count, that many), the cursor moving only to stay in view |
-| `vh` / `vl` | scroll the view a column left / right (with a count, that many), the cursor moving along its line only to stay in view |
+| `vh` / `vl` | scroll the view a column left / right (with a count, that many), the cursor moving along its line only to stay in view; only with `:nowrap`, or on a line too long to wrap |
 
-With `:wrap`, the page keys and `vj` `vk` `vt` `vc` `vb` count screen
-rows rather than lines: a page is the rows of the window, `vt` `vc` `vb`
-place the cursor's row, and `vj` `vk` scroll by rows. The cursor moves
-along a long line from row to row, keeping its column within the row.
+Lines wrap by default, and then the page keys and `vj` `vk` `vt` `vc`
+`vb` count screen rows rather than lines: a page is the rows of the
+window, `vt` `vc` `vb` place the cursor's row, and `vj` `vk` scroll by
+rows. The cursor moves along a long line from row to row, keeping its
+column within the row. With `:nowrap` they count lines.
 
 ### Shaping the selections
 
@@ -161,8 +162,8 @@ make more change nothing, and the message line says "too many selections
 | `:<n>` | go to line `n` |
 | `:map <mode> <key> <keys>` | in `normal` or `insert` mode, typing `key` types `keys` instead |
 | `:unmap <mode> <key>` | forget the mapping of `key` in that mode |
-| `:wrap` | wrap long lines onto the rows below, breaking after a blank where one fits; the view follows the cursor by rows. A line over 1 MiB stays one row, scrolled sideways |
-| `:nowrap` | show long lines on one row, scrolled sideways (the default) |
+| `:wrap` | wrap long lines onto the rows below, breaking after a blank where one fits; the view follows the cursor by rows (the default). A line over 1 MiB stays one row, scrolled sideways |
+| `:nowrap` | show long lines on one row, scrolled sideways |
 
 When the terminal window gets the focus back (terminals that send xterm
 focus events, mode 1004), the editor looks at the open file on disk and

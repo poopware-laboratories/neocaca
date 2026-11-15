@@ -33,7 +33,11 @@ pub fn moveView(ed: *Editor, v: input.action.View) Error!void {
             const down = v.to == .down;
             return if (ed.options.wrap) scrollRows(ed, down, v.count, false) else scrollBy(ed, down, v.count, false);
         },
-        .left, .right => return scrollColumns(ed, v.to == .right, v.count),
+        .left, .right => {
+            // A wrapped line is shown whole: there is nothing to scroll.
+            if (ed.options.wrap and !tooLongToWrap(ed)) return;
+            return scrollColumns(ed, v.to == .right, v.count);
+        },
         .top => .top,
         .center => .center,
         .bottom => .bottom,
@@ -47,6 +51,12 @@ pub fn moveView(ed: *Editor, v: input.action.View) Error!void {
     if (!ed.options.wrap) return ed.view.place(placing, at);
     var rows: layout.Rows = .init(ed);
     ed.view.placeRows(placing, here(ed, &rows).pos.row, at, &rows);
+}
+
+/// Whether the main cursor's line is one row however lines wrap.
+fn tooLongToWrap(ed: *const Editor) bool {
+    const buf = &ed.doc.buffer;
+    return buf.line(buf.lineOf(ed.doc.primary().cursor)).len > ui.wrap.max_line;
 }
 
 /// Where the main cursor is when lines wrap: its row, and its column

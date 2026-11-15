@@ -54,18 +54,22 @@ const Fixture = struct {
     }
 };
 
-test "layout wrap: lines are not wrapped until :wrap" {
+test "layout wrap: lines wrap from the start, until :nowrap" {
     var f: Fixture = try .init(long);
     defer f.deinit();
-    f.draw();
-    try expectRow(&f.screen, 0, " 1 abcdefg");
-    try expectRow(&f.screen, 1, "~         ");
-    try typeKeys(&f.ed, ":wrap\r");
     try std.testing.expect(f.ed.options.wrap);
     f.draw();
     try expectRow(&f.screen, 0, " 1 abcdefg");
     try expectRow(&f.screen, 1, "   hijklmn");
     try expectRow(&f.screen, 2, "   opqrstu");
+    try typeKeys(&f.ed, ":nowrap\r");
+    f.draw();
+    try expectRow(&f.screen, 0, " 1 abcdefg");
+    try expectRow(&f.screen, 1, "~         ");
+    // And back on.
+    try typeKeys(&f.ed, ":wrap\r");
+    f.draw();
+    try expectRow(&f.screen, 1, "   hijklmn");
 }
 
 test "layout wrap: the view follows the cursor down the rows of one line" {
@@ -123,8 +127,11 @@ test "layout wrap: a narrower window rewraps and keeps the cursor in view" {
 test "layout wrap: :wrap and :nowrap take no argument" {
     var f: Fixture = try .init(long);
     defer f.deinit();
-    try typeKeys(&f.ed, ":wrap on\r");
+    try typeKeys(&f.ed, ":nowrap\r:wrap on\r");
     try std.testing.expect(!f.ed.options.wrap);
+    try expectEqualStrings("too many arguments", f.ed.message.text());
+    try typeKeys(&f.ed, ":wrap\r:nowrap off\r");
+    try std.testing.expect(f.ed.options.wrap);
     try expectEqualStrings("too many arguments", f.ed.message.text());
 }
 

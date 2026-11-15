@@ -464,8 +464,9 @@ Safety first, then the biggest daily gains.
         rows count screen rows when wrapping (`View.scrollRows`,
         `placeRows`, `fillRows`); the cursor goes along a long line
         from row to row, keeping its column within the row
-  - [ ] S: wrap by default (`:nowrap` to turn it off), the tests that
-        scroll sideways set `:nowrap`
+  - [x] S: wrap by default (`:nowrap` to turn it off), the tests that
+        scroll sideways set `:nowrap`; `vh` `vl` scroll only lines that
+        are not wrapped
 - **PR: multiple buffers.** `app::Editor` holds one `Document` today;
   splits build on this.
   - [ ] M: a list of documents with a current index, each keeping its

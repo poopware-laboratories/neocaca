@@ -171,7 +171,7 @@ test "layout: the view follows the main cursor with a scroll margin" {
 test "layout: the view follows the cursor sideways" {
     var f: Fixture = try .init("f", "0123456789abcdefghij\n", 12, 3);
     defer f.deinit();
-    try typeKeys(&f.ed, "gl");
+    try typeKeys(&f.ed, ":nowrap\rgl");
     f.draw();
     // Nine columns of text: the last character and the scroll margin.
     try expectRow(&f.screen, 0, " 1 efghij   ");

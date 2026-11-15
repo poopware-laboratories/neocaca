@@ -168,6 +168,31 @@ test "editor wrap: a wider window wraps into fewer rows and fills them" {
     try expectRow(&ed, 0, " 1 ab            ");
 }
 
+test "editor wrap: vl and vh do nothing on wrapped lines" {
+    var ed = try open("ab\n" ++ long);
+    defer ed.deinit();
+    try typeKeys(&ed, "j5vl");
+    try expectEqual(View{}, ed.view);
+    try expectEqual(0, cursorOffset(&ed));
+    try typeKeys(&ed, "gl3vh");
+    try expectEqual(39, cursorOffset(&ed));
+    try expectEqual(1, ed.doc.sels().len);
+}
+
+test "editor wrap: vl still scrolls a line too long to wrap" {
+    const wrap = @import("../ui.zig").wrap;
+    const text = try gpa.alloc(u8, wrap.max_line + 2);
+    defer gpa.free(text);
+    @memset(text, 'a');
+    text[text.len - 1] = '\n';
+    var ed = try open(text);
+    defer ed.deinit();
+    try typeKeys(&ed, "5vl");
+    try expectEqual(5, ed.view.left);
+    // Pushed out of the left margin of three columns.
+    try expectEqual(8, cursorOffset(&ed));
+}
+
 test "editor wrap: without wrapping the page keys still count lines" {
     var ed = try open("ab\n" ++ long ++ "z\n");
     defer ed.deinit();
