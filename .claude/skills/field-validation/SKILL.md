@@ -70,23 +70,26 @@ Every scenario in `docs/field-validation.md`, as tasks, plus what the phase
 added. Note each surprise with its file, its keys from a fresh start,
 what happened and what should have.
 
-## 4. Against flow (phase or release passes)
+## 4. Against the other editors (phase or release passes)
 
-Download flow's latest release, check its checksum, unpack it in its own
-empty directory under `$SCRATCH`, and run:
+Install the current releases of Kakoune, Helix, Neovim, Vim and flow. An
+editor the system does not package is downloaded from its releases page,
+its checksum checked, and unpacked in its own empty directory under
+`$SCRATCH`. Then run:
 
 ```sh
-zig build compare -Deditors=flow="$SCRATCH/flow/flow"
+zig build compare -Deditors=kak,hx,nvim,vim,flow   # name=path for one not on PATH
 ```
 
-Then follow "Against flow" in `docs/field-validation.md`: the "Measured" table
-in `TODO.md` replaced, "Still behind" updated from flow's documentation
-(never its source), and an item for every row neocaca loses.
+Then follow "Against the other editors" in `docs/field-validation.md`:
+the "Measured" table in `TODO.md` replaced, "Features" and "Still behind"
+updated from each editor's documentation (never its source), and an item
+for every row neocaca loses to any of them.
 
 ## 5. Report
 
 - Each finding a `TODO.md` piece; numbers into the items they measure;
-  a line in the log of `docs/field-validation.md`, its flow column included;
+  a line in the log of `docs/field-validation.md`, its column of the other editors included;
   the pass ticked in `TODO.md`.
 - Crashes, lost data and raw bytes on the terminal go first, before any
   other piece.

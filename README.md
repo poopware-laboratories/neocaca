@@ -83,22 +83,24 @@ is a shared cloud host, so individual runs vary by a few GiB/s.
 ReleaseFast performs at about the same speed: the kernels' loops let the
 compiler prove their bounds checks redundant, so it removes them itself.
 
-### Compared with flow
+### Compared with other editors
 
-neocaca measures itself against [flow](https://flow-control.dev), another
-terminal editor written in Zig (`zig build compare`, on a pseudo-terminal,
-against flow 0.7.2):
+neocaca measures itself against Kakoune, Helix, Neovim, Vim and
+[flow](https://flow-control.dev) (`zig build compare`, on a
+pseudo-terminal, each editor without user configuration; medians):
 
-| Measurement | neocaca | flow |
-|-------------|--------:|-----:|
-| First frame | 3.4 ms | 13.3 ms |
-| Response to a key | 0.66 ms | 1.94 ms |
-| Opening a 100 MiB file | 403 ms, 232 MiB | 876 ms, 703 MiB |
-| Typing at 10,000 cursors | under 5 ms | about 500 ms |
+| Measurement | neocaca | Kakoune | Helix | Neovim | Vim | flow |
+|-------------|--------:|--------:|------:|-------:|----:|-----:|
+| First frame | 0.99 ms | 1.78 ms | 16.4 ms | 13.4 ms | 10.7 ms | 31.7 ms |
+| Opening a 1 MiB file | 2.2 ms | 3.2 ms | 18.0 ms | 15.1 ms | 12.2 ms | 44.5 ms |
+| Opening a 100 MiB file | 108 ms | 139 ms | 105 ms | 153 ms | 139 ms | 1.12 s |
+| Typing at 10,000 cursors | 1.6 ms | 1.7 ms | 10.5 ms | no | no | 579 ms |
 
-neocaca still uses more memory at startup, and it refuses files larger
-than 256 MiB, which flow opens. The complete table, and the features flow
-offers that neocaca does not yet, are kept under "The yardstick" in
+neocaca still uses more memory than Kakoune on small files and with many
+selections, and more than Helix and Vim on 100 MiB; Vim answers a key
+faster; and neocaca refuses files larger than 256 MiB, which all five
+open. The complete table, the features each editor offers, and the
+roadmap item for every gap are kept under "The yardstick" in
 [`TODO.md`](TODO.md).
 
 What neocaca treats as untrusted, the limits it enforces, and how to

@@ -11,99 +11,143 @@ Open work is cut into **pieces**: **S** is about 20 minutes, **M** about
 pieces" in `AGENTS.md`. Take the first unticked piece. Cut a phase into
 pieces when you reach it.
 
-## The yardstick: a step up from flow
+## The yardstick: a step up from every editor compared
 
-[flow](https://flow-control.dev) (Flow Control) is the Zig terminal editor
-neocaca is measured against. A step up means two things: whatever a flow
-user relies on works in neocaca too, and wherever both do something,
-neocaca does it measurably better (faster, safer, or on more terminals).
-What flow does comes from its README, its manual
-(<https://flow-control.dev/docs/help/>) and its devlog, as of release
-0.7.2 and the October 2026 devlog, and from running it. As everywhere,
-the clean-room policy holds: its user-facing documentation and its
-behavior, never its source.
+neocaca is compared with five terminal editors: Kakoune and Helix, which
+share its selection-first model; Neovim and Vim, the most widely used
+modal editors; and [flow](https://flow-control.dev), another editor
+written in Zig. A step up means two things: whatever a user of any of
+them relies on works in neocaca too, and wherever neocaca and another
+editor both do something, neocaca does it measurably better (faster, in
+less memory, safer, or on more terminals). What each editor does comes
+from its user-facing documentation (manuals, key references, release
+notes) and from running it, as of Kakoune 2026.05.21, Helix 25.07.1,
+Neovim 0.12.6, Vim 9.2 and flow 0.7.2 with its development build of
+2026-11-13. As everywhere, the clean-room policy holds: their
+documentation and their behavior, never their source.
+
+**Features.** "Plugin" means through a plugin or an outside program, not
+built in.
+
+| | neocaca | Kakoune | Helix | Neovim | Vim | flow |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Selections as the editing model (split, filter, rotate) | yes | yes | yes | no | no | no (its manual: multiple cursors, without selection operations) |
+| Registers | yes | yes | yes | yes | yes | no (its manual) |
+| Macros | no | yes | yes | yes | yes | no (its manual) |
+| Syntax highlighting | no | yes | yes | yes | yes | yes |
+| Language servers | no | plugin | yes | yes | plugin | yes |
+| Several buffers | no | yes | yes | yes | yes | yes |
+| Splits | no | through its clients | yes | yes | yes | vertical |
+| Mouse | no | yes | yes | yes | yes | yes |
+| System clipboard | no | plugin | yes | yes | yes | yes |
+| Persistent undo | no | no | no | yes | yes | in development |
+| Scripting or plugins | no | yes | no | yes | yes | no |
+| Integrated terminal | no | no | no | yes | yes | yes |
+| Files past 256 MiB | no | yes | yes | yes | yes | yes |
+| Shipped with bounds checks | yes (ReleaseSafe) | no (C++) | yes (Rust) | no (C) | no (C) | no (its README builds `-Doptimize=fast`) |
+| Any terminal as it is (16 colors, no icon font) | yes | yes | yes | yes | yes | no (asks for 24-bit color and a Nerd Font) |
+| Windows | no | no | yes | yes | yes | yes |
 
 **Already ahead.**
 
-- **Ships with safety checks on.** flow's README builds it with
-  `-Doptimize=fast`; neocaca ships ReleaseSafe, with bounds and overflow
-  checks in the build users run.
-- **Runs on any terminal as it is.** flow asks for 24-bit color and a Nerd
-  Font; neocaca's default theme uses the sixteen basic colors and draws no
-  icon glyphs.
-- **Selections are the editing model.** flow's manual says its Helix mode
-  lacks selection operations, registers and macros, and its Vim mode lacks
-  macros and registers. neocaca splits, filters, rotates and narrows
-  selections, with registers.
+- **Selections are the editing model, and the fastest.** Of the editors
+  that have them, neocaca makes 10,000 selections and types at them
+  fastest ("Measured"); Vim and Neovim have none, and flow's manual says
+  its Helix mode lacks selection operations, registers and macros.
+- **Ships with safety checks on.** Only Helix is also built with bounds
+  checks; Kakoune, Neovim and Vim are C and C++, and flow ships
+  ReleaseFast.
+- **Starts and opens small files fastest:** a first frame in under 1 ms,
+  a 1 MiB file in 2.2 ms, a 10 MiB line in 10 ms ("Measured").
+- **Runs on any terminal as it is,** as Kakoune, Helix, Neovim and Vim do;
+  flow asks for 24-bit color and a Nerd Font.
 
 **Still behind.** Each gap is a roadmap item below:
 
-| flow has | neocaca's item |
-|----------|----------------|
-| Tree-sitter highlighting for more than 95 languages, a forced language | Phase 3: syntax highlighting |
-| LSP: completion, hover, definitions, references, symbols, diagnostics, formatting | Phase 3: language server client |
-| Tabs, vertical splits, a centered view | Phase 2: multiple buffers; Phase 4: splits |
-| Mouse on every element, scrollbars, animated scrolling | Phase 2: mouse; Phase 4: scrollbars |
-| Command palette and key hints | Phase 2: key hints; Phase 4: command palette |
-| Clipboard history | Phase 2: system clipboard |
-| Files past 256 MiB (it opens 1 GiB in 44 s, in 7.1 GiB) | Phase 2: large files |
-| Less memory at startup (7.7 MiB, neocaca 11.0) | Phase 2: startup memory |
-| Smart-case search | Phase 2: smart-case search |
-| Paragraph reflow | Phase 2: reflow |
-| `file:line` and `+line` on the command line | Phase 2: command line |
-| Git change markers and blame | Phase 3: git |
-| Session save every two minutes, restore after a crash | Phase 4: session restore |
-| Restart under sudo to save root-owned files | Phase 4: saving files you cannot write |
-| Many themes, VS Code themes imported | Phase 4: themes |
-| The kitty text sizing protocol | Phase 4: kitty text sizing |
-| Android (termux) | Phase 4: termux |
-| Windows | Not planned: neocaca is POSIX only |
-| Vim, Helix, Emacs and VS Code key modes | Not planned: one modal model done well, with `:map` |
-| An integrated terminal, remote control over a socket | Phase 4: decide whether neocaca wants them |
+| Gap | Who has it | neocaca's item |
+|-----|------------|----------------|
+| Syntax highlighting (Tree-sitter in Helix, Neovim and flow) | all five | Phase 3: syntax highlighting |
+| Language servers: completion, hover, definitions, references, diagnostics, formatting | Helix, Neovim, flow; Kakoune and Vim by plugin | Phase 3: language server client |
+| Several buffers | all five | Phase 2: multiple buffers |
+| Splits and windows, a centered view | Helix, Neovim, Vim, flow; Kakoune through its clients | Phase 4: splits |
+| Mouse, scrollbars | all five; scrollbars in flow | Phase 2: mouse; Phase 4: scrollbars |
+| Macros | Kakoune, Helix, Neovim, Vim | Phase 2: macros |
+| Key hints and a command palette | Kakoune and Helix (hints), flow (both) | Phase 2: key hints; Phase 4: command palette |
+| System clipboard, clipboard history | Helix, Neovim, Vim, flow (history) | Phase 2: system clipboard |
+| Files past 256 MiB | all five ("Measured") | Phase 2: large files |
+| Less memory (startup, files, selections) | Kakoune at startup, on 1 MiB, a 10 MiB line and 10,000 selections; Helix and Vim on 100 MiB ("Measured") | Phase 2: memory |
+| A key answered faster, 100 MiB opened faster | Vim (keys), Helix (100 MiB) ("Measured") | Phase 2: speed |
+| Smart-case search | Helix, Neovim, Vim, flow | Phase 2: smart-case search |
+| Paragraph reflow | Helix, Neovim, Vim, flow | Phase 2: reflow |
+| `file:line` and `+line` on the command line | all five | Phase 2: command line |
+| Git change markers and blame | Helix, flow; the others by plugin | Phase 3: git |
+| Persistent undo, session restore | Neovim and Vim (undo files, sessions), flow (sessions) | Phase 4: persistent undo; session restore |
+| Restart under sudo to save root-owned files | flow | Phase 4: saving files you cannot write |
+| Scripting and plugins | Kakoune, Neovim, Vim | Phase 4: plugins |
+| Many themes | all five; VS Code themes imported in flow | Phase 4: themes |
+| The kitty text sizing protocol | flow | Phase 4: kitty text sizing |
+| Android (termux) | all five | Phase 4: termux |
+| An integrated terminal, remote control | Neovim, Vim, flow; Kakoune's clients | Phase 4: decide whether neocaca wants them |
+| Windows | Helix, Neovim, Vim, flow | Not planned: neocaca is POSIX only |
+| Several key modes (Vim, Helix, Emacs) | flow | Not planned: one modal model done well, with `:map` |
 
-**Ahead on paper only, until it ships.** Persistent undo is still in
-development in flow (its README roadmap); neocaca's undo tree and
-persistent undo would beat it once they land (Phase 2 and Phase 4).
+**Measured.** `zig build compare -Deditors=kak,hx,nvim,vim,flow` runs
+neocaca and the editors listed on a 120x40 pseudo-terminal with the same
+files and answers the queries a terminal would (x86_64 Linux, 2026-11-15:
+neocaca's ReleaseSafe build, the others as Arch Linux packages them,
+flow from its development build, each without user configuration;
+medians, with p90 and max). A frame is timed to its last byte, once the
+screen has been quiet for 60 ms:
 
-**Measured.** `zig build compare -Deditors=flow=<path>` runs both editors on a
-120x40 pseudo-terminal with the same files and answers the queries a
-terminal would (x86_64 Linux, neocaca's ReleaseSafe build against flow
-0.7.2's release binary at its default frame rate; medians, with p90 and
-max). A frame is timed to its last byte, once the screen has been quiet
-for 60 ms:
+| | neocaca | kakoune | helix | neovim | vim | flow |
+|---|---:|---:|---:|---:|---:|---:|
+| startup to first frame (10 runs) | 0.99 ms (p90 1.18 ms, max 1.23 ms) | 1.78 ms (p90 1.92 ms, max 2.11 ms) | 16.4 ms (p90 20.5 ms, max 21.1 ms) | 13.4 ms (p90 14.2 ms, max 21.2 ms) | 10.7 ms (p90 11.2 ms, max 12.6 ms) | 31.7 ms (p90 31.8 ms, max 49.7 ms) |
+| memory at startup | 11.2 MiB | 6.7 MiB | 20.7 MiB | 9.7 MiB* | 19.2 MiB | 22.6 MiB |
+| keypress to frame (200 Down, 1 MiB file) | 0.62 ms (p90 0.68 ms, max 0.74 ms) | 50.6 ms† (p90 50.7 ms, max 50.8 ms) | 0.99 ms (p90 1.12 ms, max 2.55 ms) | 0.71 ms (p90 0.83 ms, max 26.9 ms) | 0.40 ms (p90 0.48 ms, max 0.60 ms) | 302.4 ms† (p90 302.9 ms, max 303.2 ms) |
+| open 1 MiB (5 runs) | 2.23 ms (p90 2.47 ms, max 2.47 ms) | 3.24 ms (p90 3.69 ms, max 3.69 ms) | 18.0 ms (p90 18.5 ms, max 18.5 ms) | 15.1 ms (p90 16.0 ms, max 16.0 ms) | 12.2 ms (p90 12.6 ms, max 12.6 ms) | 44.5 ms (p90 45.1 ms, max 45.1 ms) |
+| memory, 1 MiB | 18.1 MiB | 9.0 MiB | 21.8 MiB | 9.5 MiB* | 20.6 MiB | 25.0 MiB |
+| open 100 MiB (3 runs) | 108.2 ms (p90 150.2 ms, max 150.2 ms) | 138.8 ms (p90 141.7 ms, max 141.7 ms) | 105.3 ms (p90 107.1 ms, max 107.1 ms) | 153.2 ms (p90 154.1 ms, max 154.1 ms) | 138.7 ms (p90 139.1 ms, max 139.1 ms) | 1.12 s (p90 1.16 s, max 1.16 s) |
+| memory, 100 MiB | 232.1 MiB | 259.8 MiB | 135.9 MiB | 9.6 MiB* | 134.8 MiB | 593.7 MiB |
+| open 1 GiB | refused | 1.45 s | 847.0 ms | 1.34 s | 1.27 s | 15.94 s |
+| memory, 1 GiB | refused | 2573.5 MiB | 1201.1 MiB | 9.7 MiB* | 1206.0 MiB | 5336.3 MiB |
+| open a 10 MiB line (3 runs) | 10.3 ms (p90 11.4 ms, max 11.4 ms) | 10.4 ms (p90 11.1 ms, max 11.1 ms) | 686.7 ms (p90 747.8 ms, max 747.8 ms) | 194.4 ms (p90 195.4 ms, max 195.4 ms) | 1.31 s (p90 1.33 s, max 1.33 s) | 134.5 ms (p90 157.6 ms, max 157.6 ms) |
+| memory, 10 MiB line | 28.0 MiB | 26.6 MiB | 32.2 MiB | 9.5 MiB* | 68.7 MiB | 63.6 MiB |
+| make 10,000 selections | 2.84 ms | 3.68 ms | 10.6 ms | not supported | not supported | 143.2 ms |
+| type at 10,000 selections: first key | 1.47 ms | 1.73 ms | 59.9 ms | not supported | not supported | 2.92 s |
+| type at 10,000 selections: next 10 keys | 1.57 ms (p90 1.63 ms, max 1.67 ms) | 1.66 ms (p90 2.31 ms, max 2.72 ms) | 10.5 ms (p90 10.9 ms, max 34.9 ms) | not supported | not supported | 579.4 ms (p90 606.8 ms, max 608.9 ms) |
+| memory, 10,000 selections | 55.8 MiB | 16.6 MiB | 27.1 MiB | not supported | not supported | 197.8 MiB |
 
-| | neocaca | flow |
-|---|---:|---:|
-| startup to first frame (10 runs) | 3.37 ms (p90 6.77 ms, max 49.8 ms) | 13.3 ms (p90 19.4 ms, max 19.7 ms) |
-| memory at startup | 11.0 MiB | 7.7 MiB |
-| keypress to frame (200 Down, 1 MiB file) | 0.66 ms (p90 0.91 ms, max 4.29 ms) | 1.94 ms (p90 2.73 ms, max 33.4 ms) |
-| open 1 MiB (5 runs) | 7.26 ms (p90 64.3 ms, max 64.3 ms) | 19.9 ms (p90 20.4 ms, max 20.4 ms) |
-| memory, 1 MiB | 17.9 MiB | 15.6 MiB |
-| open 100 MiB (3 runs) | 403.0 ms (p90 1.34 s, max 1.34 s) | 875.9 ms (p90 3.78 s, max 3.78 s) |
-| memory, 100 MiB | 231.9 MiB | 702.6 MiB |
-| open 1 GiB | refused | 43.61 s |
-| memory, 1 GiB | refused | 7091.5 MiB |
-| open a 10 MiB line (3 runs) | 17.1 ms (p90 18.5 ms, max 18.5 ms) | 94.7 ms (p90 188.1 ms, max 188.1 ms) |
-| memory, 10 MiB line | 27.8 MiB | 77.3 MiB |
-| make 10,000 selections | 4.81 ms | 93.2 ms |
-| type at 10,000 selections: first key | 2.18 ms | 1.24 s |
-| type at 10,000 selections: next 10 keys | 4.72 ms (p90 22.6 ms, max 26.9 ms) | 495.8 ms (p90 830.0 ms, max 887.7 ms) |
-| memory, 10,000 selections | 55.5 MiB | 152.3 MiB |
+\* Neovim's text lives in a child process its terminal interface starts,
+which the driver does not count yet; its memory rows are too low until
+it does (an item below).
+† Every one of the 200 keys takes the same time: the editor seems to
+draw again after the key, and the 60 ms wait for a quiet screen counts
+it. Not counted as lost or won until checked (an item below).
 
 The pass that closes each phase, and every pass before a release,
-measures again against flow's latest release and replaces this table
-("Against flow" in `docs/field-validation.md`); the aim is a table with no row
-neocaca loses. neocaca is ahead on time everywhere it runs, and on memory
-from 100 MiB up. It is behind in two places, each an item below: it refuses files
-past `max_file` (256 MiB), which flow opens (Phase 2: large files), and
-it starts in 3.3 MiB more memory (Phase 2: startup memory).
+measures again against the editors' current releases and replaces this
+table ("Against the other editors" in `docs/field-validation.md`); the
+aim is a table with no row neocaca loses to any of them. neocaca is
+fastest to start, to open small files and long lines, and with 10,000
+selections. It is behind in these rows, each an item below:
+
+- memory against Kakoune at startup, on small files, a long line and
+  10,000 selections, and on 100 MiB against Helix and Vim
+  (Phase 2: memory);
+- a key answered in 0.62 ms to Vim's 0.40, and 100 MiB opened in 108 ms
+  to Helix's 105 (Phase 2: speed);
+- files past `max_file` (256 MiB), which all five open (Phase 2: large
+  files).
+
+The first measurement, against flow alone (0.7.2's release binary,
+2026-10-23), is kept in the history of this file.
 
 - **PR: measured against flow.**
-  - [x] M: `zig build compare -Dflow=<path>` runs both editors on a
-        pseudo-terminal with the same files and reports, for each: startup
-        to the first frame, keypress to frame, open time and peak memory on
-        1 MB, 100 MB and 1 GB files, a 10 MB single line, and 10,000
-        selections. The numbers are in the table above.
+  - [x] M: `zig build compare -Dflow=<path>` (now `-Deditors=flow=<path>`)
+        runs both editors on a pseudo-terminal with the same files and
+        reports, for each: startup to the first frame, keypress to frame,
+        open time and peak memory on 1 MB, 100 MB and 1 GB files, a 10 MB
+        single line, and 10,000 selections.
 
 ## Phase 0: foundations
 
@@ -476,7 +520,7 @@ Safety first, then the biggest daily gains.
         arguments and keys (`compare/editors.zig`), and alone with no
         list; an editor without multiple selections reads "not
         supported" in their rows
-  - [ ] M: "The yardstick" becomes a comparison with every editor
+  - [x] M: "The yardstick" becomes a comparison with every editor
         listed: a feature table with a column per editor (from their
         user documentation and by running them), the "Measured" table
         with a column per editor, and `README.md`, `AGENTS.md`,
@@ -486,6 +530,10 @@ Safety first, then the biggest daily gains.
         terminal interface keeps its text in a child process, so the
         first run measured 9.4 MiB for it with 1 GiB open (sum the
         peak of each descendant, and test the sum on a scripted tree)
+  - [ ] S: keypress rows checked where every key takes the same time
+        (Kakoune 50.6 ms, flow 302 ms on 2026-11-15): find with
+        `--trace` what each draws after the key, and time the frame
+        that answers it rather than the redraws after, or say why not
 - **PR: multiple buffers.** `app::Editor` holds one `Document` today;
   splits build on this.
   - [ ] M: a list of documents with a current index, each keeping its
@@ -503,6 +551,10 @@ Safety first, then the biggest daily gains.
 - **PR: reflow**
   - [ ] S: rewrap the selected paragraphs to a width, keeping their line
         prefix (indentation, `//`, `#`, `>`)
+- **PR: macros.** Kakoune, Helix, Neovim and Vim record keys into a
+  register and replay them ("Still behind").
+  - [ ] M: record the keys typed into a register, replay them with a
+        count, as one undo step; the keys chosen in `docs/keys.md` first
 - **PR: mouse**
   - [ ] M: click to place a selection, drag to extend
   - [ ] S: wheel to scroll
@@ -535,14 +587,23 @@ Safety first, then the biggest daily gains.
         not change
   - [ ] S: the benchmark again, with the numbers in the PR
   - [ ] M: open files past `max_file` (256 MiB, so a 1 GiB file is
-        refused today; flow opens it in 44 s and 7.1 GiB, see "Measured"),
-        with the new limit tested at it and one past it, and the
-        `zig build compare` row again
-- **PR: startup memory.** neocaca starts in 11.0 MiB, flow in 7.7 MiB,
-  and holds a 1 MiB file in 17.9 MiB to flow's 15.6 ("Measured").
-  - [ ] S: find where the 11 MiB goes (mimalloc's reservations, the two
-        screens, the line index) and cut what is not needed, measured with
-        `zig build compare`
+        refused today; Helix opens it in 0.85 s and 1.2 GiB, Vim in
+        1.3 s and 1.2 GiB, see "Measured"), with the new limit tested at
+        it and one past it, and the `zig build compare` row again
+- **PR: memory.** Kakoune uses less memory at startup, on 1 MiB, on a 10 MiB
+  line and with 10,000 selections; Helix and Vim on 100 MiB ("Measured").
+  - [ ] S: startup: find where the 11.2 MiB goes (mimalloc's
+        reservations, the two screens, the line index; Kakoune starts in
+        6.7) and cut what is not needed, measured with `zig build compare`
+  - [ ] S: selections: 10,000 take 55.8 MiB to Kakoune's 16.6 and
+        Helix's 27.1; find what each selection costs and cut it
+  - [ ] S: files: 100 MiB held in 232 MiB, to Helix's and Vim's 135 (no
+        second copy of the text, a smaller line index)
+- **PR: speed.** The rows of "Measured" another editor wins on time.
+  - [ ] S: a key answered in 0.62 ms to Vim's 0.40: profile one Down on
+        the 1 MiB file and cut what a frame does that it need not
+  - [ ] S: 100 MiB opened in 108 ms to Helix's 105: profile the load
+        (reading, the line index, the first frame)
 - **PR: grapheme clusters per UAX #29** (emoji ZWJ sequences, regional
   indicators) instead of code point and combining marks. Under tmux,
   which draws a ZWJ sequence or an emoji with its skin tone as one
@@ -564,9 +625,9 @@ Safety first, then the biggest daily gains.
         file, in ReleaseSafe, reported on every run
 - **PR: the field validation pass that closes Phase 2**
   - [ ] M: every scenario of `docs/field-validation.md`, with those Phase 2 added
-  - [ ] S: against flow's latest release ("Against flow" in
-        `docs/field-validation.md`): "Measured" and "Still behind" redone, an
-        item for every row neocaca loses
+  - [ ] S: against the other editors' current releases ("Against the other
+        editors" in `docs/field-validation.md`): "Measured", "Features" and
+        "Still behind" redone, an item for every row neocaca loses
 
 ## Phase 3: code awareness
 
@@ -589,7 +650,7 @@ Safety first, then the biggest daily gains.
       current line, off the loop
 - [ ] Auto-pairing of brackets and quotes
 - [ ] The field validation pass that closes Phase 3 (`docs/field-validation.md`), with
-      its measurement against flow
+      its measurement against the other editors
 
 ## Phase 4: polish
 
@@ -635,8 +696,8 @@ Safety first, then the biggest daily gains.
         Debian and RPM packages from the static musl builds, a Homebrew
         formula and an Arch PKGBUILD, each built and installed in CI; a
         field validation pass with the 1 GB log (`BIG=1`) and the
-        measurement against flow before every major release
+        measurement against the other editors before every major release
   - [ ] S: the release builds laid out by BOLT, as `make
         optimized-install` lays out the local one
 - [ ] The field validation pass that closes Phase 4 (`docs/field-validation.md`), with
-      its measurement against flow
+      its measurement against the other editors

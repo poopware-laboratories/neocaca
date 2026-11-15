@@ -14,15 +14,15 @@ encountered is recorded.
 
 **Contents:** [When a pass is due](#when-a-pass-is-due) ·
 [Preparation](#preparation) · [The scenarios](#the-scenarios) ·
-[Against flow](#against-flow) · [Reporting](#reporting) · [Log](#log)
+[Against the other editors](#against-the-other-editors) · [Reporting](#reporting) · [Log](#log)
 
 ## When a pass is due
 
 A pass is a roadmap piece in its own right (size M, about an hour) and is
 listed in [`TODO.md`](../TODO.md). It is due:
 
-| Occasion | Scope | Measured against flow |
-|----------|-------|:---------------------:|
+| Occasion | Scope | Measured against the other editors |
+|----------|-------|:----------------------------------:|
 | Before a phase is marked complete; the last item of every phase is its pass | Every scenario | Yes |
 | Before every release | Every scenario | Yes |
 | After a piece that changes how files are opened, saved or shown | The scenarios that piece affects | No |
@@ -154,32 +154,35 @@ its roadmap item, and not reported again.
 > the same pull request, so that the next pass covers it. A scenario that
 > no longer applies is rewritten rather than left to become obsolete.
 
-## Against flow
+## Against the other editors
 
-neocaca aims to surpass [flow](https://flow-control.dev) in every
-respect, and that aim is a measurement, not an impression. Every pass that
-closes a phase, and every pass before a release, measures the two editors
-against each other; a short pass after a single piece does not.
+neocaca aims to surpass the terminal editors people use, Kakoune, Helix,
+Neovim, Vim and [flow](https://flow-control.dev), in every respect, and
+that aim is a measurement, not an impression. Every pass that closes a
+phase, and every pass before a release, measures neocaca beside all of
+them; a short pass after a single piece does not.
 
-1. **Run the comparison** against the binary of flow's latest release,
-   downloaded from its releases page with its checksum verified:
-   `zig build compare -Deditors=flow=path/to/flow`. Use the same machine as the
-   previous pass where possible. The command builds neocaca in
-   ReleaseSafe itself.
+1. **Run the comparison** against each editor's current release, as the
+   system packages it or, where it does not, downloaded from the
+   editor's releases page with its checksum verified:
+   `zig build compare -Deditors=kak,hx,nvim,vim,flow` (each `name=path`
+   when it is not on `PATH`). Use the same machine as the previous pass
+   where possible. The command builds neocaca in ReleaseSafe itself.
 2. **Replace the "Measured" table** in the yardstick section of
-   [`TODO.md`](../TODO.md) with the new figures and flow's version, and
-   state beneath it which rows changed since the previous pass, and why,
-   where known.
-3. **Update "Still behind"** from flow's user-facing documentation only
-   (its README, manual, devlog and release notes since the previous pass;
-   never its source code). A feature flow has added becomes a row with its
-   roadmap item; a feature neocaca has shipped moves to "Already ahead".
+   [`TODO.md`](../TODO.md) with the new figures and each editor's
+   version, and state beneath it which rows changed since the previous
+   pass, and why, where known.
+3. **Update "Features" and "Still behind"** from each editor's
+   user-facing documentation only (manuals, key references, release
+   notes since the previous pass; never source code) and from running
+   it. A feature another editor has added becomes a row with its roadmap
+   item; a feature neocaca has shipped moves to "Already ahead".
 4. **Give every lost row a roadmap item.** A measurement in which neocaca
-   is slower, uses more memory or refuses what flow opens, and any row
-   that worsened since the previous pass, becomes a piece in the current
-   phase under a "behind flow" pull request, unless an existing item
-   already covers it. A feature only flow offers receives its row in
-   "Still behind". A phase is not closed while a lost row lacks an item.
+   is slower than any other editor, uses more memory or refuses what it
+   opens, and any row that worsened since the previous pass, becomes a
+   piece in the current phase, unless an existing item already covers
+   it. A feature neocaca lacks receives its row in "Still behind". A
+   phase is not closed while a lost row lacks an item.
 
 ## Reporting
 
@@ -193,15 +196,16 @@ against each other; a short pass after a single piece does not.
   else on the roadmap.
 - **Every pass adds a row to the log** below, so that results can be
   compared across passes. Measurements are taken in ReleaseSafe on the
-  same corpus. The flow column names the flow release measured and the
-  number of rows of "Measured" that neocaca still loses, or "not run" for
-  a short pass.
+  same corpus. The column of the other editors names the editors and
+  versions measured and, for each, the number of rows of "Measured" that
+  neocaca still loses to it, or "not run" for a short pass.
 
 ## Log
 
-| Date | Phase | Open 100 MB / 50 MB | Typing (ms per key) | `%` `s` on the large file | Against flow | Findings |
-|------|-------|---------------------|---------------------|---------------------------|--------------|----------|
+| Date | Phase | Open 100 MB / 50 MB | Typing (ms per key) | `%` `s` on the large file | Against other editors | Findings |
+|------|-------|---------------------|---------------------|---------------------------|-----------------------|----------|
 | 2026-10-22 | 1 | 50 MB: under 1 s | 50 on 50 MB, instant on small files | 9.6 million selections, 5 s frozen, 830 MB | not run | 5 minor issues ([#12](https://github.com/poopware-laboratories/neocaca/pull/12)); this guide was written afterwards, from a hand-made corpus |
 | 2026-10-23 | 1 | 100 MB: 1.0 s, 231 MB | 100 on 100 MB, 35 on the 31 MB CSV, 50 there with 1000 cursors | `a`: 2.8 million selections, 1.5 s, 457 MB | not run | 1 crash (`SIGXFSZ`), 4 minor issues ([#14](https://github.com/poopware-laboratories/neocaca/pull/14)); tmux only, as a user other than root |
 | 2026-10-23 | 1 (short: 8, 9, 10) | not measured | not measured | not measured | not run | nothing new; the known overwrite of a file changed on disk (Phase 2) observed again ([#15](https://github.com/poopware-laboratories/neocaca/pull/15)); a fresh corpus, tmux, as a user other than root |
 | 2026-10-23 | 1 (flow only) | 100 MB: 403 ms, 232 MB | 0.66 on 1 MB | 10,000 selections: 4.8 ms, 2.2 ms for the first key | flow 0.7.2: 4 of 15 rows lost (memory at startup and on 1 MB, the 1 GB file refused) | the first measurement, without scenarios ([#16](https://github.com/poopware-laboratories/neocaca/pull/16)) |
+| 2026-11-15 | 2 (other editors only) | 100 MB: 108 ms, 232 MB | 0.62 on 1 MB | 10,000 selections: 2.8 ms, 1.5 ms for the first key | rows of 15 lost: Kakoune 2026.05.21 6, Helix 25.07.1 4, Vim 9.2 4, Neovim 0.12.6 2 (its memory not counted yet), flow 0.7.2 (development build of 2026-11-13) 2; the keypress rows of Kakoune and flow unconfirmed | the first measurement beside several editors, without scenarios |
