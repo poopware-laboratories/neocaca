@@ -1,39 +1,54 @@
 # Security policy
 
 An editor opens files it did not write, inside a terminal that obeys
-escape sequences. neocaca treats both as hostile. This page says what we
-protect against, what the limits are, and how to tell us when something
-gets through.
+escape sequences. neocaca treats both as hostile. This document describes
+the threats it defends against, the limits it enforces, and how to report
+a vulnerability.
+
+**Contents:** [Reporting a vulnerability](#reporting-a-vulnerability) ·
+[Supported versions](#supported-versions) ·
+[Untrusted input](#untrusted-input) ·
+[Defensive design](#defensive-design) ·
+[Out of scope](#out-of-scope)
 
 ## Reporting a vulnerability
 
-**Do not open a public issue for a security problem.** Report it
-privately through GitHub:
-[**Report a vulnerability**](https://github.com/poopware-laboratories/neocaca/security/advisories/new)
-(the *Security* tab, then *Report a vulnerability*).
+> [!CAUTION]
+> **Security problems must not be reported in public issues.** Report
+> them privately through GitHub:
+> [**Report a vulnerability**](https://github.com/poopware-laboratories/neocaca/security/advisories/new)
+> (the *Security* tab, then *Report a vulnerability*).
 
-If that form is not available to you, open an issue that only asks for a
-private contact, with no details of the problem.
+Where that form is unavailable, open an issue that asks only for a private
+contact and gives no details of the problem.
 
 A useful report includes:
 
 - what an attacker controls (a file's contents, its name, a symbolic
   link, bytes the terminal sends back) and what they gain;
-- the smallest file or key sequence that shows it, and the commit you
+- the smallest file or key sequence that demonstrates it, and the commit
   tested (`git rev-parse HEAD`);
-- your operating system, terminal emulator and build mode
-  (`-Doptimize=safe` is the build we ship).
+- the operating system, terminal emulator and build mode
+  (`-Doptimize=safe` is the shipped build).
 
-We will acknowledge the report, work on a fix in a private advisory, and
-credit you when the fix is published unless you ask us not to. Please give
-us a reasonable time to ship the fix before you disclose the problem.
+The process that follows a report:
+
+1. The report is acknowledged.
+2. A fix is prepared in a private security advisory.
+3. The fix is published, crediting the reporter unless they ask
+   otherwise.
+
+Reporters are asked to allow a reasonable time for the fix to ship before
+disclosing the problem.
 
 ## Supported versions
 
 neocaca has no releases yet. Fixes go to `main` only. Once releases exist,
 this section will list which ones receive security fixes.
 
-## What we treat as untrusted
+## Untrusted input
+
+Each kind of input below is assumed to be crafted by an attacker.
 
 | Input | What could go wrong | How neocaca handles it |
 |-------|---------------------|------------------------|
@@ -50,7 +65,7 @@ this section will list which ones receive security fixes.
 Every limit is a named `max_*` constant, tested at the limit and one past
 it.
 
-## How it is built to resist
+## Defensive design
 
 - **Safety checks stay on.** The shipped build is ReleaseSafe: bounds,
   integer overflow and unreachable-code checks remain on, so a bug stops
@@ -73,9 +88,12 @@ it.
 
 ## Out of scope
 
-- Anything that needs an attacker to run code as your user already, or to
-  change your build environment.
-- Bugs in your terminal emulator, unless neocaca sends it something that
-  came from a file.
-- Debug builds' crashes on assertions: those are bugs we want to hear
-  about, through an ordinary issue, unless they lead somewhere worse.
+The following are not treated as vulnerabilities:
+
+- attacks that require the attacker to run code as the user already, or
+  to modify the build environment;
+- defects in the terminal emulator itself, unless neocaca sends it
+  something that came from a file;
+- assertion failures in Debug builds. These are bugs and should be
+  reported through an ordinary issue, unless they lead to something more
+  serious.

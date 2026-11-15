@@ -199,7 +199,7 @@ test "status: a message too wide even without its path loses its start, never it
     try expectPathRow(10, "\"", "abc/def", "\" new file", "… new file");
 }
 
-test "status: the reasons of the dogfood pass stay at 30 columns" {
+test "status: the reasons of the field validation pass stay at 30 columns" {
     const missing = "\": no such file or directory";
     try expectPathRow(30, "cannot write \"", "a-very-long-dir/new.txt", missing, "…\": no such file or directory ");
     // A column more brings back the end of the start, and the path's own

@@ -1,18 +1,18 @@
 ---
-name: dogfooding
-description: Use when doing a neocaca dogfood pass (the last item of a phase, before a release, or after a piece that changes how files are opened, saved or shown), or when asked to try the editor on real work.
+name: field-validation
+description: Use when doing a neocaca field validation pass (the last item of a phase, before a release, or after a piece that changes how files are opened, saved or shown), or when asked to try the editor on real work.
 ---
 
-# A dogfood pass
+# A field validation pass
 
-`docs/dogfooding.md` is the reference: when a pass is due, the scenarios
+`docs/field-validation.md` is the reference: when a pass is due, the scenarios
 and how to report. This is how to run it without a screen.
 
 ## 1. Set up
 
 ```sh
 zig build -Doptimize=safe
-scripts/dogfood-corpus.sh "$SCRATCH/dogfood"   # an empty directory
+scripts/field-validation-corpus.sh "$SCRATCH/validation"   # an empty directory
 ```
 
 `$SCRATCH` is your scratch directory: the corpus never goes in the
@@ -22,7 +22,7 @@ repository.
 
 ```sh
 B="$PWD/zig-out/bin/neocaca"
-tmux new-session -d -s nc -x 80 -y 24 "cd $SCRATCH/dogfood && $B server.log; echo EXIT=\$?; sleep 600"
+tmux new-session -d -s nc -x 80 -y 24 "cd $SCRATCH/validation && $B server.log; echo EXIT=\$?; sleep 600"
 tmux send-keys -t nc -l '%'                # -l: the text as it is
 tmux send-keys -t nc Enter                 # named keys without -l
 tmux capture-pane -t nc -p                 # the screen as text (-e for colors)
@@ -53,20 +53,20 @@ The traps, each of which looks like an editor bug the first time:
   that these were not checked:
 
   ```sh
-  useradd -m dog && cp zig-out/bin/neocaca /home/dog/
-  runuser -u dog -- scripts/dogfood-corpus.sh /home/dog/dogfood
-  runuser -u dog -- tmux new-session -d -s nc -x 80 -y 24 "cd ~/dogfood && exec sh"
+  useradd -m tester && cp zig-out/bin/neocaca /home/tester/
+  runuser -u tester -- scripts/field-validation-corpus.sh /home/tester/validation
+  runuser -u tester -- tmux new-session -d -s nc -x 80 -y 24 "cd ~/validation && exec sh"
   ```
 
 - **A full disk is a small tmpfs** (as root): `mount -t tmpfs -o
-  size=64k,mode=0777 tmpfs /home/dog/full`, a file to edit in it, then
-  fill the rest with `dd if=/dev/zero of=/home/dog/full/filler`.
+  size=64k,mode=0777 tmpfs /home/tester/full`, a file to edit in it, then
+  fill the rest with `dd if=/dev/zero of=/home/tester/full/filler`.
 
 Memory: `ps -o rss= -C neocaca` while the scenario holds the state.
 
 ## 3. Work the scenarios
 
-Every scenario in `docs/dogfooding.md`, as tasks, plus what the phase
+Every scenario in `docs/field-validation.md`, as tasks, plus what the phase
 added. Note each surprise with its file, its keys from a fresh start,
 what happened and what should have.
 
@@ -79,14 +79,14 @@ empty directory under `$SCRATCH`, and run:
 zig build compare -Dflow="$SCRATCH/flow/flow"
 ```
 
-Then follow "Against flow" in `docs/dogfooding.md`: the "Measured" table
+Then follow "Against flow" in `docs/field-validation.md`: the "Measured" table
 in `TODO.md` replaced, "Still behind" updated from flow's documentation
 (never its source), and an item for every row neocaca loses.
 
 ## 5. Report
 
 - Each finding a `TODO.md` piece; numbers into the items they measure;
-  a line in the log of `docs/dogfooding.md`, its flow column included;
+  a line in the log of `docs/field-validation.md`, its flow column included;
   the pass ticked in `TODO.md`.
 - Crashes, lost data and raw bytes on the terminal go first, before any
   other piece.

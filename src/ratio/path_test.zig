@@ -27,7 +27,7 @@ test "path: the build script, benchmarks and everything not Zig are not counted"
     try expectEqual(.skip, path.rule("src/bench/pty.zig"));
     try expectEqual(.skip, path.rule("TODO.md"));
     try expectEqual(.skip, path.rule(".github/workflows/ci.yml"));
-    try expectEqual(.skip, path.rule("scripts/dogfood-corpus.sh"));
+    try expectEqual(.skip, path.rule("scripts/field-validation-corpus.sh"));
     try expectEqual(.skip, path.rule("src/x.zig.orig"));
 }
 

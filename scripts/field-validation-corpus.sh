@@ -1,18 +1,18 @@
 #!/bin/sh
-# Builds the files a dogfood pass edits (docs/dogfooding.md), the same
+# Builds the files a field validation pass edits (docs/field-validation.md), the same
 # bytes every time, in an empty directory.
 #
-#   scripts/dogfood-corpus.sh DIR          # about 170 MB
-#   BIG=1 scripts/dogfood-corpus.sh DIR    # also a 1 GB log
+#   scripts/field-validation-corpus.sh DIR          # about 170 MB
+#   BIG=1 scripts/field-validation-corpus.sh DIR    # also a 1 GB log
 #
 # POSIX sh and awk only. Run as a user who is not root, or the read-only
 # and unreadable files are not what they claim to be.
 set -eu
 
-dir=${1:?usage: dogfood-corpus.sh DIR}
+dir=${1:?usage: field-validation-corpus.sh DIR}
 repo=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$dir"
-[ -z "$(ls -A "$dir")" ] || { echo "dogfood-corpus.sh: $dir is not empty" >&2; exit 1; }
+[ -z "$(ls -A "$dir")" ] || { echo "field-validation-corpus.sh: $dir is not empty" >&2; exit 1; }
 cd "$dir"
 
 # Doubles a file until it reaches at least $2 bytes, then cuts it there
@@ -91,5 +91,5 @@ printf 'secret\n' >unreadable.txt
 chmod 000 unreadable.txt
 mkdir a-directory
 
-echo "dogfood corpus in $(pwd):"
+echo "validation corpus in $(pwd):"
 ls -la

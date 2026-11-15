@@ -92,7 +92,7 @@ for 60 ms:
 
 The pass that closes each phase, and every pass before a release,
 measures again against flow's latest release and replaces this table
-("Against flow" in `docs/dogfooding.md`); the aim is a table with no row
+("Against flow" in `docs/field-validation.md`); the aim is a table with no row
 neocaca loses. neocaca is ahead on time everywhere it runs, and on memory
 from 100 MiB up. It is behind in two places, each an item below: it refuses files
 past `max_file` (256 MiB), which flow opens (Phase 2: large files), and
@@ -136,7 +136,7 @@ Done on 2026-10-22.
 
 ## Phase 1: a usable modal editor
 
-Done on 2026-10-23, when the short pass of the second dogfood pass came
+Done on 2026-10-23, when the short pass of the second field validation pass came
 back clean and the change-on-disk fix it led to was in (#15).
 
 - [x] `unicode/`: UTF-8 decoding that never fails on invalid bytes, display
@@ -182,13 +182,13 @@ back clean and the change-on-disk fix it led to was in (#15).
       recovery file instead of dropping it
 - [x] `Alt-(` `Alt-)` rotate contents, `Alt-x` trim to lines, `Alt-j` join
       (`J` extends down; see `docs/keys.md`)
-- [x] A dogfood pass: real files edited in a ReleaseSafe build under
+- [x] A field validation pass: real files edited in a ReleaseSafe build under
       tmux (a Zig source file, the README, CRLF, BOM, control bytes, wide
       and combining characters, a 50 MB file, a 48 MB single line, a
       directory, a missing directory), resizes down to one cell, Ctrl-Z
       and `fg`. What it found is below or already in Phase 2; how a pass
-      is run from now on is in `docs/dogfooding.md`.
-- **PR: fixes from the dogfood pass**
+      is run from now on is in `docs/field-validation.md`.
+- **PR: fixes from the field validation pass**
   - [x] S: the view keeps its old scroll when the window grows, hiding
         lines above while the rows below stay empty (a 4-line file,
         resized to 5 rows and back to 8, showed lines 2 to 4). A taller
@@ -225,8 +225,8 @@ back clean and the change-on-disk fix it led to was in (#15).
         next verb acts on the old selection; say "no object here". It
         now says so, as an error, when no selection has the object
         around it; one found around any selection says nothing.
-- **PR: the dogfood pass that closes Phase 1**
-  - [x] M: every scenario of `docs/dogfooding.md` on its corpus, once the
+- **PR: the field validation pass that closes Phase 1**
+  - [x] M: every scenario of `docs/field-validation.md` on its corpus, once the
         fixes above are in; its findings become pieces, and Phase 1 is done
         when none of them is a crash, lost data or raw terminal bytes.
         Run on 2026-10-23 as a user who is not root, under tmux. It found
@@ -234,7 +234,7 @@ back clean and the change-on-disk fix it led to was in (#15).
         edges, all in the pull request below; nothing raw reached the
         terminal. The rest is already on the roadmap, with the numbers
         added to its items.
-- **PR: fixes from the second dogfood pass.** The crash goes first;
+- **PR: fixes from the second field validation pass.** The crash goes first;
   Phase 1 is done once this pull request is in and its short pass is
   clean.
   - [x] S: a save past the file size limit kills the editor. `ulimit -f 1`
@@ -275,7 +275,7 @@ back clean and the change-on-disk fix it led to was in (#15).
         `.unicode.txt.4efc61bb66dd3e91.tmp` beside the file, a hidden
         file keeping its one dot and a long name cut between characters
         to fit 255 bytes; one left by an earlier save is never touched.
-  - [x] S: the short pass: scenarios 8, 9 and 10 of `docs/dogfooding.md`
+  - [x] S: the short pass: scenarios 8, 9 and 10 of `docs/field-validation.md`
         again; Phase 1 is done when it finds no crash, lost data or raw
         terminal bytes. Run on 2026-10-23 on a fresh corpus, in ReleaseSafe
         as a user who is not root, under tmux. Nothing new: every path of
@@ -521,10 +521,10 @@ Safety first, then the biggest daily gains.
 - **PR: latency in CI**
   - [ ] S: a benchmark of keypress-to-frame time and startup on a large
         file, in ReleaseSafe, reported on every run
-- **PR: the dogfood pass that closes Phase 2**
-  - [ ] M: every scenario of `docs/dogfooding.md`, with those Phase 2 added
+- **PR: the field validation pass that closes Phase 2**
+  - [ ] M: every scenario of `docs/field-validation.md`, with those Phase 2 added
   - [ ] S: against flow's latest release ("Against flow" in
-        `docs/dogfooding.md`): "Measured" and "Still behind" redone, an
+        `docs/field-validation.md`): "Measured" and "Still behind" redone, an
         item for every row neocaca loses
 
 ## Phase 3: code awareness
@@ -547,7 +547,7 @@ Safety first, then the biggest daily gains.
 - [ ] Git: change markers in the gutter against `HEAD`, and blame for the
       current line, off the loop
 - [ ] Auto-pairing of brackets and quotes
-- [ ] The dogfood pass that closes Phase 3 (`docs/dogfooding.md`), with
+- [ ] The field validation pass that closes Phase 3 (`docs/field-validation.md`), with
       its measurement against flow
 
 ## Phase 4: polish
@@ -576,11 +576,11 @@ Safety first, then the biggest daily gains.
       against the file's contents before use, never trusted blindly)
 - [ ] Command palette: every `:` command and key action, searchable by
       name, showing its binding
-- [x] Local installs for everyday dogfooding: `make install` (ReleaseSafe
+- [x] Local installs for everyday use: `make install` (ReleaseSafe
       with LTO) and `make optimized-install` (also laid out by
       `llvm-bolt` from scripted sessions, `scripts/bolt.sh`)
-- [ ] Packaging and releases, each release after a dogfood pass with the
+- [ ] Packaging and releases, each release after a field validation pass with the
       1 GB log (`BIG=1`) and a measurement against flow; the release
       build takes the `Makefile`'s LTO and BOLT steps
-- [ ] The dogfood pass that closes Phase 4 (`docs/dogfooding.md`), with
+- [ ] The field validation pass that closes Phase 4 (`docs/field-validation.md`), with
       its measurement against flow
