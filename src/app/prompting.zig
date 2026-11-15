@@ -8,6 +8,7 @@ const input = @import("../input.zig");
 const regex = @import("../regex.zig");
 const commands = @import("commands.zig");
 const editor = @import("editor.zig");
+const requesting = @import("requesting.zig");
 
 const Editor = editor.Editor;
 const Error = editor.Error;
@@ -114,11 +115,8 @@ fn command(ed: *Editor, line: []const u8) Error!void {
         .none => {},
         .goto_line => |n| try selecting.move(&ed.doc, .{ .line = n }, 1, false, ed.options.tab_width),
         .quit => |q| {
-            if (!q.force and ed.doc.isSaving()) return stillWriting(ed);
-            if (!q.force and ed.doc.isModified()) {
-                ed.message.set(true, "unsaved changes; :q! discards them", .{});
-                return;
-            }
+            if (!q.force and ed.doc.isSaving()) return waitForSave(ed, .quit, null);
+            if (!q.force and ed.doc.isModified()) return requesting.unsaved(ed, .quit);
             ed.quit = true;
         },
         .write => |w| {
@@ -130,12 +128,10 @@ fn command(ed: *Editor, line: []const u8) Error!void {
             try ed.ask(.{ .save = .{ .path = path, .quit = w.quit, .force = w.force } });
         },
         .edit => |e| {
-            if (!e.force and ed.doc.isSaving()) return stillWriting(ed);
-            if (!e.force and ed.doc.isModified()) {
-                ed.message.set(true, "unsaved changes; :e! discards them", .{});
-                return;
-            }
-            try ed.ask(.{ .load = e.path orelse ed.path orelse return noFileName(ed) });
+            const path = e.path orelse ed.path orelse return noFileName(ed);
+            if (!e.force and ed.doc.isSaving()) return waitForSave(ed, .load, path);
+            if (!e.force and ed.doc.isModified()) return requesting.unsaved(ed, .load);
+            try ed.ask(.{ .load = path });
         },
         .map => |m| {
             var buf: [input.keyname.max_keys]input.Key = undefined;
@@ -153,9 +149,12 @@ fn command(ed: *Editor, line: []const u8) Error!void {
     }
 }
 
-/// Whether the text is saved is not known until the save in flight ends.
-fn stillWriting(ed: *Editor) void {
-    ed.message.set(true, "a save is still being written", .{});
+/// `:q` or `:e` during a save: whether the text is saved is known once
+/// the save is written, so it waits for that, unless the text changed
+/// since the save began.
+fn waitForSave(ed: *Editor, then: requesting.AfterSave, path: ?[]const u8) Error!void {
+    if (!ed.doc.savesCurrent()) return requesting.unsaved(ed, then);
+    try requesting.afterSave(ed, then, path);
 }
 
 fn noFileName(ed: *Editor) void {

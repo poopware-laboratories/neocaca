@@ -157,8 +157,13 @@ pub const Editor = struct {
     search: ?Regex = null,
     /// Set once the editor should exit.
     quit: bool = false,
-    /// A save that quits after it is being written: keys wait.
+    /// A save that quits, or that `after_save` waits for, is being
+    /// written: keys wait.
     quitting: bool = false,
+    /// What a `:q` or `:e` typed during a save does once it is written.
+    after_save: requesting.AfterSave = .nothing,
+    /// Owned storage for the path of an `:e` in `after_save`.
+    after_path: std.ArrayList(u8) = .empty,
     /// Ctrl-z was typed; see `takeSuspend`.
     suspending: bool = false,
     /// The screen size, for page scrolling.
@@ -188,6 +193,7 @@ pub const Editor = struct {
         if (self.path) |p| self.gpa.free(p);
         if (self.search) |*re| re.deinit();
         self.request_path.deinit(self.gpa);
+        self.after_path.deinit(self.gpa);
         self.rest.deinit(self.gpa);
         self.* = undefined;
     }

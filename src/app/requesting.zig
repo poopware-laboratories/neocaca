@@ -48,8 +48,37 @@ pub fn finishSave(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.dis
     saved(ed, s, result) catch ed.outOfMemory();
 }
 
+/// What a `:q` or `:e` typed during a save of the text as it was does
+/// once the save is written.
+pub const AfterSave = enum {
+    nothing,
+    quit,
+    load,
+
+    fn command(self: AfterSave) []const u8 {
+        return if (self == .quit) "q" else "e";
+    }
+};
+
+/// Does `then` (with `path` for a load, copied) once the save in flight
+/// is written; keys wait meanwhile.
+pub fn afterSave(ed: *Editor, then: AfterSave, path: ?[]const u8) error{OutOfMemory}!void {
+    ed.after_path.clearRetainingCapacity();
+    if (path) |p| try ed.after_path.appendSlice(ed.gpa, p);
+    ed.after_save = then;
+    ed.quitting = true;
+}
+
+/// Refuses `then` for the changes it would drop.
+pub fn unsaved(ed: *Editor, then: AfterSave) void {
+    ed.message.set(true, "unsaved changes; :{s}! discards them", .{then.command()});
+}
+
 fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) error{OutOfMemory}!void {
     ed.quitting = false;
+    // A failed save drops what waited for it, its message kept.
+    const after = ed.after_save;
+    ed.after_save = .nothing;
     const written = result catch |e| {
         ed.doc.endSave(false);
         const hint = if (e == error.ReadOnly or e == error.ChangedOnDisk or e == error.OtherLinks) "; :w! writes it anyway" else "";
@@ -65,6 +94,14 @@ fn saved(ed: *Editor, s: Request.Save, result: fs.file.SaveError!fs.disk.Disk) e
     if (same) ed.disk = written;
     ed.message.set(false, "\"{f}\" written, {d} line{s}", .{ editor.Message.path(s.path), s.lines, plural(s.lines) });
     if (s.quit) ed.quit = true;
+    if (after == .nothing) return;
+    // A save to another file leaves the changes unsaved.
+    if (ed.doc.isModified()) return unsaved(ed, after);
+    switch (after) {
+        .nothing => unreachable,
+        .quit => ed.quit = true,
+        .load => try ask(ed, .{ .load = ed.after_path.items }),
+    }
 }
 
 /// Says so when the open file, now `now` on disk, changed since it was

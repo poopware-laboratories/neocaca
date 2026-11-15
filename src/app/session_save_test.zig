@@ -117,18 +117,13 @@ test "session: a save asked for during another waits for it, then writes" {
     try expect(!s.ed.doc.isModified());
 }
 
-test "session: :e and :q during a save say so; :e! waits for it, then loads" {
+test "session: :e! during a save waits for it, then loads" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.writeFile(io, .{ .sub_path = "g", .data = "g\n" });
     var s: Session = try .init(gpa, io, tmp.dir, "f", 20, 5);
     defer s.deinit();
-    try feedKeys(&s, "ix\x1b:w\r:e g\r");
-    try expectEqualStrings("a save is still being written", s.ed.message.text());
-    try feedKeys(&s, ":q\r");
-    try expectEqualStrings("a save is still being written", s.ed.message.text());
-    try expect(!s.done());
-    try feedKeys(&s, ":e! g\r");
+    try feedKeys(&s, "ix\x1b:w\r:e! g\r");
     // The save was reported before the load began.
     try expectEqual(null, s.saving);
     s.settle();
