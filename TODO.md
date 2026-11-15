@@ -449,8 +449,17 @@ Safety first, then the biggest daily gains.
         `app/message.zig` (the editor is 342 lines), and the path tests
         to `fs/file_path_test.zig`.
 - **PR: soft wrap of long lines**
-  - [ ] M: wrapped line layout, pure and tested
-  - [ ] M: draw it, with the cursor and scrolling over wrapped lines
+  - [x] M: wrapped line layout, pure and tested (`ui/wrap.zig`): rows
+        break after the last blank before the edge, a longer word at
+        the edge; widths in characters and display columns, the line's
+        end takes a column, and a line over `max_line` (1 MiB) is one
+        row, scrolled sideways
+  - [ ] M: draw it, with the cursor and scrolling over wrapped lines:
+        `View` keeps a row within its top line, scroll-off and the page
+        keys count screen rows, continuation rows have a blank gutter,
+        and `j`/`k` still move by buffer line. On by default; `:wrap`
+        and `:nowrap` turn it on and off (`docs/keys.md`), with a
+        field-validation scenario
 - **PR: multiple buffers.** `app::Editor` holds one `Document` today;
   splits build on this.
   - [ ] M: a list of documents with a current index, each keeping its
